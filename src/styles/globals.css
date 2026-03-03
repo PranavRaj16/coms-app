@@ -1,55 +1,11 @@
-@import "tailwindcss";
-@plugin "tailwindcss-animate";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme inline {
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-sidebar-background: hsl(var(--sidebar-background));
-  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
-  --color-sidebar-primary: hsl(var(--sidebar-primary));
-  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
-  --color-sidebar-accent: hsl(var(--sidebar-accent));
-  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
-  --color-sidebar-border: hsl(var(--sidebar-border));
-  --color-sidebar-ring: hsl(var(--sidebar-ring));
-
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
-
-  --shadow-soft: 0 4px 20px hsl(var(--card-shadow));
-  --shadow-soft-lg: 0 8px 30px hsl(var(--card-hover-shadow));
-
-  --animate-shimmer: shimmer 2s infinite;
-
-  @keyframes shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-
-    100% {
-      transform: translateX(100%);
-    }
-  }
-}
+/* Cohort Office Management Design System
+   Modern, professional teal/emerald palette with warm accents
+   All colors in HSL format
+*/
 
 @layer base {
   :root {
@@ -109,6 +65,7 @@
     --login-bg-end: 173 58% 89%;
   }
 
+  /* Ocean Theme Override - Blue/Indigo */
   .theme-ocean {
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
@@ -124,6 +81,7 @@
     --muted-foreground: 215 25% 40%;
   }
 
+  /* Rose Theme Override - Vibrant Bright Rose */
   .theme-rose {
     --primary: 335 85% 55%;
     --primary-foreground: 0 0% 100%;
@@ -186,6 +144,7 @@
     --login-bg-end: 210 40% 8%;
   }
 
+  /* Dark mode variants for Ocean/Rose */
   .dark.theme-ocean {
     --primary: 217 91% 60%;
     --primary-foreground: 210 40% 6%;
@@ -233,12 +192,15 @@
 }
 
 @layer components {
+
+  /* Glass morphism effect */
   .glass {
     @apply backdrop-blur-md;
     background: hsl(var(--glass-bg));
     border: 1px solid hsl(var(--border));
   }
 
+  /* Hero gradient background */
   .hero-gradient {
     background: linear-gradient(135deg,
         hsl(var(--hero-gradient-start)) 0%,
@@ -251,6 +213,7 @@
         hsl(var(--login-bg-end)) 100%);
   }
 
+  /* Subtle gradient overlay for images */
   .image-overlay {
     background: linear-gradient(180deg,
         transparent 0%,
@@ -258,6 +221,7 @@
         hsl(var(--hero-gradient-end) / 0.75) 100%);
   }
 
+  /* Card with elegant shadow */
   .card-elevated {
     @apply bg-card rounded-xl border transition-all duration-300;
     box-shadow: 0 4px 20px hsl(var(--card-shadow));
@@ -268,12 +232,15 @@
     transform: translateY(-4px);
   }
 
+  /* Section container */
   .section-container {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 }
 
 @layer utilities {
+
+  /* Smooth text gradient */
   .text-gradient {
     @apply bg-clip-text text-transparent;
     background-image: linear-gradient(135deg,
@@ -281,6 +248,7 @@
         hsl(var(--accent)) 100%);
   }
 
+  /* Animated underline for links */
   .link-underline {
     @apply relative;
   }
@@ -294,6 +262,7 @@
     @apply scale-x-100;
   }
 
+  /* Fade in animation */
   .animate-fade-in {
     animation: fadeIn 0.6s ease-out forwards;
   }
@@ -317,6 +286,7 @@
     opacity: 0;
   }
 
+  /* Float animation */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
