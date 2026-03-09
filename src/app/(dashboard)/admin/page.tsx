@@ -277,7 +277,7 @@ const AdminDashboard = () => {
 
     const notifications = useMemo(() => {
         const allNotifications = [
-            ...quotes.map(q => ({
+            ...(Array.isArray(quotes) ? quotes.map(q => ({
                 id: q._id || "",
                 type: 'Quote',
                 title: 'New Quote Request',
@@ -287,8 +287,8 @@ const AdminDashboard = () => {
                 icon: UserPlus,
                 color: 'text-amber-500',
                 isRead: viewedNotifications.includes(`Quote-${q._id}`)
-            })),
-            ...bookings.map(b => ({
+            })) : []),
+            ...(Array.isArray(bookings) ? bookings.map(b => ({
                 id: b._id || "",
                 type: 'Booking',
                 title: 'New Booking Request',
@@ -298,8 +298,8 @@ const AdminDashboard = () => {
                 icon: Calendar,
                 color: 'text-indigo-500',
                 isRead: viewedNotifications.includes(`Booking-${b._id}`)
-            })),
-            ...visitRequests.map(v => ({
+            })) : []),
+            ...(Array.isArray(visitRequests) ? visitRequests.map(v => ({
                 id: v._id || "",
                 type: 'Visit',
                 title: 'New Visit Request',
@@ -309,8 +309,8 @@ const AdminDashboard = () => {
                 icon: Clock,
                 color: 'text-blue-500',
                 isRead: viewedNotifications.includes(`Visit-${v._id}`)
-            })),
-            ...contactRequests.map(c => ({
+            })) : []),
+            ...(Array.isArray(contactRequests) ? contactRequests.map(c => ({
                 id: c._id || "",
                 type: 'Contact',
                 title: 'New Contact Inquiry',
@@ -320,7 +320,7 @@ const AdminDashboard = () => {
                 icon: MessageSquare,
                 color: 'text-emerald-500',
                 isRead: viewedNotifications.includes(`Contact-${c._id}`)
-            }))
+            })) : [])
         ];
 
         return allNotifications
@@ -1184,7 +1184,7 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="grid lg:grid-cols-2 gap-8">
-                                <RecentUsersTable users={users.slice(0, 5)} />
+                                <RecentUsersTable users={(Array.isArray(users) ? users : []).slice(0, 5)} />
                                 <div className="card-elevated p-6 glass space-y-4">
                                     <h3 className="text-lg font-bold">Quick Actions</h3>
                                     <div className="grid grid-cols-2 gap-4">
@@ -2548,7 +2548,7 @@ const AdminDashboard = () => {
                             {requestSubView === "visits" && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                                     <VisitsTable
-                                        visits={visitRequests.filter(v =>
+                                        visits={(Array.isArray(visitRequests) ? visitRequests : []).filter(v =>
                                             (v.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                                             (v.workspaceName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                                             (v.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())

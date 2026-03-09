@@ -5,6 +5,7 @@ import Workspace from '@/models/Workspace';
 import QuoteRequest from '@/models/QuoteRequest';
 import ContactRequest from '@/models/ContactRequest';
 import BookingRequest from '@/models/BookingRequest';
+import VisitRequest from '@/models/VisitRequest';
 import { getAuthUser, authResponse } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -20,13 +21,14 @@ export async function GET(req: NextRequest) {
         const pendingQuotes = await QuoteRequest.countDocuments({ status: 'Pending' });
         const pendingBookings = await BookingRequest.countDocuments({ status: 'Pending' });
         const pendingContacts = await ContactRequest.countDocuments({ status: 'Pending' });
+        const pendingVisits = await VisitRequest.countDocuments({ status: 'Pending' });
 
         return NextResponse.json({
             totalUsers,
             activeMembers: 0, // Need logic if active members means something specific, otherwise 0
             newQuoteRequests: pendingQuotes,
             newBookingRequests: pendingBookings,
-            newVisitRequests: 0, // Placeholder
+            newVisitRequests: pendingVisits,
             totalWorkspaces,
             pendingContacts,
         });

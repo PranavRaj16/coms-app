@@ -18,21 +18,39 @@ async function connectDB() {
         return cached.conn;
     }
 
+    if (cached.promise) {
+        try {
+            await cached.promise;
+        } catch (error) {
+            console.log('Detected failed DB promise, clearing cache for retry...');
+            cached.promise = null;
+        }
+    }
+
     if (!cached.promise) {
         const opts = {
             bufferCommands: false,
         };
 
-        console.log('Connecting to MongoDB (using direct shard URI)...');
+        console.log(`[DB] Attempting connection. URI length: ${MONGODB_URI.length}`);
+
         cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-            console.log(`MongoDB Connected: ${mongoose.connection.host}`);
+            console.log(`[DB] Successfully connected to host: ${mongoose.connection.host}`);
             return mongoose;
         }).catch(err => {
-            console.error('Failed to connect to MongoDB:', err);
+            console.error('[DB] Connection Error:', err.message);
+            cached.promise = null; // Clear so next call can retry
             throw err;
         });
     }
-    cached.conn = await cached.promise;
+
+    try {
+        cached.conn = await cached.promise;
+    } catch (e) {
+        cached.promise = null;
+        throw e;
+    }
+
     return cached.conn;
 }
 

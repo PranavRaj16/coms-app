@@ -46,9 +46,9 @@ export async function POST(req: NextRequest) {
         // Generate QR Code
         const qrCodeData = await QRCode.toDataURL(passCode);
 
-        // Font Paths
-        const fontRegular = path.join(process.cwd(), 'src', 'fonts', 'Inter-Regular.ttf');
-        const fontBold = path.join(process.cwd(), 'src', 'fonts', 'Inter-Bold.ttf');
+        // Use a valid TTF from node_modules with absolute path to avoid resolver issues
+        const fontRegular = path.join(process.cwd(), 'node_modules', 'next', 'dist', 'compiled', '@vercel', 'og', 'noto-sans-v27-latin-regular.ttf');
+        const fontBold = fontRegular; // Fallback to same font for bold if no other ttf is found
 
         // Generate PDF
         const doc = new PDFDocument({

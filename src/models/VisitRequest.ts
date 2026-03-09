@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import './Workspace'; // Ensure Workspace model is registered for refs
 
 export interface IVisitRequest extends Document {
     workspaceId: mongoose.Types.ObjectId;

@@ -6,18 +6,26 @@ import { validateEmail, checkRequiredFields, validateMobile } from '@/utils/vali
 
 export async function GET(req: NextRequest) {
     try {
+        console.log('[API] GET /api/requests/visit - Connecting to DB');
         await connectDB();
+
+        console.log('[API] GET /api/requests/visit - Authenticating user');
         const user = await getAuthUser(req);
+        console.log('[API] GET /api/requests/visit - User:', user ? user.email : 'Anonymous', 'Role:', user ? user.role : 'N/A');
 
         let query = {};
         if (user && user.role !== 'Admin') {
             query = { email: user.email };
         }
 
+        console.log('[API] GET /api/requests/visit - Executing query:', JSON.stringify(query));
         const requests = await VisitRequest.find(query).sort({ createdAt: -1 });
+        console.log('[API] GET /api/requests/visit - Found', requests.length, 'requests');
+
         return NextResponse.json(requests);
     } catch (error: any) {
-        return NextResponse.json({ message: error.message }, { status: 500 });
+        console.error('[API] GET /api/requests/visit - Error:', error);
+        return NextResponse.json({ message: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }
 
@@ -25,6 +33,15 @@ export async function POST(req: NextRequest) {
     try {
         await connectDB();
         const body = await req.json();
+
+        // Dynamically fetch workspaceName if missing
+        if (body.workspaceId && !body.workspaceName) {
+            const Workspace = (await import('@/models/Workspace')).default;
+            const workspace = await Workspace.findById(body.workspaceId);
+            if (workspace) {
+                body.workspaceName = workspace.name;
+            }
+        }
 
         const requiredFields = ['fullName', 'email', 'contactNumber', 'visitDate', 'workspaceId', 'workspaceName'];
         const requiredError = checkRequiredFields(body, requiredFields);
@@ -43,6 +60,7 @@ export async function POST(req: NextRequest) {
         const createdRequest = await VisitRequest.create(body);
         return NextResponse.json(createdRequest, { status: 201 });
     } catch (error: any) {
-        return NextResponse.json({ message: error.message }, { status: 400 });
+        console.error('[API] POST /api/requests/visit - Error:', error);
+        return NextResponse.json({ message: error.message || 'Error creating visit request' }, { status: 500 });
     }
 }
