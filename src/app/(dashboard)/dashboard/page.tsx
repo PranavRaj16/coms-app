@@ -91,7 +91,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import cohortimage from "@/assets/cohort-logo.png";
-import { fetchMyWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices } from "@/lib/api";
+import { fetchMyWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice } from "@/lib/api";
 import { Workspace } from "@/data/workspaces";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
@@ -105,6 +105,8 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+
 
 
 interface Reply {
@@ -138,6 +140,10 @@ interface Post {
 type View = "dashboard" | "community" | "profile" | "workspace-details" | "bookings";
 
 const UserDashboard = () => {
+    const isAuth = (idOrObj: any, currentUserId: any) => {
+        const id = idOrObj?._id || idOrObj;
+        return id?.toString() === (currentUserId?._id || currentUserId)?.toString();
+    };
     const router = useRouter();
     const searchParams = useSearchParams();
     const currentView = ((searchParams?.get("view") ?? '') as View) || "dashboard";
@@ -1248,7 +1254,7 @@ const UserDashboard = () => {
                                                                                 </span>
                                                                             </div>
                                                                         </div>
-                                                                        {(post.author === userInfo?._id || userInfo?.role === 'Admin') && (
+                                                                        {(isAuth(post.author, userInfo?._id) || userInfo?.role === 'Admin') && (
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="icon"
@@ -1292,7 +1298,7 @@ const UserDashboard = () => {
                                                                                             <div className="bg-background p-3 rounded-2xl rounded-tl-none border border-border/50 shadow-sm relative group/comment">
                                                                                                 <div className="flex items-center justify-between gap-2 mb-1">
                                                                                                     <p className="text-[10px] font-black text-primary uppercase">{comment.userName}</p>
-                                                                                                    {(comment.user === userInfo?._id || userInfo?.role === 'Admin') && (
+                                                                                                    {(isAuth(comment.user, userInfo?._id) || isAuth(post.author, userInfo?._id) || userInfo?.role === 'Admin') && (
                                                                                                         <button
                                                                                                             onClick={() => handleDeleteComment(post._id, comment._id)}
                                                                                                             className="text-muted-foreground/40 hover:text-destructive transition-colors"
@@ -1754,16 +1760,17 @@ const UserDashboard = () => {
                                                 <thead>
                                                     <tr className="bg-muted/30 border-b border-border/50">
                                                         <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice ID</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Method</th>
+                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Period</th>
+                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Workspace</th>
                                                         <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Amount</th>
                                                         <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Action</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-border/30">
                                                     {invoices.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={5} className="px-8 py-20 text-center">
+                                                            <td colSpan={6} className="px-8 py-20 text-center">
                                                                 <div className="flex flex-col items-center gap-4 opacity-50">
                                                                     <Building2 className="w-12 h-12" />
                                                                     <p className="text-xl font-black italic">No invoices found</p>
@@ -1809,7 +1816,7 @@ const UserDashboard = () => {
 
                                                             return (
                                                                 <Fragment key={inv._id || i}>
-                                                                    <tr
+                                                                     <tr
                                                                         key={inv._id || i}
                                                                         className={`hover:bg-muted/10 transition-all cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
                                                                         onClick={() => setExpandedInv(isExpanded ? null : inv._id)}
@@ -1817,27 +1824,73 @@ const UserDashboard = () => {
                                                                         <td className="px-6 sm:px-8 py-5">
                                                                             <div className="flex items-center gap-3">
                                                                                 {isExpanded ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                                                                                <span className="font-mono font-bold text-primary">{inv.invoiceNumber}</span>
+                                                                                <div className="flex flex-col">
+                                                                                    <span className="font-mono font-bold text-primary text-xs">{inv.invoiceNumber}</span>
+                                                                                    {inv.type === 'recurring' && (
+                                                                                        <Badge className="mt-1 rounded-md px-2 py-0.5 text-[8px] bg-violet-500/10 text-violet-600 border-none font-black uppercase w-fit">
+                                                                                            Monthly
+                                                                                        </Badge>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
                                                                         </td>
                                                                         <td className="px-6 sm:px-8 py-5">
-                                                                            <span className="text-sm font-medium">{new Date(inv.createdAt).toLocaleDateString()}</span>
+                                                                            <div className="flex flex-col gap-0.5">
+                                                                                {inv.billingMonth ? (
+                                                                                    <span className="text-sm font-bold">
+                                                                                        {new Date(inv.billingMonth + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span className="text-sm font-medium">{new Date(inv.createdAt).toLocaleDateString()}</span>
+                                                                                )}
+                                                                                <span className="text-[10px] text-muted-foreground">Due: {new Date(inv.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                                                                            </div>
                                                                         </td>
                                                                         <td className="px-6 sm:px-8 py-5">
-                                                                            <div className="flex items-center gap-2">
-                                                                                <span className="text-xs font-bold text-muted-foreground uppercase">{inv.paymentMethod}</span>
-                                                                            </div>
+                                                                            <span className="text-sm font-bold">{inv.workspaceName}</span>
                                                                         </td>
                                                                         <td className="px-6 sm:px-8 py-5">
                                                                             <span className="text-sm font-black text-foreground">₹{(inv.amount || 0).toLocaleString()}</span>
                                                                         </td>
                                                                         <td className="px-6 sm:px-8 py-5">
                                                                             <Badge
-                                                                                className={`rounded-full px-4 py-1 text-[9px] font-black uppercase border-none shadow-sm ${inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-orange-500/10 text-orange-600'
-                                                                                    }`}
+                                                                                className={`rounded-full px-4 py-1 text-[9px] font-black uppercase border-none shadow-sm ${
+                                                                                    inv.status === 'Paid'
+                                                                                        ? 'bg-emerald-500/10 text-emerald-600'
+                                                                                        : inv.status === 'Cancelled'
+                                                                                        ? 'bg-destructive/10 text-destructive'
+                                                                                        : 'bg-orange-500/10 text-orange-600'
+                                                                                }`}
                                                                             >
                                                                                 {inv.status}
                                                                             </Badge>
+                                                                        </td>
+                                                                        <td className="px-6 sm:px-8 py-5" onClick={e => e.stopPropagation()}>
+                                                                            {inv.status === 'Pending' ? (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    className="rounded-xl gap-1.5 font-black text-[10px] h-8 px-4 bg-primary hover:bg-primary/90 shadow-sm"
+                                                                                    onClick={async () => {
+                                                                                        try {
+                                                                                            await payInvoice(inv._id);
+                                                                                            setInvoices(prev => prev.map((x: any) =>
+                                                                                                x._id === inv._id ? { ...x, status: 'Paid', paidDate: new Date().toISOString() } : x
+                                                                                            ));
+                                                                                            toast.success('Payment successful!');
+                                                                                        } catch (e: any) {
+                                                                                            toast.error(e.message || 'Payment failed');
+                                                                                        }
+                                                                                    }}
+                                                                                >
+                                                                                    Pay Now
+                                                                                </Button>
+                                                                            ) : inv.status === 'Paid' ? (
+                                                                                <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1">
+                                                                                    <CheckCircle2 className="w-3 h-3" /> Paid
+                                                                                </span>
+                                                                            ) : (
+                                                                                <span className="text-[10px] text-muted-foreground">—</span>
+                                                                            )}
                                                                         </td>
                                                                     </tr>
                                                                     {isExpanded && (
@@ -2258,11 +2311,19 @@ const UserDashboard = () => {
                     <div className="p-8 space-y-6">
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Planning to start from</Label>
-                            <Input
-                                type="date"
-                                className="h-12 rounded-xl bg-muted/30 border-border/50 font-bold"
-                                value={bookingParams.startDate}
-                                onChange={(e) => setBookingParams({ ...bookingParams, startDate: e.target.value })}
+                            <DateTimePicker
+                                date={bookingParams.startDate ? new Date(bookingParams.startDate + 'T00:00:00') : undefined}
+                                setDate={(date) => {
+                                    if (date) {
+                                        const y = date.getFullYear();
+                                        const m = String(date.getMonth() + 1).padStart(2, '0');
+                                        const d = String(date.getDate()).padStart(2, '0');
+                                        setBookingParams({ ...bookingParams, startDate: `${y}-${m}-${d}` });
+                                    } else {
+                                        setBookingParams({ ...bookingParams, startDate: '' });
+                                    }
+                                }}
+                                className="h-12 border-border/50 bg-muted/30 font-bold hover:bg-muted/50 transition-colors focus:ring-primary/20"
                             />
                         </div>
 

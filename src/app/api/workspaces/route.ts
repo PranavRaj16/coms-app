@@ -6,7 +6,7 @@ import { getAuthUser, authResponse } from '@/lib/auth';
 export async function GET() {
     try {
         await connectDB();
-        const workspaces = await Workspace.find({}).sort({ createdAt: -1 });
+        const workspaces = await Workspace.find({}).populate('allottedTo').sort({ allottedTo: 1, createdAt: -1 });
         return NextResponse.json(workspaces);
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });

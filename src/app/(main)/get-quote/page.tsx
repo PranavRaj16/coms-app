@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { submitQuoteRequest } from "@/lib/api";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 const GetQuote = () => {
     const [formData, setFormData] = useState({
@@ -288,10 +289,19 @@ const GetQuote = () => {
                                         <Calendar className="w-4 h-4 text-primary" />
                                         Planning to start
                                     </label>
-                                    <Input
-                                        type="date"
-                                        value={formData.startDate}
-                                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                    <DateTimePicker
+                                        date={formData.startDate ? new Date(formData.startDate + 'T00:00:00') : undefined}
+                                        setDate={(date) => {
+                                            if (date) {
+                                                const y = date.getFullYear();
+                                                const m = String(date.getMonth() + 1).padStart(2, '0');
+                                                const d = String(date.getDate()).padStart(2, '0');
+                                                setFormData({ ...formData, startDate: `${y}-${m}-${d}` });
+                                            } else {
+                                                setFormData({ ...formData, startDate: "" });
+                                            }
+                                        }}
+                                        showTime={false}
                                     />
                                 </div>
 

@@ -7,6 +7,7 @@ import { User, Mail, Phone, MessageSquare, QrCode, CheckCircle2, Loader2, Calend
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { submitDayPass } from "@/lib/api";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 const DayPassSection = () => {
     const [isLoading, setIsLoading] = useState(false);
@@ -172,14 +173,20 @@ const DayPassSection = () => {
                                                 <Label htmlFor="visitDate" className="text-[10px] font-black uppercase tracking-widest ml-1">Preferred Date of Visit</Label>
                                                 <div className="relative">
                                                     <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                    <Input
-                                                        id="visitDate"
-                                                        type="date"
-                                                        className="pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all"
-                                                        min={new Date().toISOString().split('T')[0]}
-                                                        value={formData.visitDate}
-                                                        onChange={(e) => setFormData({ ...formData, visitDate: e.target.value })}
-                                                        required
+                                                    <DateTimePicker
+                                                        date={formData.visitDate ? new Date(formData.visitDate + 'T00:00:00') : undefined}
+                                                        setDate={(date) => {
+                                                            if (date) {
+                                                                const y = date.getFullYear();
+                                                                const m = String(date.getMonth() + 1).padStart(2, '0');
+                                                                const d = String(date.getDate()).padStart(2, '0');
+                                                                setFormData({ ...formData, visitDate: `${y}-${m}-${d}` });
+                                                            } else {
+                                                                setFormData({ ...formData, visitDate: "" });
+                                                            }
+                                                        }}
+                                                        showTime={false}
+                                                        className="pl-9 bg-background/50 focus:bg-background border-border/50"
                                                     />
                                                 </div>
                                             </div>

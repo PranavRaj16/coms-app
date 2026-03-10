@@ -247,6 +247,24 @@ export const fetchInvoices = () =>
         headers: getAuthHeaders(),
     }).then(handleResponse);
 
+export const payInvoice = (id: string) =>
+    fetch(`${API_BASE_URL}/requests/invoices/${id}/pay`, {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+    }).then(handleResponse);
+
+export const generateMonthlyInvoices = () =>
+    fetch(`${API_BASE_URL}/requests/invoices/generate`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    }).then(handleResponse);
+
+export const resetMonthlyInvoices = () =>
+    fetch(`${API_BASE_URL}/requests/invoices`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+    }).then(handleResponse);
+
 // Post APIs
 export const fetchPosts = () =>
     fetch(`${API_BASE_URL}/posts`, {
@@ -315,4 +333,9 @@ export const addReply = (postId: string, commentId: string, data: any) =>
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
+    }).then(handleResponse);
+export const deleteReply = (postId: string, commentId: string, replyId: string) =>
+    fetch(`${API_BASE_URL}/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
     }).then(handleResponse);

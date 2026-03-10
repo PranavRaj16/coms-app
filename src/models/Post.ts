@@ -5,6 +5,7 @@ export interface IReply {
     user: mongoose.Types.ObjectId | string;
     userName: string;
     text: string;
+    replies?: IReply[];
     createdAt: Date;
 }
 
@@ -80,6 +81,27 @@ const postSchema: Schema = new Schema({
                         type: String,
                         required: true,
                     },
+                    replies: [
+                        {
+                            user: {
+                                type: mongoose.Schema.Types.ObjectId,
+                                ref: 'User',
+                                required: true,
+                            },
+                            userName: {
+                                type: String,
+                                required: true,
+                            },
+                            text: {
+                                type: String,
+                                required: true,
+                            },
+                            createdAt: {
+                                type: Date,
+                                default: Date.now,
+                            },
+                        }
+                    ],
                     createdAt: {
                         type: Date,
                         default: Date.now,

@@ -33,7 +33,11 @@ export async function PUT(
         }
 
         await post.save();
-        return NextResponse.json(comment);
+        const populatedPost = await Post.findById(post._id)
+            .populate('author', 'name role organization')
+            .populate('comments.user', 'name role organization')
+            .populate('comments.replies.user', 'name role organization');
+        return NextResponse.json(populatedPost);
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 400 });
     }

@@ -20,7 +20,7 @@ export async function DELETE(
 
         const isAdmin = user.role === 'Admin';
         if (post.author.toString() !== user._id.toString() && !isAdmin) {
-            return authResponse('Not authorized to delete this post', 401);
+            return authResponse('Not authorized to delete this post. Only the author or an admin can remove stories.', 401);
         }
 
         await post.deleteOne();

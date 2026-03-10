@@ -8,6 +8,7 @@ import {
     LogOut,
     Search,
     Filter,
+    Trash2,
     MoreHorizontal,
     CircleCheck,
     CircleX,
@@ -36,9 +37,12 @@ import {
     AlertCircle,
     Image as ImageIcon,
     Upload,
-    Pencil,
     Loader2,
-    QrCode
+    QrCode,
+    Pencil,
+    CreditCard,
+    FileText,
+    CheckCircle2
 } from "lucide-react";
 import {
     Table,
@@ -98,9 +102,12 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { formatDistanceToNow } from "date-fns";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { users as initialUsers, User } from "@/data/users";
 import { workspaces as initialWorkspaces, Workspace } from "@/data/workspaces";
 import cohortimage from "@/assets/cohort-logo.png";
+import { TablePagination } from "@/components/ui/table-pagination-custom";
+import { format } from "date-fns";
 import { toast } from "sonner";
 
 import {
@@ -124,13 +131,16 @@ import {
     updateBookingRequest as updateBookingRequestApi,
     fetchVisitRequests,
     updateVisitRequest as updateVisitRequestApi,
-    fetchDayPasses
+    fetchDayPasses,
+    generateMonthlyInvoices,
+    resetMonthlyInvoices,
+    fetchInvoices
 } from "@/lib/api";
 
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
 
-type View = "dashboard" | "users" | "workspaces" | "requests" | "contacts" | "daypasses" | "profile";
+type View = "dashboard" | "users" | "workspaces" | "requests" | "contacts" | "daypasses" | "profile" | "invoices";
 
 
 interface ContactRequest {
@@ -214,6 +224,9 @@ const AdminDashboard = () => {
     const [bookings, setBookings] = useState<BookingRequest[]>([]);
     const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
     const [dayPasses, setDayPasses] = useState<DayPassRequest[]>([]);
+    const [invoices, setInvoices] = useState<any[]>([]);
+    const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
+    const [isResettingInvoices, setIsResettingInvoices] = useState(false);
 
     const [userInfo, setUserInfo] = useState<any>(null);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -246,6 +259,20 @@ const AdminDashboard = () => {
     const [securityErrors, setSecurityErrors] = useState<{ [key: string]: string }>({});
     const [editUserErrors, setEditUserErrors] = useState<{ [key: string]: string }>({});
     const [editWorkspaceErrors, setEditWorkspaceErrors] = useState<{ [key: string]: string }>({});
+
+    // Pagination state
+    const [tablePages, setTablePages] = useState({
+        users: 1,
+        workspaces: 1,
+        quotes: 1,
+        bookings: 1,
+        visits: 1,
+        contacts: 1,
+        dayPasses: 1,
+        invoices: 1,
+        recentUsers: 1
+    });
+    const ITEMS_PER_PAGE = 8;
 
     // Image upload states
     const [workspaceImages, setWorkspaceImages] = useState<File[]>([]);
@@ -415,7 +442,7 @@ const AdminDashboard = () => {
 
     const loadData = useCallback(async (isAutoRefresh = false) => {
         try {
-            const [wsData, userData, statsData, quotesData, contactsData, bookingsData, visitsData, dayPassesData, freshProfile] = await Promise.all([
+            const [wsData, userData, statsData, quotesData, contactsData, bookingsData, visitsData, dayPassesData, invoicesData, freshProfile] = await Promise.all([
                 fetchWorkspaces().catch(() => []),
                 fetchUsers().catch(() => []),
                 fetchDashboardStats().catch(() => ({ totalUsers: 0, activeMembers: 0, newQuoteRequests: 0, newBookingRequests: 0, newVisitRequests: 0, revenueGrowth: "+0%" })),
@@ -437,6 +464,10 @@ const AdminDashboard = () => {
                 }),
                 fetchDayPasses().catch(err => {
                     console.error("Failed to fetch day passes:", err);
+                    return [];
+                }),
+                fetchInvoices().catch(err => {
+                    console.error("Failed to fetch invoices:", err);
                     return [];
                 }),
                 fetchUserProfile().catch(err => {
@@ -466,6 +497,7 @@ const AdminDashboard = () => {
             setBookings(bookingsData);
             setVisitRequests(visitsData);
             setDayPasses(dayPassesData);
+            setInvoices(invoicesData);
 
         } catch (error: any) {
             console.error("Failed to fetch dashboard data:", error);
@@ -941,6 +973,36 @@ const AdminDashboard = () => {
         { label: "New Bookings", value: (dashboardStats.newBookingRequests ?? 0).toString(), icon: Calendar, color: "text-indigo-500", bg: "bg-indigo-500/10" },
     ];
 
+    const handleGenerateInvoices = async () => {
+        setIsGeneratingInvoices(true);
+        try {
+            const data = await generateMonthlyInvoices();
+            toast.success(data.message || "Monthly invoices generated successfully!");
+            // Refresh data
+            loadData();
+        } catch (error: any) {
+            toast.error("Failed to generate invoices: " + error.message);
+        } finally {
+            setIsGeneratingInvoices(false);
+        }
+    };
+
+    const handleResetInvoices = async () => {
+        if (!confirm("Are you sure you want to clear all recurring invoices for the current month? This will allow you to generate them again.")) return;
+        
+        setIsResettingInvoices(true);
+        try {
+            const data = await resetMonthlyInvoices();
+            toast.success(data.message || "Monthly invoices cleared successfully!");
+            // Refresh data
+            loadData();
+        } catch (error: any) {
+            toast.error("Failed to clear invoices: " + error.message);
+        } finally {
+            setIsResettingInvoices(false);
+        }
+    };
+
     return (
         <SidebarProvider>
             <Sidebar collapsible="offcanvas" className="shadow-xl">
@@ -1008,6 +1070,17 @@ const AdminDashboard = () => {
                                     >
                                         <MessageSquare className="w-5 h-5" />
                                         <span className="group-data-[collapsible=icon]:hidden">Contact Inquiries</span>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                                <SidebarMenuItem>
+                                    <SidebarMenuButton
+                                        isActive={currentView === "invoices"}
+                                        onClick={() => setCurrentView("invoices")}
+                                        tooltip="Invoices"
+                                        className="group-data-[collapsible=icon]:justify-center"
+                                    >
+                                        <CreditCard className="w-5 h-5" />
+                                        <span className="group-data-[collapsible=icon]:hidden">Financial Statements</span>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
@@ -1184,7 +1257,12 @@ const AdminDashboard = () => {
                             </div>
 
                             <div className="grid lg:grid-cols-2 gap-8">
-                                <RecentUsersTable users={(Array.isArray(users) ? users : []).slice(0, 5)} />
+                                <RecentUsersTable
+                                    users={(Array.isArray(users) ? users : [])}
+                                    currentPage={tablePages.recentUsers}
+                                    onPageChange={(page) => setTablePages({ ...tablePages, recentUsers: page })}
+                                    itemsPerPage={5}
+                                />
                                 <div className="card-elevated p-6 glass space-y-4">
                                     <h3 className="text-lg font-bold">Quick Actions</h3>
                                     <div className="grid grid-cols-2 gap-4">
@@ -1199,10 +1277,77 @@ const AdminDashboard = () => {
                                             <UserPlus className="w-6 h-6" />
                                             Add Member
                                         </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="h-24 flex-col gap-2 rounded-2xl border-dashed hover:border-primary hover:bg-primary/5 hover:text-primary transition-all relative overflow-hidden group"
+                                            onClick={handleGenerateInvoices}
+                                            disabled={isGeneratingInvoices}
+                                        >
+                                            {isGeneratingInvoices ? (
+                                                <Loader2 className="w-6 h-6 animate-spin" />
+                                            ) : (
+                                                <FileText className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                            )}
+                                            <span className="text-center">Generate Invoices</span>
+                                            {isGeneratingInvoices && (
+                                                <div className="absolute inset-0 bg-primary/5 animate-pulse" />
+                                            )}
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
                         </>
+                    )}
+
+                    {currentView === "invoices" && (
+                        <div className="space-y-6 animate-in fade-in duration-500">
+                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 italic">
+                                        <CreditCard className="w-8 h-8 text-primary" />
+                                        Financial Statements
+                                    </h2>
+                                    <p className="text-muted-foreground font-medium text-sm mt-1">Audit and track ecosystem revenue streams.</p>
+                                </div>                                <div className="flex items-center gap-3">
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleResetInvoices}
+                                        disabled={isResettingInvoices}
+                                        className="rounded-2xl gap-2 font-bold border-destructive/20 text-destructive hover:bg-destructive/10 h-12 px-6"
+                                    >
+                                        {isResettingInvoices ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <>
+                                                <Trash2 className="w-5 h-5" />
+                                                Reset Current Month
+                                            </>
+                                        )}
+                                    </Button>
+                                    <Button
+                                        onClick={handleGenerateInvoices}
+                                        disabled={isGeneratingInvoices}
+                                        className="rounded-2xl gap-2 font-black shadow-xl shadow-primary/20 h-12 px-6"
+                                    >
+                                        {isGeneratingInvoices ? (
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                        ) : (
+                                            <>
+                                                <QrCode className="w-5 h-5" />
+                                                Generate All
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <InvoicesTable
+                                invoices={invoices}
+                                currentPage={tablePages.invoices}
+                                onPageChange={(page) => setTablePages({ ...tablePages, invoices: page })}
+                                itemsPerPage={ITEMS_PER_PAGE}
+                            />
+                        </div>
                     )}
 
                     {currentView === "users" && (
@@ -1406,6 +1551,9 @@ const AdminDashboard = () => {
                                     setIsEditUserDialogOpen(true);
                                 }}
                                 onDelete={handleDeleteUser}
+                                currentPage={tablePages.users}
+                                onPageChange={(page) => setTablePages({ ...tablePages, users: page })}
+                                itemsPerPage={ITEMS_PER_PAGE}
                             />
 
                             {/* Edit User Profile Modal */}
@@ -1970,10 +2118,13 @@ const AdminDashboard = () => {
                                     setIsEditWorkspaceDialogOpen(true);
                                 }}
                                 onDelete={handleDeleteWorkspace}
+                                currentPage={tablePages.workspaces}
+                                onPageChange={(page) => setTablePages({ ...tablePages, workspaces: page })}
+                                itemsPerPage={ITEMS_PER_PAGE}
                             />
 
                             <Dialog open={isAllotDialogOpen} onOpenChange={setIsAllotDialogOpen}>
-                                <DialogContent className="sm:max-w-[400px] rounded-2xl">
+                                <DialogContent className="sm:max-w-[400px] rounded-2xl max-h-[90vh] overflow-y-auto">
                                     <form onSubmit={handleAllotWorkspace} noValidate>
                                         <DialogHeader>
                                             <DialogTitle>Allot Workspace</DialogTitle>
@@ -1991,10 +2142,10 @@ const AdminDashboard = () => {
                                                     <SelectTrigger className="rounded-xl h-11">
                                                         <SelectValue placeholder="Unallotted" />
                                                     </SelectTrigger>
-                                                    <SelectContent className="rounded-xl">
-                                                        <SelectItem value="none">None (Unallotted)</SelectItem>
-                                                        {users.map(u => (
-                                                            <SelectItem key={u._id} value={u._id || ""}>
+                                                    <SelectContent className="max-h-[300px] overflow-y-auto">
+                                                        <SelectItem value="none">No User (Clear Allotment)</SelectItem>
+                                                        {users.map((u) => (
+                                                            <SelectItem key={u._id} value={u._id!}>
                                                                 {u.name} ({u.email})
                                                             </SelectItem>
                                                         ))}
@@ -2009,11 +2160,22 @@ const AdminDashboard = () => {
                                                             <Calendar className="w-4 h-4" />
                                                             Start Date
                                                         </Label>
-                                                        <Input
-                                                            type="datetime-local"
-                                                            className="rounded-xl h-11 border-primary/20 focus:ring-primary/10"
-                                                            value={allotmentStartDate}
-                                                            onChange={(e) => setAllotmentStartDate(e.target.value)}
+                                                        <DateTimePicker
+                                                            date={allotmentStartDate ? new Date(allotmentStartDate) : undefined}
+                                                            setDate={(date) => {
+                                                                if (date) {
+                                                                    const y = date.getFullYear();
+                                                                    const mo = String(date.getMonth() + 1).padStart(2, '0');
+                                                                    const d = String(date.getDate()).padStart(2, '0');
+                                                                    const h = String(date.getHours()).padStart(2, '0');
+                                                                    const mi = String(date.getMinutes()).padStart(2, '0');
+                                                                    setAllotmentStartDate(`${y}-${mo}-${d}T${h}:${mi}`);
+                                                                } else {
+                                                                    setAllotmentStartDate("");
+                                                                }
+                                                            }}
+                                                            showTime={true}
+                                                            className="border-primary/20 focus:ring-primary/10"
                                                         />
                                                         <p className="text-[10px] text-muted-foreground italic">
                                                             Mention when this booking starts.
@@ -2025,11 +2187,23 @@ const AdminDashboard = () => {
                                                             <Clock className="w-4 h-4" />
                                                             Unavailable Until
                                                         </Label>
-                                                        <Input
-                                                            type="datetime-local"
-                                                            className="rounded-xl h-11 border-destructive/20 focus:ring-destructive/10"
-                                                            value={unavailableUntilDate}
-                                                            onChange={(e) => setUnavailableUntilDate(e.target.value)}
+                                                        <DateTimePicker
+                                                            date={unavailableUntilDate ? new Date(unavailableUntilDate) : undefined}
+                                                            setDate={(date) => {
+                                                                if (date) {
+                                                                    const y = date.getFullYear();
+                                                                    const mo = String(date.getMonth() + 1).padStart(2, '0');
+                                                                    const d = String(date.getDate()).padStart(2, '0');
+                                                                    const h = String(date.getHours()).padStart(2, '0');
+                                                                    const mi = String(date.getMinutes()).padStart(2, '0');
+                                                                    setUnavailableUntilDate(`${y}-${mo}-${d}T${h}:${mi}`);
+                                                                } else {
+                                                                    setUnavailableUntilDate("");
+                                                                }
+                                                            }}
+                                                            showTime={true}
+                                                            className="border-destructive/20 focus:ring-destructive/10"
+                                                            placeholder="Indefinite / Further Notice"
                                                         />
                                                         <p className="text-[10px] text-muted-foreground italic">
                                                             Mention when this booking ends. Leave empty for "Further Notice".
@@ -2518,6 +2692,9 @@ const AdminDashboard = () => {
                                                 toast.error(`Failed to update status: ${err.message}`);
                                             }
                                         }}
+                                        currentPage={tablePages.quotes}
+                                        onPageChange={(page) => setTablePages({ ...tablePages, quotes: page })}
+                                        itemsPerPage={ITEMS_PER_PAGE}
                                     />
                                 </div>
                             )}
@@ -2541,6 +2718,9 @@ const AdminDashboard = () => {
                                                 toast.error(`Failed to update status: ${err.message}`);
                                             }
                                         }}
+                                        currentPage={tablePages.bookings}
+                                        onPageChange={(page) => setTablePages({ ...tablePages, bookings: page })}
+                                        itemsPerPage={ITEMS_PER_PAGE}
                                     />
                                 </div>
                             )}
@@ -2564,6 +2744,9 @@ const AdminDashboard = () => {
                                                 toast.error(`Failed to update status: ${err.message}`);
                                             }
                                         }}
+                                        currentPage={tablePages.visits}
+                                        onPageChange={(page) => setTablePages({ ...tablePages, visits: page })}
+                                        itemsPerPage={ITEMS_PER_PAGE}
                                     />
                                 </div>
                             )}
@@ -2605,6 +2788,9 @@ const AdminDashboard = () => {
                                         toast.error(`Failed to update status: ${err.message}`);
                                     }
                                 }}
+                                currentPage={tablePages.contacts}
+                                onPageChange={(page) => setTablePages({ ...tablePages, contacts: page })}
+                                itemsPerPage={ITEMS_PER_PAGE}
                             />
                         </div>
                     )}
@@ -2631,6 +2817,9 @@ const AdminDashboard = () => {
                                     p.passCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                     (p.email || "").toLowerCase().includes(searchTerm.toLowerCase())
                                 )}
+                                currentPage={tablePages.dayPasses}
+                                onPageChange={(page) => setTablePages({ ...tablePages, dayPasses: page })}
+                                itemsPerPage={ITEMS_PER_PAGE}
                             />
                         </div>
                     )}
@@ -2924,7 +3113,13 @@ const AdminDashboard = () => {
     );
 };
 
-function RecentUsersTable({ users }: { users: User[] }) {
+function RecentUsersTable({ users, currentPage, onPageChange, itemsPerPage }: {
+    users: User[],
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
+}) {
+    const paginatedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft">
             <div className="p-4 border-b flex justify-between items-center bg-muted/20">
@@ -2933,7 +3128,7 @@ function RecentUsersTable({ users }: { users: User[] }) {
             </div>
             <Table>
                 <TableBody>
-                    {users.map((user) => (
+                    {paginatedUsers.map((user) => (
                         <TableRow key={user._id || user.id} className="hover:bg-muted/10 border-none">
                             <TableCell>
                                 <div className="flex items-center gap-3">
@@ -2953,6 +3148,12 @@ function RecentUsersTable({ users }: { users: User[] }) {
                     ))}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={users.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -2960,12 +3161,19 @@ function RecentUsersTable({ users }: { users: User[] }) {
 function UsersTable({
     users,
     onEdit,
-    onDelete
+    onDelete,
+    currentPage,
+    onPageChange,
+    itemsPerPage
 }: {
     users: User[],
     onEdit: (user: User) => void,
-    onDelete: (id: string) => void
+    onDelete: (id: string) => void,
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
 }) {
+    const paginatedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft">
             <Table>
@@ -2982,7 +3190,7 @@ function UsersTable({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {users.map((user) => (
+                    {paginatedUsers.map((user) => (
                         <TableRow key={user._id || user.id} className="hover:bg-muted/20 transition-colors">
                             <TableCell>
                                 <div className="flex items-center gap-3">
@@ -2996,51 +3204,60 @@ function UsersTable({
                                 </div>
                             </TableCell>
                             <TableCell>
-                                <span className="text-sm font-medium">{user.mobile || "N/A"}</span>
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-semibold">{user.mobile || user.contactNumber || "N/A"}</span>
+                                    <span className="text-[10px] text-muted-foreground uppercase">{(user.mobile || user.contactNumber) ? "Mobile" : "No Contact"}</span>
+                                </div>
                             </TableCell>
                             <TableCell>
-                                <span className="text-sm font-medium">{user.organization || "Individual"}</span>
+                                <span className="text-xs font-medium italic text-primary/80">{user.organization || "Private Member"}</span>
                             </TableCell>
                             <TableCell>
-                                <Badge variant="outline" className="rounded-full font-medium">
-                                    {user.role}
+                                <Badge variant="secondary" className="rounded-lg text-[10px] font-black uppercase tracking-wider">{user.role}</Badge>
+                            </TableCell>
+                            <TableCell>
+                                <Badge
+                                    className={`rounded-full px-3 py-0.5 text-[10px] font-bold uppercase ${user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' :
+                                        user.status === 'Pending' ? 'bg-amber-500/10 text-amber-600' :
+                                            'bg-destructive/10 text-destructive'
+                                        }`}
+                                >
+                                    {user.status}
                                 </Badge>
                             </TableCell>
                             <TableCell>
-                                <div className="flex items-center gap-2">
-                                    {user.status === "Active" ? (
-                                        <CircleCheck className="w-4 h-4 text-emerald-500" />
-                                    ) : user.status === "Inactive" ? (
-                                        <CircleX className="w-4 h-4 text-destructive" />
-                                    ) : (
-                                        <Clock className="w-4 h-4 text-amber-500" />
-                                    )}
-                                    <span className="text-sm font-medium">{user.status}</span>
-                                </div>
+                                <span className="text-xs font-medium">{user.joinedDate ? new Date(user.joinedDate).toLocaleDateString() : "N/A"}</span>
                             </TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                                {user.joinedDate}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground text-sm italic">
-                                {user.lastActive}
+                            <TableCell>
+                                <span className="text-xs font-medium italic text-muted-foreground">{user.lastActive ? new Date(user.lastActive).toLocaleDateString() : "Never"}</span>
                             </TableCell>
                             <TableCell className="text-right">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                            <MoreHorizontal className="w-4 h-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="rounded-xl">
-                                        <DropdownMenuItem onClick={() => onEdit(user)}>Edit</DropdownMenuItem>
-                                        <DropdownMenuItem className="text-destructive" onClick={() => onDelete(user._id!)}>Delete</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-primary hover:bg-primary/5" onClick={() => onEdit(user)}>
+                                        <Pencil className="w-3.5 h-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/5" onClick={() => onDelete(user._id || user.id!)}>
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                </div>
                             </TableCell>
                         </TableRow>
                     ))}
+                    {paginatedUsers.length === 0 && (
+                        <TableRow>
+                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic font-medium">
+                                No members detected in this selection.
+                            </TableCell>
+                        </TableRow>
+                    )}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={users.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -3050,14 +3267,21 @@ function WorkspacesTable({
     users,
     onAllot,
     onEdit,
-    onDelete
+    onDelete,
+    currentPage,
+    onPageChange,
+    itemsPerPage
 }: {
     workspaces: Workspace[],
     users: User[],
     onAllot: (wsId: string, userId: string | null) => void,
     onEdit: (ws: Workspace) => void,
-    onDelete: (id: string) => void
+    onDelete: (id: string) => void,
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
 }) {
+    const paginatedWorkspaces = workspaces.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft">
             <Table>
@@ -3073,7 +3297,7 @@ function WorkspacesTable({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {workspaces.map((ws, i) => {
+                    {paginatedWorkspaces.map((ws, i) => {
                         if (!ws) return null;
                         const allottedUser = typeof ws.allottedTo === 'object' ? ws.allottedTo : null;
 
@@ -3127,11 +3351,30 @@ function WorkspacesTable({
                     })}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={workspaces.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
 
-function QuotesTable({ quotes, onUpdateStatus }: { quotes: QuoteRequest[], onUpdateStatus: (id: string, status: string) => void }) {
+function QuotesTable({
+    quotes,
+    onUpdateStatus,
+    currentPage,
+    onPageChange,
+    itemsPerPage
+}: {
+    quotes: QuoteRequest[],
+    onUpdateStatus: (id: string, status: string) => void,
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
+}) {
+    const paginatedQuotes = quotes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft">
             <Table>
@@ -3146,7 +3389,7 @@ function QuotesTable({ quotes, onUpdateStatus }: { quotes: QuoteRequest[], onUpd
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {quotes.length === 0 ? (
+                    {paginatedQuotes.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                                 <div className="flex flex-col items-center gap-2">
@@ -3156,12 +3399,18 @@ function QuotesTable({ quotes, onUpdateStatus }: { quotes: QuoteRequest[], onUpd
                             </TableCell>
                         </TableRow>
                     ) : (
-                        quotes.map((quote) => (
+                        paginatedQuotes.map((quote) => (
                             <QuoteRow key={quote._id} quote={quote} onUpdateStatus={onUpdateStatus} />
                         ))
                     )}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={quotes.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -3316,7 +3565,20 @@ const QuoteRow = ({ quote, onUpdateStatus }: { quote: QuoteRequest, onUpdateStat
     );
 };
 
-function ContactsTable({ contacts, onUpdateStatus }: { contacts: ContactRequest[], onUpdateStatus: (id: string, status: string) => void }) {
+function ContactsTable({
+    contacts,
+    onUpdateStatus,
+    currentPage,
+    onPageChange,
+    itemsPerPage
+}: {
+    contacts: ContactRequest[],
+    onUpdateStatus: (id: string, status: string) => void,
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
+}) {
+    const paginatedContacts = contacts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft">
             <Table>
@@ -3331,7 +3593,7 @@ function ContactsTable({ contacts, onUpdateStatus }: { contacts: ContactRequest[
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {contacts.length === 0 ? (
+                    {paginatedContacts.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                                 <div className="flex flex-col items-center gap-2">
@@ -3341,12 +3603,18 @@ function ContactsTable({ contacts, onUpdateStatus }: { contacts: ContactRequest[
                             </TableCell>
                         </TableRow>
                     ) : (
-                        contacts.map((contact) => (
+                        paginatedContacts.map((contact) => (
                             <ContactRow key={contact._id} contact={contact} onUpdateStatus={onUpdateStatus} />
                         ))
                     )}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={contacts.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -3472,11 +3740,18 @@ const ContactRow = ({ contact, onUpdateStatus }: { contact: ContactRequest, onUp
 
 function BookingsTable({
     bookings,
-    onUpdateStatus
+    onUpdateStatus,
+    currentPage,
+    onPageChange,
+    itemsPerPage
 }: {
     bookings: BookingRequest[],
-    onUpdateStatus: (id: string, status: string) => void
+    onUpdateStatus: (id: string, status: string) => void,
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
 }) {
+    const paginatedBookings = bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft border-none">
             <Table>
@@ -3491,7 +3766,7 @@ function BookingsTable({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {bookings.length === 0 ? (
+                    {paginatedBookings.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                                 <div className="flex flex-col items-center gap-2">
@@ -3501,12 +3776,18 @@ function BookingsTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        bookings.map((booking) => (
+                        paginatedBookings.map((booking) => (
                             <BookingRow key={booking._id} booking={booking} onUpdateStatus={onUpdateStatus} />
                         ))
                     )}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={bookings.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -3643,11 +3924,18 @@ function BookingRow({ booking, onUpdateStatus }: { booking: BookingRequest, onUp
 
 function VisitsTable({
     visits,
-    onUpdateStatus
+    onUpdateStatus,
+    currentPage,
+    onPageChange,
+    itemsPerPage
 }: {
     visits: VisitRequest[],
-    onUpdateStatus: (id: string, status: string) => void
+    onUpdateStatus: (id: string, status: string) => void,
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
 }) {
+    const paginatedVisits = visits.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft border-none">
             <Table>
@@ -3662,7 +3950,7 @@ function VisitsTable({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {visits.length === 0 ? (
+                    {paginatedVisits.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                                 <div className="flex flex-col items-center gap-2">
@@ -3672,12 +3960,18 @@ function VisitsTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        visits.map((visit) => (
+                        paginatedVisits.map((visit) => (
                             <VisitRow key={visit._id} visit={visit} onUpdateStatus={onUpdateStatus} />
                         ))
                     )}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={visits.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -3803,7 +4097,18 @@ function VisitRow({ visit, onUpdateStatus }: { visit: VisitRequest, onUpdateStat
     );
 }
 
-function DayPassesTable({ passes }: { passes: DayPassRequest[] }) {
+function DayPassesTable({
+    passes,
+    currentPage,
+    onPageChange,
+    itemsPerPage
+}: {
+    passes: DayPassRequest[],
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
+}) {
+    const paginatedPasses = passes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
         <div className="card-elevated overflow-hidden glass shadow-soft">
             <Table>
@@ -3818,17 +4123,23 @@ function DayPassesTable({ passes }: { passes: DayPassRequest[] }) {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {passes.length === 0 ? (
+                    {paginatedPasses.length === 0 ? (
                         <TableRow>
                             <TableCell colSpan={6} className="text-center py-20 text-muted-foreground font-bold">No day passes issued yet.</TableCell>
                         </TableRow>
                     ) : (
-                        passes.map((pass) => (
+                        paginatedPasses.map((pass) => (
                             <DayPassRow key={pass._id} pass={pass} />
                         ))
                     )}
                 </TableBody>
             </Table>
+            <TablePagination
+                totalItems={passes.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
         </div>
     );
 }
@@ -3929,6 +4240,177 @@ function DayPassRow({ pass }: { pass: DayPassRequest }) {
                                     <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Issued {new Date(pass.createdAt).toLocaleString()}</span>
                                     <Badge variant="outline" className="text-[10px] font-black text-muted-foreground uppercase">PASS-ID: {pass._id?.slice(-8).toUpperCase()}</Badge>
                                 </div>
+                            </div>
+                        </div>
+                    </TableCell>
+                </TableRow>
+            )}
+        </>
+    );
+}
+
+function InvoicesTable({
+    invoices,
+    currentPage,
+    onPageChange,
+    itemsPerPage
+}: {
+    invoices: any[],
+    currentPage: number,
+    onPageChange: (page: number) => void,
+    itemsPerPage: number
+}) {
+    const paginatedInvoices = invoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    return (
+        <div className="card-elevated overflow-hidden glass shadow-soft border-none">
+            <Table>
+                <TableHeader className="bg-muted/30">
+                    <TableRow className="hover:bg-transparent border-border/50">
+                        <TableHead className="w-[50px]"></TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Invoice ID</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Client Info</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Workspace</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Period / Due</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Amount</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {paginatedInvoices.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                                <div className="flex flex-col items-center gap-2">
+                                    <FileText className="w-8 h-8 opacity-20" />
+                                    <p className="font-medium">No invoices found.</p>
+                                </div>
+                            </TableCell>
+                        </TableRow>
+                    ) : (
+                        paginatedInvoices.map((inv) => (
+                            <InvoiceRow key={inv._id} invoice={inv} />
+                        ))
+                    )}
+                </TableBody>
+            </Table>
+            <TablePagination
+                totalItems={invoices.length}
+                itemsPerPage={itemsPerPage}
+                currentPage={currentPage}
+                onPageChange={onPageChange}
+            />
+        </div>
+    );
+}
+
+function InvoiceRow({ invoice }: { invoice: any }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+        <>
+            <TableRow
+                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <TableCell>
+                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <div className="flex flex-col">
+                        <span className="font-mono font-bold text-xs text-primary">{invoice.invoiceNumber}</span>
+                        {invoice.type === 'recurring' && (
+                            <Badge className="w-fit mt-1 px-1.5 py-0 rounded-sm bg-violet-500/10 text-violet-600 text-[8px] font-black uppercase border-none">Recurring</Badge>
+                        )}
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-sm text-foreground">{invoice.customerName}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium">{invoice.customerEmail}</span>
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <span className="text-sm font-semibold text-primary/80">
+                        {invoice.workspaceName}
+                    </span>
+                </TableCell>
+                <TableCell>
+                    <div className="flex flex-col">
+                        <span className="text-xs font-bold text-foreground">
+                            {invoice.billingMonth ?
+                                new Date(invoice.billingMonth + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) :
+                                new Date(invoice.createdAt).toLocaleDateString()
+                            }
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                            Due: {new Date(invoice.dueDate).toLocaleDateString()}
+                        </span>
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <span className="text-sm font-black text-foreground">₹{(invoice.amount || 0).toLocaleString()}</span>
+                </TableCell>
+                <TableCell>
+                    <Badge
+                        variant="secondary"
+                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${invoice.status === "Paid" ? "bg-emerald-100 text-emerald-700 shadow-emerald-200/50" :
+                            invoice.status === "Pending" ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
+                                "bg-rose-100 text-rose-700 shadow-rose-200/50"
+                            }`}
+                    >
+                        {invoice.status}
+                    </Badge>
+                </TableCell>
+            </TableRow>
+            {isExpanded && (
+                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
+                    <TableCell colSpan={7} className="p-0">
+                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                                <div className="grid md:grid-cols-2 gap-8">
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Billing Context</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <Building className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">{invoice.workspaceName}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <CreditCard className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">{invoice.paymentMethod}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">Generated: {new Date(invoice.createdAt).toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div>
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Recipient Information</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <UserIcon className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">{invoice.customerName}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <Mail className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">{invoice.customerEmail}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {invoice.status === 'Paid' && invoice.paidDate && (
+                                    <div className="mt-4 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 flex items-center gap-2">
+                                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                        <span className="text-xs font-bold text-emerald-700 uppercase">Paid on {new Date(invoice.paidDate).toLocaleString()}</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </TableCell>

@@ -36,7 +36,13 @@ export async function POST(
 
             post.comments.push(comment as any);
             await post.save();
-            return NextResponse.json(post, { status: 201 });
+            const populatedPost = await Post.findById(post._id)
+                .populate('author', 'name role organization')
+                .populate('comments.user', 'name role organization')
+                .populate('comments.replies.user', 'name role organization')
+                .sort({ createdAt: -1 });
+
+            return NextResponse.json(populatedPost, { status: 201 });
         } else {
             return NextResponse.json({ message: 'Post not found' }, { status: 404 });
         }

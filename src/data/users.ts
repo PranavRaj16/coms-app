@@ -4,6 +4,7 @@ export interface User {
     name: string;
     email: string;
     mobile?: string;
+    contactNumber?: string;
     organization?: string;
     role: "Admin" | "Member" | "Manager" | "Authenticator";
     status: "Active" | "Inactive" | "Pending";

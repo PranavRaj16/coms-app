@@ -26,6 +26,7 @@ export interface Workspace {
     } | string | null;
     allotmentStart?: string;
     unavailableUntil?: string;
+    createdAt?: string;
 }
 
 export const workspaces: Workspace[] = [

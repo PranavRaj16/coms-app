@@ -14,7 +14,24 @@ const WorkspacePreview = () => {
       try {
         const data = await fetchWorkspaces();
         // Take first 4 workspaces for the preview
-        setWorkspaces(data.slice(0, 4));
+                // Sort workspaces: Fully Available > Pre-booked > Unavailable
+                const sortedData = [...data].sort((a, b) => {
+                  const now = new Date();
+                  const getPriority = (ws: any) => {
+                    const start = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+                    const isUnavailable = !!ws.allottedTo && (!start || now >= start);
+                    const isPreBooked = !!ws.allottedTo && start && now < start;
+                    if (isUnavailable) return 2;
+                    if (isPreBooked) return 1;
+                    return 0;
+                  };
+                  const aPriority = getPriority(a);
+                  const bPriority = getPriority(b);
+                  if (aPriority !== bPriority) return aPriority - bPriority;
+                  if (a.featured !== b.featured) return a.featured ? -1 : 1;
+                  return 0;
+                });
+                setWorkspaces(sortedData.slice(0, 4));
       } catch (error) {
         console.error("Failed to fetch workspaces for preview:", error);
         setWorkspaces(initialWorkspaces.slice(0, 4));
@@ -132,7 +149,7 @@ const WorkspacePreview = () => {
                       ))}
                     </div>
 
-                    <Button variant={isUnavailable ? "outline" : "default"} size="sm" className="w-full mt-auto" asChild>
+                    <Button variant={isUnavailable ? "outline" : "default"} size="sm" className="w-full mt-auto transition-all hover:scale-[1.02] active:scale-[0.98]" asChild>
                       <Link href={`/workspaces/${workspace._id || workspace.id}`}>
                         {isUnavailable ? "View Details" : "Book Now"}
                       </Link>

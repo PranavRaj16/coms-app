@@ -71,6 +71,27 @@ const Workspaces = () => {
                 (availabilityFilter === "Unavailable" && isAllotted);
 
             return matchesSearch && matchesLocation && matchesType && matchesAvailability;
+        }).sort((a, b) => {
+            const now = new Date();
+            const getPriority = (ws: any) => {
+                const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+                const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+                const isPreBooked = !!ws.allottedTo && allotmentStart && now < allotmentStart;
+                
+                if (isUnavailable) return 2;
+                if (isPreBooked) return 1;
+                return 0;
+            };
+
+            const aPriority = getPriority(a);
+            const bPriority = getPriority(b);
+
+            if (aPriority !== bPriority) return aPriority - bPriority;
+            
+            // Secondary sort: Featured first
+            if (a.featured !== b.featured) return a.featured ? -1 : 1;
+            
+            return 0;
         });
     }, [searchTerm, selectedLocation, selectedType, availabilityFilter, workspaces]);
 
@@ -318,7 +339,7 @@ const Workspaces = () => {
 
                                         <Button
                                             variant={isUnavailable ? "outline" : "default"}
-                                            className="w-full mt-6 group/btn"
+                                            className="w-full mt-auto group/btn transition-all hover:scale-[1.02] active:scale-[0.98]"
                                             asChild
                                         >
                                             <Link href={`/workspaces/${ws._id || ws.id}`}>

@@ -81,7 +81,10 @@ const WorkspaceDetails = () => {
                 contactNumber: bookingData.contact,
                 firmName: bookingData.firmName,
                 duration: bookingData.duration,
-                startDate: bookingData.startDate
+                startDate: bookingData.startDate ? (() => {
+                    const d = bookingData.startDate;
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                })() : undefined
             };
 
             await submitBookingRequest(payload);
@@ -116,7 +119,10 @@ const WorkspaceDetails = () => {
                 fullName: visitData.name,
                 email: visitData.email,
                 contactNumber: visitData.contact,
-                visitDate: visitData.visitDate
+                visitDate: visitData.visitDate ? (() => {
+                    const d = visitData.visitDate;
+                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                })() : undefined
             };
 
             await submitVisitRequest(payload);

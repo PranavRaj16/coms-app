@@ -1,0 +1,1 @@
+﻿src/app/(dashboard)/dashboard/page.tsx(143,51): error TS2339: Property '_id' does not exist on type 'string'.

@@ -24,8 +24,12 @@ export async function PUT(
                 post.upvotes.splice(index, 1);
             }
 
-            const updatedPost = await post.save();
-            return NextResponse.json(updatedPost);
+            await post.save();
+            const populatedPost = await Post.findById(post._id)
+                .populate('author', 'name role organization')
+                .populate('comments.user', 'name role organization')
+                .populate('comments.replies.user', 'name role organization');
+            return NextResponse.json(populatedPost);
         } else {
             return NextResponse.json({ message: 'Post not found' }, { status: 404 });
         }
