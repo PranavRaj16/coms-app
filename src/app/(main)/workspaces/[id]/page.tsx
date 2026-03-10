@@ -52,10 +52,10 @@ const WorkspaceDetails = () => {
         email: "",
         firmName: "",
         duration: "",
+        paymentMethod: "Pay Now",
         startDate: undefined as Date | undefined
     });
 
-    // Visit Modal State
     const [isVisitOpen, setIsVisitOpen] = useState(false);
     const [visitData, setVisitData] = useState({
         name: "",
@@ -81,6 +81,7 @@ const WorkspaceDetails = () => {
                 contactNumber: bookingData.contact,
                 firmName: bookingData.firmName,
                 duration: bookingData.duration,
+                paymentMethod: bookingData.paymentMethod,
                 startDate: bookingData.startDate ? (() => {
                     const d = bookingData.startDate;
                     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -97,6 +98,7 @@ const WorkspaceDetails = () => {
                 email: "",
                 firmName: "",
                 duration: "",
+                paymentMethod: "Pay Now",
                 startDate: undefined
             });
         } catch (error: any) {
@@ -542,31 +544,43 @@ const WorkspaceDetails = () => {
                                         onChange={handleInputChange}
                                     />
                                 </div>
-                                <div className="space-y-2 flex flex-col">
-                                    <Label className="mb-2">Planning to start from</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant={"outline"}
-                                                className={cn(
-                                                    "w-full justify-start text-left font-normal",
-                                                    !bookingData.startDate && "text-muted-foreground"
-                                                )}
-                                            >
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                                {bookingData.startDate ? format(bookingData.startDate, "PPP") : <span>Pick a date</span>}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0 z-[200]">
-                                            <Calendar
-                                                mode="single"
-                                                selected={bookingData.startDate}
-                                                onSelect={(date) => setBookingData(prev => ({ ...prev, startDate: date }))}
-                                                initialFocus
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
+                                <div className="space-y-2">
+                                    <Label htmlFor="paymentMethod">Payment</Label>
+                                    <Input
+                                        id="paymentMethod"
+                                        name="paymentMethod"
+                                        value={bookingData.paymentMethod}
+                                        disabled
+                                        className="bg-muted cursor-not-allowed"
+                                    />
                                 </div>
+                            </div>
+                            
+                            <div className="space-y-2 flex flex-col">
+                                <Label className="mb-2">Planning to start from</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button
+                                            variant={"outline"}
+                                            className={cn(
+                                                "w-full justify-start text-left font-normal",
+                                                !bookingData.startDate && "text-muted-foreground"
+                                            )}
+                                        >
+                                            <CalendarIcon className="mr-2 h-4 w-4" />
+                                            {bookingData.startDate ? format(bookingData.startDate, "PPP") : <span>Pick a date</span>}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-auto p-0 z-[200]">
+                                        <Calendar
+                                            mode="single"
+                                            selected={bookingData.startDate}
+                                            onSelect={(date) => setBookingData(prev => ({ ...prev, startDate: date }))}
+                                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
+                                            initialFocus
+                                        />
+                                    </PopoverContent>
+                                </Popover>
                             </div>
                         </div>
 
@@ -648,6 +662,7 @@ const WorkspaceDetails = () => {
                                             mode="single"
                                             selected={visitData.visitDate}
                                             onSelect={(date) => setVisitData(prev => ({ ...prev, visitDate: date }))}
+                                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
                                             initialFocus
                                         />
                                     </PopoverContent>
