@@ -31,6 +31,7 @@ const Workspaces = () => {
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [workspaces, setWorkspaces] = useState<WorkspaceType[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [viewType, setViewType] = useState<"grid" | "list">("grid");
 
     useEffect(() => {
         const loadWorkspaces = async () => {
@@ -224,18 +225,108 @@ const Workspaces = () => {
                         )}
                     </p>
                     <div className="flex items-center gap-2 bg-muted p-1 rounded-lg">
-                        <button className="p-1.5 rounded-md bg-card shadow-sm text-primary"><LayoutGrid className="w-4 h-4" /></button>
-                        <button className="p-1.5 rounded-md text-muted-foreground hover:bg-card/50"><List className="w-4 h-4" /></button>
+                        <button 
+                            onClick={() => setViewType("grid")}
+                            className={`p-1.5 rounded-md transition-all ${viewType === "grid" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:bg-card/50"}`}
+                        >
+                            <LayoutGrid className="w-4 h-4" />
+                        </button>
+                        <button 
+                            onClick={() => setViewType("list")}
+                            className={`p-1.5 rounded-md transition-all ${viewType === "list" ? "bg-card shadow-sm text-primary" : "text-muted-foreground hover:bg-card/50"}`}
+                        >
+                            <List className="w-4 h-4" />
+                        </button>
                     </div>
                 </div>
 
                 {filteredWorkspaces.length > 0 ? (
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className={viewType === "grid" ? "grid sm:grid-cols-2 lg:grid-cols-3 gap-8" : "flex flex-col gap-6"}>
                         {filteredWorkspaces.map((ws) => {
                             const now = new Date();
                             const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
                             const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
                             const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
+
+                            if (viewType === "list") {
+                                return (
+                                    <div key={ws._id || ws.id} className={`card-elevated group overflow-hidden flex flex-col md:flex-row transition-all duration-500 hover:shadow-xl ${isUnavailable ? 'grayscale opacity-80' : ''}`}>
+                                        <div className="relative w-full md:w-72 h-48 md:h-auto overflow-hidden shrink-0">
+                                            <img
+                                                src={ws.image || DEFAULT_WORKSPACE_IMAGE}
+                                                alt={ws.name}
+                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                            />
+                                            {ws.featured && !isUnavailable && (
+                                                <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold uppercase tracking-wider shadow-lg">
+                                                    Featured
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="p-6 flex-1 flex flex-col md:flex-row gap-6">
+                                            <div className="flex-1 space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="text-[10px] font-bold text-primary uppercase tracking-widest">{ws.type}</span>
+                                                    {isUnavailable && (
+                                                        <span className="px-2 py-0.5 rounded-lg bg-destructive/10 text-destructive text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
+                                                            <Clock className="w-2.5 h-2.5" />
+                                                            Unavailable
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                                                    {ws.name}
+                                                </h3>
+                                                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <MapPin className="w-4 h-4 text-primary" />
+                                                        {ws.location}
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Users className="w-4 h-4 text-primary" />
+                                                        {ws.capacity}
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                                    {ws.amenities?.slice(0, 4).map((amenity: string) => (
+                                                        <span key={amenity} className="text-[9px] px-2 py-0.5 rounded-full bg-primary/5 text-primary/70 font-bold border border-primary/10">
+                                                            {amenity}
+                                                        </span>
+                                                    ))}
+                                                    {ws.amenities && ws.amenities.length > 4 && (
+                                                        <span className="text-[9px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-bold">
+                                                            +{ws.amenities.length - 4} More
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-col justify-between items-end gap-4 min-w-[200px]">
+                                                <div className="text-right">
+                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Starting from</p>
+                                                    <p className="text-2xl font-black text-foreground italic">
+                                                        {ws.price && Number(ws.price) > 0
+                                                            ? `₹${Number(ws.price).toLocaleString('en-IN')}`
+                                                            : "Contact"}
+                                                        <span className="text-xs font-bold text-muted-foreground not-italic ml-1">/ mo</span>
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    variant={isUnavailable ? "outline" : "default"}
+                                                    className="w-full md:w-auto px-8 group/btn transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                    asChild
+                                                >
+                                                    <Link href={`/workspaces/${ws._id || ws.id}`}>
+                                                        {isUnavailable ? "View Details" : "Book Now"}
+                                                        <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover/btn:translate-x-1" />
+                                                    </Link>
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }
 
                             return (
                                 <div key={ws._id || ws.id} className={`card-elevated group overflow-hidden flex flex-col h-full transition-all duration-500 ${isUnavailable ? 'grayscale opacity-80' : ''}`}>
