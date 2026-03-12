@@ -23,7 +23,9 @@ import {
     ChevronLeft,
     ChevronRight,
     Maximize2,
-    Calendar as CalendarIcon
+    Calendar as CalendarIcon,
+    Loader2,
+    AlertCircle
 } from "lucide-react";
 import NotFound from "@/components/NotFound";
 import { toast } from "sonner";
@@ -51,12 +53,14 @@ const WorkspaceDetails = () => {
         contact: "",
         email: "",
         firmName: "",
-        duration: "",
+        endDate: undefined as Date | undefined,
         paymentMethod: "Pay Now",
         startDate: undefined as Date | undefined
     });
 
     const [isVisitOpen, setIsVisitOpen] = useState(false);
+    const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
+    const [isSubmittingVisit, setIsSubmittingVisit] = useState(false);
     const [visitData, setVisitData] = useState({
         name: "",
         contact: "",
@@ -64,13 +68,60 @@ const WorkspaceDetails = () => {
         visitDate: undefined as Date | undefined
     });
 
+    const [bookingErrors, setBookingErrors] = useState<{ [key: string]: string }>({});
+    const [visitErrors, setVisitErrors] = useState<{ [key: string]: string }>({});
+
+    const validateBookingForm = () => {
+        const errors: { [key: string]: string } = {};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!bookingData.name.trim()) errors.name = "Full name is required";
+        if (!bookingData.email.trim()) {
+            errors.email = "Email is required";
+        } else if (!emailRegex.test(bookingData.email)) {
+            errors.email = "Invalid email format";
+        }
+        if (!bookingData.contact.trim()) errors.contact = "Contact number is required";
+        if (!bookingData.startDate) errors.startDate = "Start date is required";
+        if (!bookingData.endDate) errors.endDate = "End date is required";
+
+        setBookingErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    const validateVisitForm = () => {
+        const errors: { [key: string]: string } = {};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!visitData.name.trim()) errors.name = "Full name is required";
+        if (!visitData.email.trim()) {
+            errors.email = "Email is required";
+        } else if (!emailRegex.test(visitData.email)) {
+            errors.email = "Invalid email format";
+        }
+        if (!visitData.contact.trim()) errors.contact = "Contact number is required";
+        if (!visitData.visitDate) errors.visitDate = "Visit date is required";
+
+        setVisitErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
     const handleBookingSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!bookingData.startDate) {
-            toast.error("Please select a start date");
+        if (!validateBookingForm()) {
+            toast.error("Please fill in all required fields correctly.");
             return;
         }
+
+        setIsSubmittingBooking(true);
+
+        const calcDuration = () => {
+            if (!bookingData.startDate || !bookingData.endDate) return "N/A";
+            const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // inclusive
+            return `${diffDays} Days`;
+        };
 
         try {
             const payload = {
@@ -80,7 +131,7 @@ const WorkspaceDetails = () => {
                 email: bookingData.email,
                 contactNumber: bookingData.contact,
                 firmName: bookingData.firmName,
-                duration: bookingData.duration,
+                duration: calcDuration(),
                 paymentMethod: bookingData.paymentMethod,
                 startDate: bookingData.startDate ? (() => {
                     const d = bookingData.startDate;
@@ -97,23 +148,26 @@ const WorkspaceDetails = () => {
                 contact: "",
                 email: "",
                 firmName: "",
-                duration: "",
+                endDate: undefined,
                 paymentMethod: "Pay Now",
                 startDate: undefined
             });
         } catch (error: any) {
             toast.error(error.message || "Failed to submit booking request");
+        } finally {
+            setIsSubmittingBooking(false);
         }
     };
 
     const handleVisitSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!visitData.visitDate) {
-            toast.error("Please select a visit date");
+        if (!validateVisitForm()) {
+            toast.error("Please fill in all required fields correctly.");
             return;
         }
 
+        setIsSubmittingVisit(true);
         try {
             const payload = {
                 workspaceId: id,
@@ -139,6 +193,8 @@ const WorkspaceDetails = () => {
             });
         } catch (error: any) {
             toast.error(error.message || "Failed to schedule visit");
+        } finally {
+            setIsSubmittingVisit(false);
         }
     };
 
@@ -481,7 +537,7 @@ const WorkspaceDetails = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleBookingSubmit} className="space-y-6 mt-4">
+                    <form onSubmit={handleBookingSubmit} className="space-y-6 mt-4" noValidate>
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="name">Full Name</Label>
@@ -489,10 +545,14 @@ const WorkspaceDetails = () => {
                                     id="name"
                                     name="name"
                                     placeholder="John Doe"
-                                    required
+                                    className={bookingErrors.name ? "border-destructive ring-destructive/20" : ""}
                                     value={bookingData.name}
-                                    onChange={handleInputChange}
+                                    onChange={(e) => {
+                                        handleInputChange(e);
+                                        if (bookingErrors.name) setBookingErrors({ ...bookingErrors, name: "" });
+                                    }}
                                 />
+                                {bookingErrors.name && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.name}</p>}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -501,11 +561,15 @@ const WorkspaceDetails = () => {
                                     <Input
                                         id="contact"
                                         name="contact"
-                                        placeholder="+1 234..."
-                                        required
+                                        placeholder="+91 9876..."
+                                        className={bookingErrors.contact ? "border-destructive ring-destructive/20" : ""}
                                         value={bookingData.contact}
-                                        onChange={handleInputChange}
+                                        onChange={(e) => {
+                                            handleInputChange(e);
+                                            if (bookingErrors.contact) setBookingErrors({ ...bookingErrors, contact: "" });
+                                        }}
                                     />
+                                    {bookingErrors.contact && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.contact}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email">Email Address</Label>
@@ -514,10 +578,14 @@ const WorkspaceDetails = () => {
                                         name="email"
                                         type="email"
                                         placeholder="john@example.com"
-                                        required
+                                        className={bookingErrors.email ? "border-destructive ring-destructive/20" : ""}
                                         value={bookingData.email}
-                                        onChange={handleInputChange}
+                                        onChange={(e) => {
+                                            handleInputChange(e);
+                                            if (bookingErrors.email) setBookingErrors({ ...bookingErrors, email: "" });
+                                        }}
                                     />
+                                    {bookingErrors.email && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.email}</p>}
                                 </div>
                             </div>
 
@@ -533,63 +601,106 @@ const WorkspaceDetails = () => {
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="duration">Duration</Label>
-                                    <Input
-                                        id="duration"
-                                        name="duration"
-                                        placeholder="e.g. 1 Month"
-                                        required
-                                        value={bookingData.duration}
-                                        onChange={handleInputChange}
-                                    />
+                                <div className="space-y-2 flex flex-col">
+                                    <Label className="mb-2">Start Date</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant={"outline"}
+                                                className={cn(
+                                                    "w-full justify-start text-left font-normal h-12 rounded-xl",
+                                                    !bookingData.startDate && "text-muted-foreground",
+                                                    bookingErrors.startDate && "border-destructive ring-destructive/20"
+                                                )}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {bookingData.startDate ? format(bookingData.startDate, "PP") : <span>Start date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0 z-[200]">
+                                            <Calendar
+                                                mode="single"
+                                                selected={bookingData.startDate}
+                                                onSelect={(date) => {
+                                                    setBookingData(prev => ({ ...prev, startDate: date, endDate: date && prev.endDate && date > prev.endDate ? undefined : prev.endDate }));
+                                                    if (bookingErrors.startDate) setBookingErrors({ ...bookingErrors, startDate: "" });
+                                                }}
+                                                disabled={(date) => {
+                                                    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+                                                    const isAfterAllotment = availableUntil ? date >= availableUntil : false;
+                                                    return isPast || isAfterAllotment;
+                                                }}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                    {bookingErrors.startDate && <p className="text-destructive text-[10px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.startDate}</p>}
                                 </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="paymentMethod">Payment</Label>
-                                    <Input
-                                        id="paymentMethod"
-                                        name="paymentMethod"
-                                        value={bookingData.paymentMethod}
-                                        disabled
-                                        className="bg-muted cursor-not-allowed"
-                                    />
+
+                                <div className="space-y-2 flex flex-col">
+                                    <Label className="mb-2">End Date</Label>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant={"outline"}
+                                                className={cn(
+                                                    "w-full justify-start text-left font-normal h-12 rounded-xl",
+                                                    !bookingData.endDate && "text-muted-foreground",
+                                                    bookingErrors.endDate && "border-destructive ring-destructive/20"
+                                                )}
+                                            >
+                                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                                {bookingData.endDate ? format(bookingData.endDate, "PP") : <span>End date</span>}
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0 z-[200]">
+                                            <Calendar
+                                                mode="single"
+                                                selected={bookingData.endDate}
+                                                onSelect={(date) => {
+                                                    setBookingData(prev => ({ ...prev, endDate: date }));
+                                                    if (bookingErrors.endDate) setBookingErrors({ ...bookingErrors, endDate: "" });
+                                                }}
+                                                disabled={(date) => {
+                                                    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
+                                                    const isBeforeStart = bookingData.startDate ? date < bookingData.startDate : false;
+                                                    const isAfterAllotment = availableUntil ? date >= availableUntil : false;
+                                                    return isPast || isBeforeStart || isAfterAllotment;
+                                                }}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                    {bookingErrors.endDate && <p className="text-destructive text-[10px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.endDate}</p>}
                                 </div>
                             </div>
-                            
-                            <div className="space-y-2 flex flex-col">
-                                <Label className="mb-2">Planning to start from</Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant={"outline"}
-                                            className={cn(
-                                                "w-full justify-start text-left font-normal",
-                                                !bookingData.startDate && "text-muted-foreground"
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {bookingData.startDate ? format(bookingData.startDate, "PPP") : <span>Pick a date</span>}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0 z-[200]">
-                                        <Calendar
-                                            mode="single"
-                                            selected={bookingData.startDate}
-                                            onSelect={(date) => setBookingData(prev => ({ ...prev, startDate: date }))}
-                                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                            </div>
+
+                            {bookingData.startDate && bookingData.endDate && (
+                                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between animate-in fade-in zoom-in-95">
+                                    <span className="text-xs font-black uppercase tracking-widest text-primary/60">Calculated Duration</span>
+                                    <span className="text-sm font-bold flex items-center gap-2">
+                                        <Clock className="w-4 h-4" />
+                                        {(() => {
+                                            const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
+                                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                            return `${diffDays} Day${diffDays > 1 ? 's' : ''}`;
+                                        })()}
+                                    </span>
+                                </div>
+                            )}
                         </div>
 
                         <DialogFooter className="gap-2 sm:gap-0">
                             <Button type="button" variant="outline" onClick={() => setIsBookingOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit">
-                                Confirm Request
+                            <Button type="submit" disabled={isSubmittingBooking}>
+                                {isSubmittingBooking ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : "Pay Now"}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -605,17 +716,21 @@ const WorkspaceDetails = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleVisitSubmit} className="space-y-6 mt-4">
+                    <form onSubmit={handleVisitSubmit} className="space-y-6 mt-4" noValidate>
                         <div className="space-y-4">
                             <div className="space-y-2">
                                 <Label htmlFor="vname">Full Name</Label>
                                 <Input
                                     id="vname"
                                     placeholder="John Doe"
-                                    required
+                                    className={visitErrors.name ? "border-destructive ring-destructive/20" : ""}
                                     value={visitData.name}
-                                    onChange={(e) => setVisitData(prev => ({ ...prev, name: e.target.value }))}
+                                    onChange={(e) => {
+                                        setVisitData(prev => ({ ...prev, name: e.target.value }));
+                                        if (visitErrors.name) setVisitErrors({ ...visitErrors, name: "" });
+                                    }}
                                 />
+                                {visitErrors.name && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {visitErrors.name}</p>}
                             </div>
 
                             <div className="grid grid-cols-2 gap-4">
@@ -623,11 +738,15 @@ const WorkspaceDetails = () => {
                                     <Label htmlFor="vcontact">Contact Number</Label>
                                     <Input
                                         id="vcontact"
-                                        placeholder="+1 234..."
-                                        required
+                                        placeholder="+91 9876..."
+                                        className={visitErrors.contact ? "border-destructive ring-destructive/20" : ""}
                                         value={visitData.contact}
-                                        onChange={(e) => setVisitData(prev => ({ ...prev, contact: e.target.value }))}
+                                        onChange={(e) => {
+                                            setVisitData(prev => ({ ...prev, contact: e.target.value }));
+                                            if (visitErrors.contact) setVisitErrors({ ...visitErrors, contact: "" });
+                                        }}
                                     />
+                                    {visitErrors.contact && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {visitErrors.contact}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="vemail">Email Address</Label>
@@ -635,10 +754,14 @@ const WorkspaceDetails = () => {
                                         id="vemail"
                                         type="email"
                                         placeholder="john@example.com"
-                                        required
+                                        className={visitErrors.email ? "border-destructive ring-destructive/20" : ""}
                                         value={visitData.email}
-                                        onChange={(e) => setVisitData(prev => ({ ...prev, email: e.target.value }))}
+                                        onChange={(e) => {
+                                            setVisitData(prev => ({ ...prev, email: e.target.value }));
+                                            if (visitErrors.email) setVisitErrors({ ...visitErrors, email: "" });
+                                        }}
                                     />
+                                    {visitErrors.email && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {visitErrors.email}</p>}
                                 </div>
                             </div>
 
@@ -650,7 +773,8 @@ const WorkspaceDetails = () => {
                                             variant={"outline"}
                                             className={cn(
                                                 "w-full justify-start text-left font-normal",
-                                                !visitData.visitDate && "text-muted-foreground"
+                                                !visitData.visitDate && "text-muted-foreground",
+                                                visitErrors.visitDate && "border-destructive ring-destructive/20"
                                             )}
                                         >
                                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -661,12 +785,16 @@ const WorkspaceDetails = () => {
                                         <Calendar
                                             mode="single"
                                             selected={visitData.visitDate}
-                                            onSelect={(date) => setVisitData(prev => ({ ...prev, visitDate: date }))}
+                                            onSelect={(date) => {
+                                                setVisitData(prev => ({ ...prev, visitDate: date }));
+                                                if (visitErrors.visitDate) setVisitErrors({ ...visitErrors, visitDate: "" });
+                                            }}
                                             disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
                                             initialFocus
                                         />
                                     </PopoverContent>
                                 </Popover>
+                                {visitErrors.visitDate && <p className="text-destructive text-[10px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {visitErrors.visitDate}</p>}
                             </div>
                         </div>
 
@@ -674,8 +802,13 @@ const WorkspaceDetails = () => {
                             <Button type="button" variant="outline" onClick={() => setIsVisitOpen(false)}>
                                 Cancel
                             </Button>
-                            <Button type="submit">
-                                Schedule Visit
+                            <Button type="submit" disabled={isSubmittingVisit}>
+                                {isSubmittingVisit ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Scheduling...
+                                    </>
+                                ) : "Schedule Visit"}
                             </Button>
                         </DialogFooter>
                     </form>

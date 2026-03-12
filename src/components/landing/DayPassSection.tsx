@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { User, Mail, Phone, MessageSquare, QrCode, CheckCircle2, Loader2, Calendar as CalendarIcon } from "lucide-react";
+import { User, Mail, Phone, MessageSquare, QrCode, CheckCircle2, Loader2, Calendar as CalendarIcon, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { submitDayPass } from "@/lib/api";
@@ -19,9 +19,36 @@ const DayPassSection = () => {
         purpose: "",
         visitDate: ""
     });
+    const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+    const validateForm = () => {
+        const newErrors: { [key: string]: string } = {};
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+        if (!formData.name.trim()) newErrors.name = "Full name is required";
+        if (!formData.email.trim()) {
+            newErrors.email = "Email is required";
+        } else if (!emailRegex.test(formData.email)) {
+            newErrors.email = "Invalid email format";
+        }
+        if (!formData.contact.trim()) {
+            newErrors.contact = "Contact number is required";
+        } else if (formData.contact.length < 10) {
+            newErrors.contact = "Please enter a valid phone number";
+        }
+        if (!formData.visitDate) newErrors.visitDate = "Please select a visit date";
+        if (!formData.purpose.trim()) newErrors.purpose = "Purpose of visit is required";
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!validateForm()) {
+            toast.error("Please fill in all required fields correctly.");
+            return;
+        }
         setIsLoading(true);
 
         try {
@@ -121,7 +148,7 @@ const DayPassSection = () => {
                                         exit={{ opacity: 0, scale: 0.95 }}
                                         className="glass p-8 rounded-[2rem] border-primary/20 shadow-2xl relative"
                                     >
-                                        <form onSubmit={handleSubmit} className="space-y-4">
+                                        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest ml-1">Full Name</Label>
@@ -130,12 +157,15 @@ const DayPassSection = () => {
                                                         <Input
                                                             id="name"
                                                             placeholder="John Doe"
-                                                            className="pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all"
+                                                            className={`pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all ${errors.name ? "border-destructive ring-destructive/20" : ""}`}
                                                             value={formData.name}
-                                                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                                            required
+                                                            onChange={(e) => {
+                                                                setFormData({ ...formData, name: e.target.value });
+                                                                if (errors.name) setErrors({ ...errors, name: "" });
+                                                            }}
                                                         />
                                                     </div>
+                                                    {errors.name && <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200"><AlertCircle className="w-3 h-3" /> {errors.name}</p>}
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label htmlFor="contact" className="text-[10px] font-black uppercase tracking-widest ml-1">Contact Number</Label>
@@ -144,12 +174,15 @@ const DayPassSection = () => {
                                                         <Input
                                                             id="contact"
                                                             placeholder="+91 98765 43210"
-                                                            className="pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all"
+                                                            className={`pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all ${errors.contact ? "border-destructive ring-destructive/20" : ""}`}
                                                             value={formData.contact}
-                                                            onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                                                            required
+                                                            onChange={(e) => {
+                                                                setFormData({ ...formData, contact: e.target.value });
+                                                                if (errors.contact) setErrors({ ...errors, contact: "" });
+                                                            }}
                                                         />
                                                     </div>
+                                                    {errors.contact && <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200"><AlertCircle className="w-3 h-3" /> {errors.contact}</p>}
                                                 </div>
                                             </div>
 
@@ -161,12 +194,15 @@ const DayPassSection = () => {
                                                         id="email"
                                                         type="email"
                                                         placeholder="john@example.com"
-                                                        className="pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all"
+                                                        className={`pl-9 h-12 rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all ${errors.email ? "border-destructive ring-destructive/20" : ""}`}
                                                         value={formData.email}
-                                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                                        required
+                                                        onChange={(e) => {
+                                                            setFormData({ ...formData, email: e.target.value });
+                                                            if (errors.email) setErrors({ ...errors, email: "" });
+                                                        }}
                                                     />
                                                 </div>
+                                                {errors.email && <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200"><AlertCircle className="w-3 h-3" /> {errors.email}</p>}
                                             </div>
 
                                             <div className="space-y-2">
@@ -184,11 +220,13 @@ const DayPassSection = () => {
                                                             } else {
                                                                 setFormData({ ...formData, visitDate: "" });
                                                             }
+                                                            if (errors.visitDate) setErrors({ ...errors, visitDate: "" });
                                                         }}
                                                         showTime={false}
-                                                        className="pl-9 bg-background/50 focus:bg-background border-border/50"
+                                                        className={`pl-9 bg-background/50 focus:bg-background border-border/50 ${errors.visitDate ? "border-destructive ring-destructive/20" : ""}`}
                                                     />
                                                 </div>
+                                                {errors.visitDate && <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200"><AlertCircle className="w-3 h-3" /> {errors.visitDate}</p>}
                                             </div>
 
                                             <div className="space-y-2">
@@ -198,12 +236,15 @@ const DayPassSection = () => {
                                                     <Textarea
                                                         id="purpose"
                                                         placeholder="Tell us what you're looking for..."
-                                                        className="pl-9 min-h-[100px] rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all"
+                                                        className={`pl-9 min-h-[100px] rounded-xl border-border/50 bg-background/50 focus:bg-background transition-all ${errors.purpose ? "border-destructive ring-destructive/20" : ""}`}
                                                         value={formData.purpose}
-                                                        onChange={(e) => setFormData({ ...formData, purpose: e.target.value })}
-                                                        required
+                                                        onChange={(e) => {
+                                                            setFormData({ ...formData, purpose: e.target.value });
+                                                            if (errors.purpose) setErrors({ ...errors, purpose: "" });
+                                                        }}
                                                     />
                                                 </div>
+                                                {errors.purpose && <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200"><AlertCircle className="w-3 h-3" /> {errors.purpose}</p>}
                                             </div>
 
                                             <Button

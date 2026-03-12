@@ -22,8 +22,13 @@ const Login = () => {
 
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        
         if (!forgotEmail) {
-            toast.error("Please enter your email address");
+            setErrors({ email: "Email is required" });
+            return;
+        } else if (!emailRegex.test(forgotEmail)) {
+            setErrors({ email: "Please enter a valid email address" });
             return;
         }
 
@@ -146,7 +151,7 @@ const Login = () => {
                                                         Enter your registered email address and we'll send you a secure link to reset your credentials.
                                                     </DialogDescription>
                                                 </DialogHeader>
-                                                <form onSubmit={handleForgotPassword} className="space-y-6 mt-4">
+                                                <form onSubmit={handleForgotPassword} className="space-y-6 mt-4" noValidate>
                                                     <div className="space-y-2">
                                                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Registered Email</label>
                                                         <div className="relative group">
@@ -154,11 +159,19 @@ const Login = () => {
                                                             <Input
                                                                 type="email"
                                                                 placeholder="john@example.com"
-                                                                className="pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 focus:bg-background transition-all"
+                                                                className={`pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 focus:bg-background transition-all ${errors.email ? "border-destructive ring-destructive/20" : ""}`}
                                                                 value={forgotEmail}
-                                                                onChange={(e) => setForgotEmail(e.target.value)}
+                                                                onChange={(e) => {
+                                                                    setForgotEmail(e.target.value);
+                                                                    if (errors.email) setErrors({ ...errors, email: undefined });
+                                                                }}
                                                             />
                                                         </div>
+                                                        {errors.email && (
+                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                <AlertCircle className="w-3 h-3" /> {errors.email}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <DialogFooter>
                                                         <Button

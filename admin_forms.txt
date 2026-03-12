@@ -1,0 +1,100 @@
+﻿
+> src\app\(dashboard)\admin\p
+age.tsx:1392:                
+                            
+<form 
+onSubmit={handleCreateUser} 
+noValidate>
+  src\app\(dashboard)\admin\p
+age.tsx:1393:                
+                             
+   <DialogHeader>
+  src\app\(dashboard)\admin\p
+age.tsx:1394:                
+                             
+       <DialogTitle className
+="text-2xl">Register New 
+User</DialogTitle>
+> src\app\(dashboard)\admin\p
+age.tsx:1579:                
+                        
+<form 
+onSubmit={handleUpdateUser} 
+className="space-y-6" 
+noValidate>
+  src\app\(dashboard)\admin\p
+age.tsx:1580:                
+                            
+<DialogHeader>
+  src\app\(dashboard)\admin\p
+age.tsx:1581:                
+                             
+   <div className="w-12 h-12 
+rounded-2xl bg-primary/10 
+flex items-center 
+justify-center mb-4">
+> src\app\(dashboard)\admin\p
+age.tsx:1746:                
+                            
+<form onSubmit={handleCreateW
+orkspace} noValidate>
+  src\app\(dashboard)\admin\p
+age.tsx:1747:                
+                             
+   <DialogHeader>
+  src\app\(dashboard)\admin\p
+age.tsx:1748:                
+                             
+       <DialogTitle 
+className="text-2xl">Create 
+New Workspace</DialogTitle>
+> src\app\(dashboard)\admin\p
+age.tsx:2144:                
+                    <form onS
+ubmit={handleAllotWorkspace} 
+noValidate>
+  src\app\(dashboard)\admin\p
+age.tsx:2145:                
+                        
+<DialogHeader>
+  src\app\(dashboard)\admin\p
+age.tsx:2146:                
+                            
+<DialogTitle>Allot 
+Workspace</DialogTitle>
+> src\app\(dashboard)\admin\p
+age.tsx:2245:                
+                        
+<form onSubmit={handleUpdateW
+orkspace} 
+className="space-y-6" 
+noValidate>
+  src\app\(dashboard)\admin\p
+age.tsx:2246:                
+                            
+<DialogHeader>
+  src\app\(dashboard)\admin\p
+age.tsx:2247:                
+                             
+   <div className="w-12 h-12 
+rounded-2xl bg-primary/10 
+flex items-center 
+justify-center mb-4">
+> src\app\(dashboard)\admin\p
+age.tsx:3053:                
+                             
+           <form 
+className="space-y-4 pt-4" 
+onSubmit={(e) => {
+  src\app\(dashboard)\admin\p
+age.tsx:3054:                
+                             
+               
+e.preventDefault();
+  src\app\(dashboard)\admin\p
+age.tsx:3055:                
+                             
+               
+handlePasswordChange();
+
+

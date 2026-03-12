@@ -11,15 +11,10 @@ export async function GET(req: NextRequest) {
 
         const now = new Date();
 
-        // Only return a workspace as "active" if allotmentStart has arrived.
-        // If allotmentStart is set to a future date the booking is pre-booked but not yet active.
+        // Find a workspace allotted to this user whose start date is still in the future (pre-booked)
         const workspaces = await Workspace.find({
             allottedTo: user._id,
-            $or: [
-                { allotmentStart: { $exists: false } },
-                { allotmentStart: null },
-                { allotmentStart: { $lte: now } }
-            ]
+            allotmentStart: { $gt: now }
         });
 
         return NextResponse.json(workspaces);

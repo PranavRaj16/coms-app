@@ -39,7 +39,6 @@ const handleResponse = async (response: Response) => {
 
     if (!isJson) {
         const text = await response.text();
-        // If it's HTML, it's likely a proxy redirect or a 404 handled by the frontend
         if (text.includes('<!DOCTYPE html') || text.includes('<html')) {
             throw new Error('Server returned HTML instead of JSON. This often happens due to a misconfigured API route or redirected authentication.');
         }
@@ -107,6 +106,11 @@ export const deleteWorkspace = (id: string) =>
 
 export const fetchMyWorkspace = () =>
     fetch(`${API_BASE_URL}/workspaces/my-workspace`, {
+        headers: getAuthHeaders(),
+    }).then(handleResponse);
+
+export const fetchUpcomingWorkspace = () =>
+    fetch(`${API_BASE_URL}/workspaces/upcoming-workspace`, {
         headers: getAuthHeaders(),
     }).then(handleResponse);
 
@@ -296,7 +300,6 @@ export const verifyDayPass = (passCode: string) =>
         headers: getAuthHeaders(),
     }).then(handleResponse);
 
-
 export const upvotePost = (id: string) =>
     fetch(`${API_BASE_URL}/posts/${id}/upvote`, {
         method: 'PUT',
@@ -334,6 +337,7 @@ export const addReply = (postId: string, commentId: string, data: any) =>
         headers: getAuthHeaders(),
         body: JSON.stringify(data),
     }).then(handleResponse);
+
 export const deleteReply = (postId: string, commentId: string, replyId: string) =>
     fetch(`${API_BASE_URL}/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
         method: 'DELETE',

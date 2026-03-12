@@ -12,7 +12,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface DateTimePickerProps {
   date?: Date;
@@ -51,7 +57,6 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date);
 
-  // Store hours in 12h format (1-12) as string and ampm
   const [hour12, setHour12] = React.useState<string>(
     date ? to12h(date.getHours()) : "12"
   );
@@ -136,29 +141,37 @@ export function DateTimePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto p-0 rounded-2xl border-border/50 shadow-2xl z-[9999]"
+        className="w-auto p-0 rounded-2xl border border-border/60 shadow-2xl z-[9999] overflow-hidden"
         align="start"
         side="bottom"
         avoidCollisions={true}
         collisionPadding={16}
       >
-        <Calendar
-          mode="single"
-          selected={selectedDate}
-          onSelect={handleDateSelect}
-          initialFocus
-          className="rounded-t-2xl"
-        />
+        {/* Calendar section */}
+        <div className="bg-popover">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={handleDateSelect}
+            initialFocus
+            className="p-3"
+          />
+        </div>
+
+        {/* Time section */}
         {showTime && (
-          <div className="p-4 border-t border-border/50 bg-muted/20 rounded-b-2xl">
-            <div className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-muted-foreground mb-3">
-              <Clock className="w-3.5 h-3.5" />
+          <div className="px-4 py-3 border-t border-border/50 bg-muted/20">
+            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
+              <Clock className="w-3 h-3" />
               Set Time
             </div>
             <div className="flex items-center gap-2">
-              {/* Hour 1-12 */}
-              <Select value={hour12} onValueChange={(v) => handleTimeChange("hour12", v)}>
-                <SelectTrigger className="w-[68px] h-9 rounded-lg font-bold">
+              {/* Hour 1–12 */}
+              <Select
+                value={hour12}
+                onValueChange={(v) => handleTimeChange("hour12", v)}
+              >
+                <SelectTrigger className="w-[66px] h-9 rounded-lg font-bold text-sm">
                   <SelectValue placeholder="HH" />
                 </SelectTrigger>
                 <SelectContent
@@ -174,11 +187,14 @@ export function DateTimePicker({
                 </SelectContent>
               </Select>
 
-              <span className="font-bold text-muted-foreground">:</span>
+              <span className="font-bold text-muted-foreground text-base">:</span>
 
-              {/* Minutes 0-59 */}
-              <Select value={minutes} onValueChange={(v) => handleTimeChange("minutes", v)}>
-                <SelectTrigger className="w-[68px] h-9 rounded-lg font-bold">
+              {/* Minutes 0–59 */}
+              <Select
+                value={minutes}
+                onValueChange={(v) => handleTimeChange("minutes", v)}
+              >
+                <SelectTrigger className="w-[66px] h-9 rounded-lg font-bold text-sm">
                   <SelectValue placeholder="MM" />
                 </SelectTrigger>
                 <SelectContent
@@ -194,12 +210,19 @@ export function DateTimePicker({
                 </SelectContent>
               </Select>
 
-              {/* AM/PM toggle */}
-              <Select value={ampm} onValueChange={(v) => handleTimeChange("ampm", v)}>
-                <SelectTrigger className="w-[68px] h-9 rounded-lg font-bold">
+              {/* AM/PM */}
+              <Select
+                value={ampm}
+                onValueChange={(v) => handleTimeChange("ampm", v)}
+              >
+                <SelectTrigger className="w-[66px] h-9 rounded-lg font-bold text-sm">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl z-[10000]" position="popper" sideOffset={4}>
+                <SelectContent
+                  className="rounded-xl z-[10000]"
+                  position="popper"
+                  sideOffset={4}
+                >
                   <SelectItem value="AM">AM</SelectItem>
                   <SelectItem value="PM">PM</SelectItem>
                 </SelectContent>

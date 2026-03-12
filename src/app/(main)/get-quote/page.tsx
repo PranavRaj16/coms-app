@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,14 @@ import {
     Clock,
     MessageSquare,
     AlertCircle,
-    Loader2
+    Loader2,
+    CheckCircle2
 } from "lucide-react";
 import { toast } from "sonner";
 import { submitQuoteRequest } from "@/lib/api";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 const GetQuote = () => {
     const [formData, setFormData] = useState({
@@ -40,10 +43,37 @@ const GetQuote = () => {
         capacity: 1,
         startDate: "",
         duration: "1 Months",
-        additionalRequirements: ""
+        additionalRequirements: "",
+        hasConferenceHall: false,
+        hasCabin: false,
+        workstationSeats: 0,
+        conferenceHallSeats: 0,
+        cabinSeats: 0
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+    // Dynamic Capacity Sync for Dedicated Workspace
+    useEffect(() => {
+        if (formData.requiredWorkspace === "dedicated") {
+            const total = Number(formData.workstationSeats) +
+                (formData.hasConferenceHall ? Number(formData.conferenceHallSeats) : 0) +
+                (formData.hasCabin ? Number(formData.cabinSeats) : 0);
+            
+            // Only update if the value actually changed to prevent unnecessary re-renders
+            if (formData.capacity !== total) {
+                setFormData(prev => ({ ...prev, capacity: total }));
+            }
+        }
+    }, [
+        formData.requiredWorkspace, 
+        formData.workstationSeats, 
+        formData.hasConferenceHall, 
+        formData.conferenceHallSeats, 
+        formData.hasCabin, 
+        formData.cabinSeats,
+        formData.capacity
+    ]);
 
     const validateEmail = (email: string) => {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -84,7 +114,12 @@ const GetQuote = () => {
                 capacity: 1,
                 startDate: "",
                 duration: "1 Months",
-                additionalRequirements: ""
+                additionalRequirements: "",
+                hasConferenceHall: false,
+                hasCabin: false,
+                workstationSeats: 0,
+                conferenceHallSeats: 0,
+                cabinSeats: 0
             });
             setErrors({});
         } catch (error: any) {
@@ -167,7 +202,7 @@ const GetQuote = () => {
                                         <div className="relative group">
                                             <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                             <Input
-                                                placeholder="+91 00000 00000"
+                                                placeholder="+91 9876..."
                                                 className={`pl-10 ${errors.contactNumber ? "border-destructive ring-destructive/20" : ""}`}
                                                 value={formData.contactNumber}
                                                 onChange={(e) => {
@@ -280,7 +315,8 @@ const GetQuote = () => {
                                         placeholder="Number of people"
                                         min="1"
                                         value={formData.capacity}
-                                        onChange={(e) => setFormData({ ...formData, capacity: parseInt(e.target.value) })}
+                                        onChange={(e) => setFormData({ ...formData, capacity: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) as any })}
+                                        disabled={formData.requiredWorkspace === "dedicated"}
                                     />
                                 </div>
 
@@ -344,6 +380,109 @@ const GetQuote = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Dedicated Workspace Options */}
+                            {formData.requiredWorkspace === "dedicated" && (
+                                <div className="space-y-6 p-6 rounded-2xl bg-primary/5 border border-primary/10 animate-in fade-in slide-in-from-top-4 duration-500">
+                                    <h3 className="text-lg font-bold flex items-center gap-2 border-b border-primary/10 pb-2 text-primary">
+                                        <Building2 className="w-5 h-5" />
+                                        Workspace Architecture
+                                    </h3>
+
+                                    <div className="grid md:grid-cols-3 gap-6">
+                                        <div className="space-y-2">
+                                            <Label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Workstation Seats</Label>
+                                            <Input
+                                                type="number"
+                                                className="h-11 rounded-xl bg-background/50 border-border/50"
+                                                placeholder="e.g. 20"
+                                                min="0"
+                                                value={formData.workstationSeats}
+                                                onChange={(e) => setFormData({
+                                                    ...formData,
+                                                    workstationSeats: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) as any
+                                                })}
+                                            />
+                                        </div>
+
+                                        <div className="space-y-3 p-4 rounded-xl bg-background border border-border/50 shadow-sm">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="conference"
+                                                    checked={formData.hasConferenceHall}
+                                                    onCheckedChange={(checked) =>
+                                                        setFormData({
+                                                            ...formData,
+                                                            hasConferenceHall: !!checked,
+                                                            conferenceHallSeats: checked ? (formData.conferenceHallSeats || 0) : 0
+                                                        })
+                                                    }
+                                                />
+                                                <Label htmlFor="conference" className="text-sm font-bold cursor-pointer">Conference Hall</Label>
+                                            </div>
+                                            {formData.hasConferenceHall && (
+                                                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    <Label className="text-[10px] font-black uppercase text-primary/70">Seats</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        className="h-9 text-sm rounded-lg border-primary/20"
+                                                        value={formData.conferenceHallSeats}
+                                                        onChange={(e) => setFormData({
+                                                            ...formData,
+                                                            conferenceHallSeats: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) as any
+                                                        })}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-3 p-4 rounded-xl bg-background border border-border/50 shadow-sm">
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id="cabin"
+                                                    checked={formData.hasCabin}
+                                                    onCheckedChange={(checked) =>
+                                                        setFormData({
+                                                            ...formData,
+                                                            hasCabin: !!checked,
+                                                            cabinSeats: checked ? (formData.cabinSeats || 0) : 0
+                                                        })
+                                                    }
+                                                />
+                                                <Label htmlFor="cabin" className="text-sm font-bold cursor-pointer">Private Cabins</Label>
+                                            </div>
+                                            {formData.hasCabin && (
+                                                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-300">
+                                                    <Label className="text-[10px] font-black uppercase text-primary/70">Seats</Label>
+                                                    <Input
+                                                        type="number"
+                                                        min="0"
+                                                        className="h-9 text-sm rounded-lg border-primary/20"
+                                                        value={formData.cabinSeats}
+                                                        onChange={(e) => setFormData({
+                                                            ...formData,
+                                                            cabinSeats: e.target.value === "" ? "" : (parseInt(e.target.value) || 0) as any
+                                                        })}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border border-primary/20">
+                                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
+                                            <Users className="w-5 h-5" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/70">Calculated Total Capacity</p>
+                                            <p className="text-xl font-black italic">
+                                                {formData.capacity} People
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Comments Group */}
                             <div className="space-y-2">

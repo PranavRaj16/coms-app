@@ -1,0 +1,38 @@
+﻿    const [activeHashtag, setActiveHashtag] = useState<string | null>(null);
+    const [activeReplyBox, setActiveReplyBox] = useState<string | null>(null);
+            setActiveReplyBox(null);
+                                        isActive={currentView === "dashboard"}
+                                        isActive={currentView === "community"}
+                                        isActive={currentView === "bookings"}
+                                        isActive={currentView === "profile"}
+                                <Button variant="ghost" size="icon" className="relative w-9 h-9 transition-all active:scale-95 group">
+                                    { label: "My Spaces", value: myWorkspaces.length > 0 ? `${myWorkspaces.length} Active` : "None", icon: Building2, color: "text-primary", bg: "bg-primary/10", activeBg: "group-hover:bg-primary" },
+                                    { label: "Open Requests", value: myRequests.filter(r => r.status === 'Pending').length, icon: Ticket, color: "text-amber-500", bg: "bg-amber-500/10", activeBg: "group-hover:bg-amber-500" },
+                                    { label: "Pending Dues", value: invoices.filter(i => i.status === 'Pending').length, icon: Calendar, color: "text-rose-500", bg: "bg-rose-500/10", activeBg: "group-hover:bg-rose-500" },
+                                    { label: "Neighbor Hub", value: community.length + " Members", icon: CommunityIcon, color: "text-indigo-500", bg: "bg-indigo-500/10", activeBg: "group-hover:bg-indigo-500" }
+                                        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${stat.bg} ${stat.color} flex items-center justify-center mb-4 transition-all duration-500 ${stat.activeBg} group-hover:text-white group-hover:rotate-12`}>
+                                                                <Badge className="bg-primary/90 backdrop-blur-md text-white border-none px-3 sm:px-4 py-1 sm:py-1.5 font-black uppercase tracking-widest text-[9px] sm:text-[10px]">Active Workplace</Badge>
+                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">Days Until Active</p>
+                                                        <p className="text-sm font-bold text-primary">Status: Active Subscription</p>
+                                                        className="w-full h-12 rounded-xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                    <TabsTrigger value="stories" className="rounded-xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-md transition-all">
+                                    <TabsTrigger value="members" className="rounded-xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-md transition-all">
+                                                        className="rounded-full px-8 font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                {activeHashtag && (
+                                                            <Badge className="bg-primary text-white border-none">{activeHashtag}</Badge>
+                                                            onClick={() => setActiveHashtag(null)}
+                                                {posts.filter(p => !activeHashtag || p.content.toLowerCase().includes(activeHashtag.toLowerCase())).length === 0 ? (
+                                                            {activeHashtag ? "No stories found for this hashtag." : "The feed is silent. Be the first to speak!"}
+                                                        .filter(p => !activeHashtag || p.content.toLowerCase().includes(activeHashtag.toLowerCase()))
+                                                                                                        onClick={() => setActiveReplyBox(activeReplyBox === comment._id ? null : comment._id)}
+                                                                                                {activeReplyBox === comment._id && (
+                                                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${activeHashtag?.toLowerCase() === t.topicRaw.toLowerCase()
+                                                                onClick={() => setActiveHashtag(activeHashtag?.toLowerCase() === t.topicRaw.toLowerCase() ? null : t.topicRaw)}
+                                        <span className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-widest">Active Requests</span>
+                                    <TabsTrigger value="explore" className="rounded-lg sm:rounded-xl px-4 sm:px-6 py-2 sm:py-2.5 font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm whitespace-nowrap text-xs sm:text-sm">
+                                    <TabsTrigger value="my-requests" className="rounded-lg sm:rounded-xl px-4 sm:px-6 py-2 sm:py-2.5 font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm whitespace-nowrap text-xs sm:text-sm">
+                                    <TabsTrigger value="invoices" className="rounded-lg sm:rounded-xl px-4 sm:px-6 py-2 sm:py-2.5 font-bold data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm whitespace-nowrap text-xs sm:text-sm">
+                                                    <span className="text-xs font-bold">Active Member</span>
+                                                        <span className="text-xs font-bold">Workspace Active</span>
+                                                                    className="w-full rounded-xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                        <span className="text-sm font-bold">Active Now</span>

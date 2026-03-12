@@ -1,0 +1,3 @@
+﻿    const formatDisplayDate = (date: any) => {
+                                                                                <span className="text-xs font-bold">{formatDisplayDate(inv.createdAt)}</span>
+                                                                                                <span className="font-bold">{formatDisplayDate(booking?.startDate)}</span>

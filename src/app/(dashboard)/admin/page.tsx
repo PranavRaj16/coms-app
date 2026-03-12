@@ -227,6 +227,8 @@ const AdminDashboard = () => {
     const [invoices, setInvoices] = useState<any[]>([]);
     const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
     const [isResettingInvoices, setIsResettingInvoices] = useState(false);
+    const [isAdminLoading, setIsAdminLoading] = useState(true);
+    const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
 
     const [userInfo, setUserInfo] = useState<any>(null);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -506,6 +508,8 @@ const AdminDashboard = () => {
                 setWorkspaces(initialWorkspaces);
                 setUsers(initialUsers);
             }
+        } finally {
+            if (!isAutoRefresh) setIsAdminLoading(false);
         }
     }, []);
 
@@ -707,6 +711,7 @@ const AdminDashboard = () => {
 
             // Re-fetch or update local state
             setWorkspaces(workspaces.map(ws => (ws._id === selectedWorkspace || (ws.id && ws.id.toString() === selectedWorkspace)) ? updatedWorkspace : ws));
+            await loadData(); // Ensure UI gets populated user data
             setIsAllotDialogOpen(false);
             toast.success("Workspace allotment updated successfully!");
         } catch (error: any) {
@@ -1002,6 +1007,17 @@ const AdminDashboard = () => {
             setIsResettingInvoices(false);
         }
     };
+
+    if (isAdminLoading) {
+        return (
+            <div className="h-screen w-full flex items-center justify-center bg-background">
+                <div className="flex flex-col items-center gap-4 text-center">
+                    <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                    <p className="text-muted-foreground animate-pulse font-medium">Loading admin console...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <SidebarProvider>
@@ -2679,19 +2695,20 @@ const AdminDashboard = () => {
                                             (q.workEmail?.toLowerCase() || "").includes(searchTerm.toLowerCase())
                                         )}
                                         onUpdateStatus={async (id, status) => {
-                                            console.log(`[FRONTEND] Updating Quote ${id} to ${status}`);
+                                            setUpdatingRequestId(id);
                                             try {
                                                 const res = await updateQuoteRequest(id, status);
-                                                console.log(`[FRONTEND] Response from server:`, res);
                                                 toast.success(`Quote status updated to ${status}`);
                                                 setQuotes(quotes.map(q => q._id === id ? { ...q, status } : q));
                                                 const statsData = await fetchDashboardStats();
                                                 setDashboardStats(statsData);
                                             } catch (err: any) {
-                                                console.error(`[FRONTEND] Error updating status:`, err);
                                                 toast.error(`Failed to update status: ${err.message}`);
+                                            } finally {
+                                                setUpdatingRequestId(null);
                                             }
                                         }}
+                                        updatingRequestId={updatingRequestId}
                                         currentPage={tablePages.quotes}
                                         onPageChange={(page) => setTablePages({ ...tablePages, quotes: page })}
                                         itemsPerPage={ITEMS_PER_PAGE}
@@ -2708,6 +2725,7 @@ const AdminDashboard = () => {
                                             (b.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
                                         )}
                                         onUpdateStatus={async (id, status) => {
+                                            setUpdatingRequestId(id);
                                             try {
                                                 await updateBookingRequestApi(id, status);
                                                 toast.success(`Booking status updated to ${status}`);
@@ -2716,8 +2734,11 @@ const AdminDashboard = () => {
                                                 setDashboardStats(statsData);
                                             } catch (err: any) {
                                                 toast.error(`Failed to update status: ${err.message}`);
+                                            } finally {
+                                                setUpdatingRequestId(null);
                                             }
                                         }}
+                                        updatingRequestId={updatingRequestId}
                                         currentPage={tablePages.bookings}
                                         onPageChange={(page) => setTablePages({ ...tablePages, bookings: page })}
                                         itemsPerPage={ITEMS_PER_PAGE}
@@ -2734,6 +2755,7 @@ const AdminDashboard = () => {
                                             (v.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
                                         )}
                                         onUpdateStatus={async (id, status) => {
+                                            setUpdatingRequestId(id);
                                             try {
                                                 await updateVisitRequestApi(id, status);
                                                 toast.success(`Visit status updated to ${status}`);
@@ -2742,8 +2764,11 @@ const AdminDashboard = () => {
                                                 setDashboardStats(statsData);
                                             } catch (err: any) {
                                                 toast.error(`Failed to update status: ${err.message}`);
+                                            } finally {
+                                                setUpdatingRequestId(null);
                                             }
                                         }}
+                                        updatingRequestId={updatingRequestId}
                                         currentPage={tablePages.visits}
                                         onPageChange={(page) => setTablePages({ ...tablePages, visits: page })}
                                         itemsPerPage={ITEMS_PER_PAGE}
@@ -2774,20 +2799,21 @@ const AdminDashboard = () => {
                                     (c.subject?.toLowerCase() || "").includes(searchTerm.toLowerCase())
                                 )}
                                 onUpdateStatus={async (id, status) => {
-                                    console.log(`[FRONTEND] Updating Contact Inquiry ${id} to ${status}`);
+                                    setUpdatingRequestId(id);
                                     try {
-                                        const res = await updateContactRequest(id, status);
-                                        console.log(`[FRONTEND] Response from server:`, res);
+                                        await updateContactRequest(id, status);
                                         toast.success(`Inquiry status updated to ${status}`);
                                         setContactRequests(contactRequests.map(c => c._id === id ? { ...c, status } : c));
                                         // Refresh stats
                                         const statsData = await fetchDashboardStats();
                                         setDashboardStats(statsData);
                                     } catch (err: any) {
-                                        console.error(`[FRONTEND] Error updating status:`, err);
                                         toast.error(`Failed to update status: ${err.message}`);
+                                    } finally {
+                                        setUpdatingRequestId(null);
                                     }
                                 }}
+                                updatingRequestId={updatingRequestId}
                                 currentPage={tablePages.contacts}
                                 onPageChange={(page) => setTablePages({ ...tablePages, contacts: page })}
                                 itemsPerPage={ITEMS_PER_PAGE}
@@ -3226,10 +3252,22 @@ function UsersTable({
                                 </Badge>
                             </TableCell>
                             <TableCell>
-                                <span className="text-xs font-medium">{user.joinedDate ? new Date(user.joinedDate).toLocaleDateString() : "N/A"}</span>
+                                <span className="text-xs font-medium">
+                                    {user.joinedDate 
+                                        ? (!isNaN(new Date(user.joinedDate).getTime()) 
+                                            ? new Date(user.joinedDate).toLocaleDateString() 
+                                            : user.joinedDate) 
+                                        : "N/A"}
+                                </span>
                             </TableCell>
                             <TableCell>
-                                <span className="text-xs font-medium italic text-muted-foreground">{user.lastActive ? new Date(user.lastActive).toLocaleDateString() : "Never"}</span>
+                                <span className="text-xs font-medium italic text-muted-foreground">
+                                    {user.lastActive 
+                                        ? (!isNaN(new Date(user.lastActive).getTime()) 
+                                            ? new Date(user.lastActive).toLocaleDateString() 
+                                            : user.lastActive) 
+                                        : "Never"}
+                                </span>
                             </TableCell>
                             <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
@@ -3364,12 +3402,14 @@ function WorkspacesTable({
 function QuotesTable({
     quotes,
     onUpdateStatus,
+    updatingRequestId,
     currentPage,
     onPageChange,
     itemsPerPage
 }: {
     quotes: QuoteRequest[],
     onUpdateStatus: (id: string, status: string) => void,
+    updatingRequestId: string | null,
     currentPage: number,
     onPageChange: (page: number) => void,
     itemsPerPage: number
@@ -3400,7 +3440,7 @@ function QuotesTable({
                         </TableRow>
                     ) : (
                         paginatedQuotes.map((quote) => (
-                            <QuoteRow key={quote._id} quote={quote} onUpdateStatus={onUpdateStatus} />
+                            <QuoteRow key={quote._id} quote={quote} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === quote._id} />
                         ))
                     )}
                 </TableBody>
@@ -3415,7 +3455,7 @@ function QuotesTable({
     );
 }
 
-const QuoteRow = ({ quote, onUpdateStatus }: { quote: QuoteRequest, onUpdateStatus: (id: string, status: string) => void }) => {
+const QuoteRow = ({ quote, onUpdateStatus, isUpdating }: { quote: QuoteRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     return (
@@ -3461,8 +3501,8 @@ const QuoteRow = ({ quote, onUpdateStatus }: { quote: QuoteRequest, onUpdateStat
                 <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()}>
-                                Update Status
+                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
+                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl">
@@ -3568,12 +3608,14 @@ const QuoteRow = ({ quote, onUpdateStatus }: { quote: QuoteRequest, onUpdateStat
 function ContactsTable({
     contacts,
     onUpdateStatus,
+    updatingRequestId,
     currentPage,
     onPageChange,
     itemsPerPage
 }: {
     contacts: ContactRequest[],
     onUpdateStatus: (id: string, status: string) => void,
+    updatingRequestId: string | null,
     currentPage: number,
     onPageChange: (page: number) => void,
     itemsPerPage: number
@@ -3604,7 +3646,7 @@ function ContactsTable({
                         </TableRow>
                     ) : (
                         paginatedContacts.map((contact) => (
-                            <ContactRow key={contact._id} contact={contact} onUpdateStatus={onUpdateStatus} />
+                            <ContactRow key={contact._id} contact={contact} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === contact._id} />
                         ))
                     )}
                 </TableBody>
@@ -3619,7 +3661,7 @@ function ContactsTable({
     );
 }
 
-const ContactRow = ({ contact, onUpdateStatus }: { contact: ContactRequest, onUpdateStatus: (id: string, status: string) => void }) => {
+const ContactRow = ({ contact, onUpdateStatus, isUpdating }: { contact: ContactRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 
     return (
@@ -3663,8 +3705,8 @@ const ContactRow = ({ contact, onUpdateStatus }: { contact: ContactRequest, onUp
                 <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()}>
-                                Update Status
+                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
+                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl">
@@ -3741,12 +3783,14 @@ const ContactRow = ({ contact, onUpdateStatus }: { contact: ContactRequest, onUp
 function BookingsTable({
     bookings,
     onUpdateStatus,
+    updatingRequestId,
     currentPage,
     onPageChange,
     itemsPerPage
 }: {
     bookings: BookingRequest[],
     onUpdateStatus: (id: string, status: string) => void,
+    updatingRequestId: string | null,
     currentPage: number,
     onPageChange: (page: number) => void,
     itemsPerPage: number
@@ -3777,7 +3821,7 @@ function BookingsTable({
                         </TableRow>
                     ) : (
                         paginatedBookings.map((booking) => (
-                            <BookingRow key={booking._id} booking={booking} onUpdateStatus={onUpdateStatus} />
+                            <BookingRow key={booking._id} booking={booking} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === booking._id} />
                         ))
                     )}
                 </TableBody>
@@ -3792,7 +3836,7 @@ function BookingsTable({
     );
 }
 
-function BookingRow({ booking, onUpdateStatus }: { booking: BookingRequest, onUpdateStatus: (id: string, status: string) => void }) {
+function BookingRow({ booking, onUpdateStatus, isUpdating }: { booking: BookingRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
     return (
@@ -3839,8 +3883,8 @@ function BookingRow({ booking, onUpdateStatus }: { booking: BookingRequest, onUp
                 <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()}>
-                                Update Status
+                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
+                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl">
@@ -3925,12 +3969,14 @@ function BookingRow({ booking, onUpdateStatus }: { booking: BookingRequest, onUp
 function VisitsTable({
     visits,
     onUpdateStatus,
+    updatingRequestId,
     currentPage,
     onPageChange,
     itemsPerPage
 }: {
     visits: VisitRequest[],
     onUpdateStatus: (id: string, status: string) => void,
+    updatingRequestId: string | null,
     currentPage: number,
     onPageChange: (page: number) => void,
     itemsPerPage: number
@@ -3961,7 +4007,7 @@ function VisitsTable({
                         </TableRow>
                     ) : (
                         paginatedVisits.map((visit) => (
-                            <VisitRow key={visit._id} visit={visit} onUpdateStatus={onUpdateStatus} />
+                            <VisitRow key={visit._id} visit={visit} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === visit._id} />
                         ))
                     )}
                 </TableBody>
@@ -3976,7 +4022,7 @@ function VisitsTable({
     );
 }
 
-function VisitRow({ visit, onUpdateStatus }: { visit: VisitRequest, onUpdateStatus: (id: string, status: string) => void }) {
+function VisitRow({ visit, onUpdateStatus, isUpdating }: { visit: VisitRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) {
     const [isExpanded, setIsExpanded] = useState(false);
 
     return (
@@ -4021,8 +4067,8 @@ function VisitRow({ visit, onUpdateStatus }: { visit: VisitRequest, onUpdateStat
                 <TableCell className="text-right">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()}>
-                                Update Status
+                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
+                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="rounded-xl">

@@ -1,0 +1,17 @@
+﻿                        <TableHead>Contact</TableHead>
+                        <TableHead>Organization</TableHead>
+                        <TableHead>Role</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Joined Date</TableHead>
+                        <TableHead>Last Active</TableHead>
+                        <TableHead>Workspace Name</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Floor</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Capacity</TableHead>
+                        <TableHead>Allotted To</TableHead>
+                        <TableHead>Visitor Name</TableHead>
+                        <TableHead>Visit Date</TableHead>
+                        <TableHead>Pass Code</TableHead>
+                        <TableHead>Purpose</TableHead>
+                        <TableHead>Status</TableHead>

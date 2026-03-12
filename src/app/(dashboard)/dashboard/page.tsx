@@ -91,7 +91,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import cohortimage from "@/assets/cohort-logo.png";
-import { fetchMyWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice } from "@/lib/api";
+import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice } from "@/lib/api";
 import { Workspace } from "@/data/workspaces";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
@@ -150,13 +150,15 @@ const UserDashboard = () => {
     const selectedWorkspaceId = searchParams?.get("workspaceId") ?? null;
 
     const [userInfo, setUserInfo] = useState<any>(null);
-    const [myWorkspace, setMyWorkspace] = useState<Workspace | null>(null);
+    const [myWorkspaces, setMyWorkspaces] = useState<Workspace[]>([]);
+    const [upcomingWorkspaces, setUpcomingWorkspaces] = useState<Workspace[]>([]);
     const [allWorkspaces, setAllWorkspaces] = useState<Workspace[]>([]);
 
     // Compute selected workspace from ID in URL
     const selectedWorkspace = selectedWorkspaceId ? (
         allWorkspaces.find(ws => String(ws._id || ws.id) === selectedWorkspaceId) ||
-        (myWorkspace && String(myWorkspace._id || myWorkspace.id) === selectedWorkspaceId ? myWorkspace : null)
+        myWorkspaces.find(ws => String(ws._id || ws.id) === selectedWorkspaceId) ||
+        upcomingWorkspaces.find(ws => String(ws._id || ws.id) === selectedWorkspaceId)
     ) : null;
 
     const changeView = (view: View, workspaceId?: string) => {
@@ -206,6 +208,12 @@ const UserDashboard = () => {
     const [commentToDelete, setCommentToDelete] = useState<{ postId: string, commentId: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [isPosting, setIsPosting] = useState(false);
+    const [isDeletingPost, setIsDeletingPost] = useState(false);
+    const [isDeletingComment, setIsDeletingComment] = useState(false);
+    const [submittingCommentPostId, setSubmittingCommentPostId] = useState<string | null>(null);
+    const [submittingReplyCommentId, setSubmittingReplyCommentId] = useState<string | null>(null);
+    const [isRequestingWorkspace, setIsRequestingWorkspace] = useState(false);
+    const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
     const [myRequests, setMyRequests] = useState<any[]>([]);
     const [invoices, setInvoices] = useState<any[]>([]);
     const [isRequesting, setIsRequesting] = useState(false);
@@ -217,6 +225,54 @@ const UserDashboard = () => {
         mobile: ""
     });
     const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+    const formatDisplayDate = (date: any) => {
+        if (!date) return "N/A";
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return date;
+        return d.toLocaleDateString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    };
+
+    const getEndDate = (startDate: any, duration: string) => {
+        if (!startDate || !duration) return "N/A";
+        try {
+            const date = new Date(startDate);
+            const parts = duration.split(" ");
+            const num = parseFloat(parts[0]);
+            const unit = parts[1]?.toLowerCase() || "months";
+
+            if (unit.startsWith('month')) date.setMonth(date.getMonth() + Math.ceil(num));
+            else if (unit.startsWith('year')) date.setFullYear(date.getFullYear() + Math.ceil(num));
+            else if (unit.startsWith('week')) date.setDate(date.getDate() + Math.ceil(num * 7));
+            else if (unit.startsWith('day')) date.setDate(date.getDate() + Math.ceil(num));
+            else if (unit.startsWith('hour')) date.setHours(date.getHours() + Math.ceil(num));
+
+            return date.toLocaleDateString('en-IN', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            });
+        } catch (e) {
+            return "Invalid Date";
+        }
+    };
+
+    const handlePayInvoice = async (invoiceId: string) => {
+        setPayingInvoiceId(invoiceId);
+        try {
+            await payInvoice(invoiceId);
+            toast.success("Invoice paid successfully");
+            await loadDashboardData(false);
+        } catch (error: any) {
+            toast.error(error.message || "Failed to pay invoice");
+        } finally {
+            setPayingInvoiceId(null);
+        }
+    };
 
     // Member Contact Modal State
     const [selectedMember, setSelectedMember] = useState<any>(null);
@@ -380,8 +436,9 @@ const UserDashboard = () => {
     const loadDashboardData = useCallback(async (showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
-            const [wsData, allWsData, communityData, postsData, freshProfile, quotesData, bookingsData, invoicesData] = await Promise.all([
+            const [wsData, upcomingWsData, allWsData, communityData, postsData, freshProfile, quotesData, bookingsData, invoicesData] = await Promise.all([
                 fetchMyWorkspace().catch(() => null),
+                fetchUpcomingWorkspace().catch(() => null),
                 fetchWorkspaces().catch(() => []),
                 fetchCommunityMembers().catch(() => []),
                 fetchPosts().catch(() => []),
@@ -403,7 +460,8 @@ const UserDashboard = () => {
                 localStorage.setItem("userInfo", JSON.stringify({ ...sessionData, ...freshProfile }));
             }
 
-            setMyWorkspace(wsData);
+            setMyWorkspaces(Array.isArray(wsData) ? wsData : (wsData ? [wsData] : []));
+            setUpcomingWorkspaces(Array.isArray(upcomingWsData) ? upcomingWsData : (upcomingWsData ? [upcomingWsData] : []));
             setAllWorkspaces(allWsData);
             setCommunity(communityData);
             setPosts(postsData);
@@ -483,6 +541,9 @@ const UserDashboard = () => {
 
     const handleAddComment = async (postId: string) => {
         const text = commentTexts[postId];
+        if (!text?.trim()) return;
+
+        setSubmittingCommentPostId(postId);
         try {
             const updatedPost = await addComment(postId, {
                 text,
@@ -493,6 +554,8 @@ const UserDashboard = () => {
             toast.success("Comment added!");
         } catch (error: any) {
             toast.error(error.message || "Failed to add comment");
+        } finally {
+            setSubmittingCommentPostId(null);
         }
     };
 
@@ -526,6 +589,9 @@ const UserDashboard = () => {
 
     const handleAddReply = async (postId: string, commentId: string) => {
         const text = replyTexts[commentId];
+        if (!text?.trim()) return;
+
+        setSubmittingReplyCommentId(commentId);
         try {
             const updatedPost = await addReply(postId, commentId, {
                 text,
@@ -537,6 +603,8 @@ const UserDashboard = () => {
             toast.success("Reply added!");
         } catch (error: any) {
             toast.error(error.message || "Failed to add reply");
+        } finally {
+            setSubmittingReplyCommentId(null);
         }
     };
 
@@ -559,9 +627,14 @@ const UserDashboard = () => {
         }
     };
 
-    const handleRequestWorkspace = (workspace: Workspace) => {
-        setSelectedWorkspaceToBook(workspace);
-        setIsBookingModalOpen(true);
+    const handleRequestWorkspace = async (workspace: Workspace) => {
+        setIsRequestingWorkspace(true);
+        try {
+            setSelectedWorkspaceToBook(workspace);
+            setIsBookingModalOpen(true);
+        } finally {
+            setIsRequestingWorkspace(false);
+        }
     };
 
     const handleConfirmedBooking = async () => {
@@ -857,7 +930,7 @@ const UserDashboard = () => {
                             {/* Quick Stats Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-100">
                                 {[
-                                    { label: "My Spaces", value: myWorkspace ? "1 Active" : "None", icon: Building2, color: "text-primary", bg: "bg-primary/10", activeBg: "group-hover:bg-primary" },
+                                    { label: "My Spaces", value: myWorkspaces.length > 0 ? `${myWorkspaces.length} Active` : "None", icon: Building2, color: "text-primary", bg: "bg-primary/10", activeBg: "group-hover:bg-primary" },
                                     { label: "Open Requests", value: myRequests.filter(r => r.status === 'Pending').length, icon: Ticket, color: "text-amber-500", bg: "bg-amber-500/10", activeBg: "group-hover:bg-amber-500" },
                                     { label: "Pending Dues", value: invoices.filter(i => i.status === 'Pending').length, icon: Calendar, color: "text-rose-500", bg: "bg-rose-500/10", activeBg: "group-hover:bg-rose-500" },
                                     { label: "Neighbor Hub", value: community.length + " Members", icon: CommunityIcon, color: "text-indigo-500", bg: "bg-indigo-500/10", activeBg: "group-hover:bg-indigo-500" }
@@ -874,69 +947,132 @@ const UserDashboard = () => {
 
                             <div className="grid lg:grid-cols-3 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-200">
                                 <div className="lg:col-span-2 space-y-8">
-                                    {myWorkspace ? (
-                                        <div className="relative group overflow-hidden rounded-2xl sm:rounded-[2.5rem] border border-border/50 shadow-2xl transition-all hover:shadow-primary/10">
-                                            <div className="aspect-video sm:aspect-[21/10] w-full relative">
-                                                <img
-                                                    src={myWorkspace.image || DEFAULT_WORKSPACE_IMAGE}
-                                                    alt={myWorkspace.name}
-                                                    className="object-cover w-full h-full transition-transform duration-1000 group-hover:scale-105"
-                                                />
-                                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                                                <div className="absolute bottom-6 left-6 right-6 sm:bottom-10 sm:left-10 sm:right-10 text-white">
-                                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                                                        <Badge className="bg-primary/90 backdrop-blur-md text-white border-none px-3 sm:px-4 py-1 sm:py-1.5 font-black uppercase tracking-widest text-[9px] sm:text-[10px]">Active Workplace</Badge>
-                                                        <div className="flex items-center gap-2 bg-emerald-500/20 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-emerald-500/30">
-                                                            <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                                            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-emerald-400">Secured</span>
+                                    {myWorkspaces.length > 0 || upcomingWorkspaces.length > 0 ? (
+                                        <div className="space-y-8">
+                                            {myWorkspaces.map((ws: Workspace) => (
+                                                <div key={String(ws._id || ws.id)} className="relative group overflow-hidden rounded-2xl sm:rounded-[2.5rem] border border-border/50 shadow-2xl transition-all hover:shadow-primary/10">
+                                                    <div className="aspect-video sm:aspect-[21/10] w-full relative">
+                                                        <img
+                                                            src={ws.image || DEFAULT_WORKSPACE_IMAGE}
+                                                            alt={ws.name}
+                                                            className="object-cover w-full h-full transition-transform duration-1000 group-hover:scale-105"
+                                                        />
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                                                        <div className="absolute bottom-6 left-6 right-6 sm:bottom-10 sm:left-10 sm:right-10 text-white">
+                                                            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                                                                <Badge className="bg-primary/90 backdrop-blur-md text-white border-none px-3 sm:px-4 py-1 sm:py-1.5 font-black uppercase tracking-widest text-[9px] sm:text-[10px]">Active Workplace</Badge>
+                                                                <div className="flex items-center gap-2 bg-emerald-500/20 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-emerald-500/30">
+                                                                    <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-emerald-400">Secured</span>
+                                                                </div>
+                                                            </div>
+                                                            <h2 className="text-3xl sm:text-4xl font-black lg:text-5xl italic tracking-tight mb-2">{ws.name}</h2>
+                                                            <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-white/90 text-[10px] sm:text-sm font-bold uppercase tracking-widest bg-white/5 backdrop-blur-sm w-fit px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/10">
+                                                                <div className="flex items-center gap-1.5 sm:gap-2">
+                                                                    <MapPin className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-primary" />
+                                                                    {ws.location}
+                                                                </div>
+                                                                <div className="hidden sm:block w-px h-4 bg-white/20" />
+                                                                <div className="flex items-center gap-1.5 sm:gap-2">
+                                                                    <Layers className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-primary" />
+                                                                    {ws.floor}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    <h2 className="text-3xl sm:text-4xl font-black lg:text-5xl italic tracking-tight mb-2">{myWorkspace.name}</h2>
-                                                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-white/90 text-[10px] sm:text-sm font-bold uppercase tracking-widest bg-white/5 backdrop-blur-sm w-fit px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/10">
-                                                        <div className="flex items-center gap-1.5 sm:gap-2">
-                                                            <MapPin className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-primary" />
-                                                            {myWorkspace.location}
+                                                    <div className="bg-card p-6 sm:p-10 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-10">
+                                                        <div className="space-y-1">
+                                                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Plan Type</p>
+                                                            <p className="font-bold text-lg flex items-center gap-2">
+                                                                <Building2 className="w-4 h-4 text-primary" />
+                                                                {ws.type}
+                                                            </p>
                                                         </div>
-                                                        <div className="hidden sm:block w-px h-4 bg-white/20" />
-                                                        <div className="flex items-center gap-1.5 sm:gap-2">
-                                                            <Layers className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-primary" />
-                                                            {myWorkspace.floor}
+                                                        <div className="space-y-1">
+                                                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Capacity</p>
+                                                            <p className="font-bold text-lg flex items-center gap-2">
+                                                                <CommunityIcon className="w-4 h-4 text-primary" />
+                                                                {ws.capacity}
+                                                            </p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Membership</p>
+                                                            <p className="font-bold text-lg flex items-center gap-2 text-emerald-600">
+                                                                <CheckCircle2 className="w-4 h-4" />
+                                                                Premium
+                                                            </p>
+                                                        </div>
+                                                        <div className="col-span-2 md:col-span-1 flex items-center justify-end">
+                                                            <Button
+                                                                size="lg"
+                                                                className="w-full sm:w-auto rounded-xl sm:rounded-2xl gap-2 font-black italic shadow-xl shadow-primary/20 group/btn transition-all hover:scale-[1.05]"
+                                                                onClick={() => changeView("workspace-details", String(ws._id || ws.id))}
+                                                            >
+                                                                Space HUB <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                                                            </Button>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                            <div className="bg-card p-6 sm:p-10 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-10">
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Plan Type</p>
-                                                    <p className="font-bold text-lg flex items-center gap-2">
-                                                        <Building2 className="w-4 h-4 text-primary" />
-                                                        {myWorkspace.type}
-                                                    </p>
+                                            ))}
+
+                                            {upcomingWorkspaces.map((ws: Workspace) => (
+                                                <div key={String(ws._id || ws.id)} className="relative overflow-hidden rounded-2xl sm:rounded-[2.5rem] border border-amber-500/30 shadow-2xl bg-gradient-to-br from-amber-500/5 via-card to-card">
+                                                    <div className="relative overflow-hidden h-40 sm:h-56">
+                                                        <img
+                                                            src={ws.image || DEFAULT_WORKSPACE_IMAGE}
+                                                            alt={ws.name}
+                                                            className="object-cover w-full h-full brightness-50"
+                                                        />
+                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+                                                        <div className="absolute top-4 left-4">
+                                                            <Badge className="bg-amber-500 text-black border-none px-3 py-1 font-black uppercase tracking-widest text-[10px] animate-pulse">
+                                                                ⏳ Pre-Booked
+                                                            </Badge>
+                                                        </div>
+                                                        <div className="absolute bottom-6 left-6 text-white">
+                                                            <h2 className="text-2xl sm:text-3xl font-black italic tracking-tight">{ws.name}</h2>
+                                                            <div className="flex items-center gap-2 text-white/70 text-sm font-bold mt-1">
+                                                                <MapPin className="w-4 h-4 text-amber-400" />
+                                                                {ws.location}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="p-6 sm:p-8 space-y-4">
+                                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                                            <div className="space-y-1">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">Your Workspace Starts On</p>
+                                                                <p className="text-2xl font-black italic text-foreground">
+                                                                    {ws.allotmentStart
+                                                                        ? new Date(ws.allotmentStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+                                                                        : 'Scheduled'}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-3">
+                                                                <Clock className="w-5 h-5 text-amber-600" />
+                                                                <div>
+                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">Days Until Active</p>
+                                                                    <p className="text-xl font-black italic text-amber-700">
+                                                                        {ws.allotmentStart
+                                                                            ? Math.max(0, Math.ceil((new Date(ws.allotmentStart).getTime() - Date.now()) / 86400000))
+                                                                            : '—'}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <p className="text-sm text-muted-foreground font-medium">
+                                                            Your workspace is confirmed and will be activated on your start date. No action needed — it will appear here automatically.
+                                                        </p>
+                                                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                                                            <Button size="lg" className="w-full sm:w-auto rounded-xl font-black italic shadow-lg shadow-amber-500/10 h-12" onClick={() => changeView("bookings")}>
+                                                                View Booking Details
+                                                            </Button>
+                                                            <Button variant="outline" size="lg" className="w-full sm:w-auto rounded-xl font-black h-12" asChild>
+                                                                <Link href="/contact">Contact Admin</Link>
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Capacity</p>
-                                                    <p className="font-bold text-lg flex items-center gap-2">
-                                                        <CommunityIcon className="w-4 h-4 text-primary" />
-                                                        {myWorkspace.capacity}
-                                                    </p>
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Membership</p>
-                                                    <p className="font-bold text-lg flex items-center gap-2 text-emerald-600">
-                                                        <CheckCircle2 className="w-4 h-4" />
-                                                        Premium
-                                                    </p>
-                                                </div>
-                                                <div className="col-span-2 md:col-span-1 flex items-center justify-end">
-                                                    <Button
-                                                        size="lg"
-                                                        className="w-full sm:w-auto rounded-xl sm:rounded-2xl gap-2 font-black italic shadow-xl shadow-primary/20 group/btn transition-all hover:scale-[1.05]"
-                                                        onClick={() => changeView("workspace-details", String(myWorkspace?._id || myWorkspace?.id))}
-                                                    >
-                                                        Space HUB <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                            ))}
                                         </div>
                                     ) : (
                                         <div className="bg-card rounded-2xl sm:rounded-[3rem] p-8 sm:p-16 text-center border border-border/50 shadow-xl space-y-6 sm:space-y-8 relative overflow-hidden group">
@@ -1089,7 +1225,8 @@ const UserDashboard = () => {
                                 <div className="lg:col-span-2 space-y-6">
                                     <div className="bg-card rounded-[2rem] p-8 border border-border/50 shadow-soft h-full">
                                         <div className="space-y-8">
-                                            {selectedWorkspace._id === myWorkspace?._id ? (
+                                            {(myWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id)) || 
+                                              upcomingWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id))) ? (
                                                 <div>
                                                     <h3 className="text-lg font-black mb-4 flex items-center gap-2">
                                                         <Clock className="w-5 h-5 text-primary" /> Booking Period
@@ -1140,11 +1277,13 @@ const UserDashboard = () => {
                                             </div>
 
                                             <div className="pt-4 space-y-3">
-                                                {selectedWorkspace && selectedWorkspace._id !== myWorkspace?._id && !selectedWorkspace.allottedTo && (
+                                                {selectedWorkspace && !myWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id)) && !selectedWorkspace.allottedTo && (
                                                     <Button
                                                         className="w-full h-12 rounded-xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                                                         onClick={() => handleRequestWorkspace(selectedWorkspace)}
+                                                        disabled={isRequestingWorkspace}
                                                     >
+                                                        {isRequestingWorkspace ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                                                         Request Booking
                                                     </Button>
                                                 )}
@@ -1152,8 +1291,10 @@ const UserDashboard = () => {
                                                     variant="outline"
                                                     className="w-full h-12 rounded-xl font-bold"
                                                     onClick={() => {
-                                                        const isMySpace = selectedWorkspace && myWorkspace &&
-                                                            String(selectedWorkspace._id || selectedWorkspace.id) === String(myWorkspace._id || myWorkspace.id);
+                                                        const isMySpace = selectedWorkspace && (
+                                                            myWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace._id || selectedWorkspace.id)) ||
+                                                            upcomingWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace._id || selectedWorkspace.id))
+                                                        );
                                                         changeView(isMySpace ? "dashboard" : "bookings");
                                                     }}
                                                 >
@@ -1206,7 +1347,11 @@ const UserDashboard = () => {
                                                         disabled={!newPostContent.trim() || isPosting}
                                                         className="rounded-full px-8 font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                                                     >
-                                                        {isPosting ? "Sharing..." : "Post Story"} <Send className="w-4 h-4 ml-2" />
+                                                        {isPosting ? (
+                                                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sharing...</>
+                                                        ) : (
+                                                            <>Post Story <Send className="w-4 h-4 ml-2" /></>
+                                                        )}
                                                     </Button>
                                                 </div>
                                             </div>
@@ -1355,8 +1500,13 @@ const UserDashboard = () => {
                                                                                                             variant="ghost"
                                                                                                             className="h-6 w-6 rounded-lg text-primary hover:bg-primary/10"
                                                                                                             onClick={() => handleAddReply(post._id, comment._id)}
+                                                                                disabled={submittingReplyCommentId === comment._id || !(replyTexts[comment._id]?.trim())}
                                                                                                         >
-                                                                                                            <Send className="w-2.5 h-2.5" />
+                                                                                                            {submittingReplyCommentId === comment._id ? (
+                                                                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                                                            ) : (
+                                                                                <Send className="w-2.5 h-2.5" />
+                                                                            )}
                                                                                                         </Button>
                                                                                                     </div>
                                                                                                 )}
@@ -1380,8 +1530,13 @@ const UserDashboard = () => {
                                                                                 variant="ghost"
                                                                                 className="h-8 w-8 rounded-xl text-primary hover:bg-primary/10"
                                                                                 onClick={() => handleAddComment(post._id)}
+                                                                                disabled={submittingCommentPostId === post._id || !(commentTexts[post._id]?.trim())}
                                                                             >
-                                                                                <Send className="w-3 h-3" />
+                                                                                {submittingCommentPostId === post._id ? (
+                                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                ) : (
+                                                                                    <Send className="w-3 h-3" />
+                                                                                )}
                                                                             </Button>
                                                                         </div>
                                                                     </div>
@@ -1505,7 +1660,9 @@ const UserDashboard = () => {
                                                                 <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest leading-none">Joined COMS</p>
                                                                 <p className="text-[11px] font-bold">
                                                                     {member.user?.joinedDate
-                                                                        ? new Date(member.user.joinedDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+                                                                        ? (!isNaN(new Date(member.user.joinedDate).getTime())
+                                                                            ? new Date(member.user.joinedDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+                                                                            : member.user.joinedDate)
                                                                         : "Feb 2026"}
                                                                 </p>
                                                             </div>
@@ -1555,7 +1712,6 @@ const UserDashboard = () => {
                                     </div>
                                     <div className="w-px h-8 sm:h-10 bg-border/50" />
                                     <div className="flex flex-col items-end px-3 sm:px-4">
-                                        <span className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-widest">Completed</span>
                                         <span className="text-lg sm:text-xl font-black text-emerald-600">{myRequests.filter(r => r.status === 'Completed').length}</span>
                                     </div>
                                 </div>
@@ -1577,10 +1733,7 @@ const UserDashboard = () => {
                                 <TabsContent value="explore" className="mt-0 focus-visible:ring-0">
                                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
                                         {allWorkspaces.map((ws) => {
-                                            const now = new Date();
-                                            const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-                                            const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
-                                            const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
+                                            const isUnavailable = !!ws.allottedTo;
 
                                             return (
                                                 <div key={ws._id || ws.id} className={`card-elevated group overflow-hidden flex flex-col h-full transition-all duration-500 ${isUnavailable ? 'grayscale opacity-80' : ''}`}>
@@ -1599,12 +1752,6 @@ const UserDashboard = () => {
                                                             <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-destructive text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl animate-pulse flex items-center gap-1.5 ring-4 ring-destructive/20">
                                                                 <Clock className="w-3 h-3" />
                                                                 Unavailable
-                                                            </div>
-                                                        )}
-                                                        {availableUntil && (
-                                                            <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl flex items-center gap-1.5 ring-4 ring-amber-500/20">
-                                                                <Clock className="w-3 h-3" />
-                                                                Available Until {new Date(availableUntil.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1759,130 +1906,64 @@ const UserDashboard = () => {
                                             <table className="w-full min-w-[700px] text-left">
                                                 <thead>
                                                     <tr className="bg-muted/30 border-b border-border/50">
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice ID</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Period</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Workspace</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Amount</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
-                                                        <th className="px-6 sm:px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Action</th>
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice ID</th>
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Period / Date</th>
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Amount</th>
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-right">Action</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-border/30">
+                                                <tbody className="divide-y divide-border/20">
                                                     {invoices.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={6} className="px-8 py-20 text-center">
-                                                                <div className="flex flex-col items-center gap-4 opacity-50">
-                                                                    <Building2 className="w-12 h-12" />
-                                                                    <p className="text-xl font-black italic">No invoices found</p>
-                                                                    <p className="text-sm font-medium">Your generated invoices will appear here.</p>
+                                                            <td colSpan={5} className="px-8 py-16 text-center">
+                                                                <div className="flex flex-col items-center gap-3 opacity-40">
+                                                                    <Building2 className="w-10 h-10" />
+                                                                    <p className="text-base font-bold italic">No billing history found</p>
                                                                 </div>
                                                             </td>
                                                         </tr>
-                                                    ) : (
-                                                        invoices.map((inv, i) => {
-                                                            const isExpanded = expandedInv === inv._id;
-                                                            const booking = inv.bookingId;
-                                                            const formatDisplayDate = (dateStr: string) => {
-                                                                if (!dateStr) return "N/A";
-                                                                const parts = dateStr.includes('T') ? dateStr.split('T')[0].split('-') : dateStr.split('-');
-                                                                if (parts.length !== 3) return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-                                                                const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                                                                return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-                                                            };
-
-                                                            const getEndDate = (start: any, duration: string) => {
-                                                                if (!start || !duration) return "N/A";
-                                                                const parts = start.includes('T') ? start.split('T')[0].split('-') : start.split('-');
-                                                                let date: Date;
-                                                                if (parts.length === 3) {
-                                                                    date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                                                                } else {
-                                                                    date = new Date(start);
-                                                                }
-                                                                const [numStr, unit] = duration.split(" ");
-                                                                const num = parseFloat(numStr);
-                                                                const u = unit?.toLowerCase() || "";
-                                                                if (u.startsWith('year')) date.setFullYear(date.getFullYear() + num);
-                                                                else if (u.startsWith('month')) date.setMonth(date.getMonth() + num);
-                                                                else if (u.startsWith('week')) date.setDate(date.getDate() + num * 7);
-                                                                else if (u.startsWith('day')) date.setDate(date.getDate() + num);
-                                                                else if (u.startsWith('hour')) {
-                                                                    date.setHours(date.getHours() + num);
-                                                                    return date.toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-                                                                }
-                                                                date.setDate(date.getDate() - 1);
-                                                                return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-                                                            };
+                                                    ) : invoices.map((inv) => {
+                                                            const booking = myRequests.find(r => r.invoiceId === inv.invoiceNumber);
+                                                            const isExpanded = expandedInv === inv.invoiceNumber;
 
                                                             return (
-                                                                <Fragment key={inv._id || i}>
-                                                                     <tr
-                                                                        key={inv._id || i}
-                                                                        className={`hover:bg-muted/10 transition-all cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
-                                                                        onClick={() => setExpandedInv(isExpanded ? null : inv._id)}
+                                                                <Fragment key={inv._id}>
+                                                                    <tr
+                                                                        className={`group transition-colors h-20 cursor-pointer ${isExpanded ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'}`}
+                                                                        onClick={() => setExpandedInv(isExpanded ? null : inv.invoiceNumber)}
                                                                     >
-                                                                        <td className="px-6 sm:px-8 py-5">
-                                                                            <div className="flex items-center gap-3">
-                                                                                {isExpanded ? <ChevronUp className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="font-mono font-bold text-primary text-xs">{inv.invoiceNumber}</span>
-                                                                                    {inv.type === 'recurring' && (
-                                                                                        <Badge className="mt-1 rounded-md px-2 py-0.5 text-[8px] bg-violet-500/10 text-violet-600 border-none font-black uppercase w-fit">
-                                                                                            Monthly
-                                                                                        </Badge>
-                                                                                    )}
-                                                                                </div>
+                                                                        <td className="px-8 py-4">
+                                                                            <span className="text-xs font-mono font-black text-primary/80 tracking-tighter bg-primary/5 px-2 py-1 rounded-lg">
+                                                                                {inv.invoiceNumber}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td className="px-8 py-4">
+                                                                            <div className="flex flex-col">
+                                                                                <span className="text-xs font-bold">{formatDisplayDate(inv.createdAt)}</span>
+                                                                                <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter">Issue Date</span>
                                                                             </div>
                                                                         </td>
-                                                                        <td className="px-6 sm:px-8 py-5">
-                                                                            <div className="flex flex-col gap-0.5">
-                                                                                {inv.billingMonth ? (
-                                                                                    <span className="text-sm font-bold">
-                                                                                        {new Date(inv.billingMonth + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-                                                                                    </span>
-                                                                                ) : (
-                                                                                    <span className="text-sm font-medium">{new Date(inv.createdAt).toLocaleDateString()}</span>
-                                                                                )}
-                                                                                <span className="text-[10px] text-muted-foreground">Due: {new Date(inv.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
-                                                                            </div>
+                                                                        <td className="px-8 py-4">
+                                                                            <span className="text-sm font-black italic">₹{inv.amount.toLocaleString('en-IN')}</span>
                                                                         </td>
-                                                                        <td className="px-6 sm:px-8 py-5">
-                                                                            <span className="text-sm font-bold">{inv.workspaceName}</span>
-                                                                        </td>
-                                                                        <td className="px-6 sm:px-8 py-5">
-                                                                            <span className="text-sm font-black text-foreground">₹{(inv.amount || 0).toLocaleString()}</span>
-                                                                        </td>
-                                                                        <td className="px-6 sm:px-8 py-5">
-                                                                            <Badge
-                                                                                className={`rounded-full px-4 py-1 text-[9px] font-black uppercase border-none shadow-sm ${
-                                                                                    inv.status === 'Paid'
-                                                                                        ? 'bg-emerald-500/10 text-emerald-600'
-                                                                                        : inv.status === 'Cancelled'
-                                                                                        ? 'bg-destructive/10 text-destructive'
-                                                                                        : 'bg-orange-500/10 text-orange-600'
-                                                                                }`}
-                                                                            >
+                                                                        <td className="px-8 py-4">
+                                                                            <Badge className={`rounded-full px-4 py-1 text-[9px] font-black uppercase border-none shadow-sm ${inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600 border-red-200'
+                                                                                }`}>
                                                                                 {inv.status}
                                                                             </Badge>
                                                                         </td>
-                                                                        <td className="px-6 sm:px-8 py-5" onClick={e => e.stopPropagation()}>
+                                                                        <td className="px-8 py-4 text-right">
                                                                             {inv.status === 'Pending' ? (
                                                                                 <Button
                                                                                     size="sm"
-                                                                                    className="rounded-xl gap-1.5 font-black text-[10px] h-8 px-4 bg-primary hover:bg-primary/90 shadow-sm"
-                                                                                    onClick={async () => {
-                                                                                        try {
-                                                                                            await payInvoice(inv._id);
-                                                                                            setInvoices(prev => prev.map((x: any) =>
-                                                                                                x._id === inv._id ? { ...x, status: 'Paid', paidDate: new Date().toISOString() } : x
-                                                                                            ));
-                                                                                            toast.success('Payment successful!');
-                                                                                        } catch (e: any) {
-                                                                                            toast.error(e.message || 'Payment failed');
-                                                                                        }
-                                                                                    }}
+                                                                                    disabled={isRequesting || payingInvoiceId === inv._id}
+                                                                                    onClick={(e) => { e.stopPropagation(); handlePayInvoice(inv._id); }}
+                                                                                    className="rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md shadow-primary/20"
                                                                                 >
-                                                                                    Pay Now
+                                                                                    {payingInvoiceId === inv._id ? (
+                                                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                    ) : "Clear Dues"}
                                                                                 </Button>
                                                                             ) : inv.status === 'Paid' ? (
                                                                                 <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1">
@@ -1946,15 +2027,12 @@ const UserDashboard = () => {
                                                                     )}
                                                                 </Fragment>
                                                             );
-                                                        })
-                                                    )}
+                                                        })}
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
                                 </TabsContent>
-
-
                             </Tabs>
                         </div>
                     )}
@@ -2002,7 +2080,7 @@ const UserDashboard = () => {
                                                     <span className="text-xs font-bold">Active Member</span>
                                                 </div>
                                             </div>
-                                            {myWorkspace && (
+                                            {myWorkspaces.length > 0 && (
                                                 <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
                                                     <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
                                                         <Building2 className="w-4 h-4" />
@@ -2209,7 +2287,9 @@ const UserDashboard = () => {
                                                                     disabled={isChangingPassword}
                                                                     className="w-full rounded-xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                                                                 >
-                                                                    {isChangingPassword ? "Verifying..." : "Apply Security Protocol"}
+                                                                    {isChangingPassword ? (
+                                                                        <><Loader2 className="w-4 h-4 animate-spin mr-2" />Verifying...</>
+                                                                    ) : "Apply Security Protocol"}
                                                                 </Button>
                                                             </DialogFooter>
                                                         </form>
@@ -2253,7 +2333,7 @@ const UserDashboard = () => {
                 </main>
             </SidebarInset >
 
-            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={(open) => { if (!isDeletingPost) setIsDeleteDialogOpen(open); }}>
                 <AlertDialogContent className="rounded-3xl border-border/50 glass max-w-[400px]">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-xl font-black">Delete Story?</AlertDialogTitle>
@@ -2262,17 +2342,23 @@ const UserDashboard = () => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2 sm:gap-0">
-                        <AlertDialogCancel className="rounded-xl font-bold border-border/50">Cancel</AlertDialogCancel>
+                        <AlertDialogCancel className="rounded-xl font-bold border-border/50" disabled={isDeletingPost}>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={confirmDelete}
-                            className="rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={async (e) => {
+                                e.preventDefault();
+                                setIsDeletingPost(true);
+                                await confirmDelete();
+                                setIsDeletingPost(false);
+                            }}
+                            disabled={isDeletingPost}
+                            className="rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-2"
                         >
-                            Delete Permanently
+                            {isDeletingPost ? <><Loader2 className="w-4 h-4 animate-spin" />Deleting...</> : "Delete Permanently"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-            <AlertDialog open={isCommentDeleteDialogOpen} onOpenChange={setIsCommentDeleteDialogOpen}>
+            <AlertDialog open={isCommentDeleteDialogOpen} onOpenChange={(open) => { if (!isDeletingComment) setIsCommentDeleteDialogOpen(open); }}>
                 <AlertDialogContent className="rounded-3xl border-border/50 glass max-w-[400px]">
                     <AlertDialogHeader>
                         <AlertDialogTitle className="text-xl font-black">Remove Comment?</AlertDialogTitle>
@@ -2281,12 +2367,18 @@ const UserDashboard = () => {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="gap-2 sm:gap-0">
-                        <AlertDialogCancel className="rounded-xl font-bold border-border/50">Cancel</AlertDialogCancel>
+                        <AlertDialogCancel className="rounded-xl font-bold border-border/50" disabled={isDeletingComment}>Cancel</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={confirmCommentDelete}
-                            className="rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={async (e) => {
+                                e.preventDefault();
+                                setIsDeletingComment(true);
+                                await confirmCommentDelete();
+                                setIsDeletingComment(false);
+                            }}
+                            disabled={isDeletingComment}
+                            className="rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-2"
                         >
-                            Delete Comment
+                            {isDeletingComment ? <><Loader2 className="w-4 h-4 animate-spin" />Removing...</> : "Delete Comment"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -2419,9 +2511,12 @@ const UserDashboard = () => {
                                 disabled={isRequesting}
                             >
                                 {isRequesting ? (
-                                    <Loader2 className="w-5 h-5 animate-spin" />
+                                    <div className="flex items-center gap-2">
+                                        <Loader2 className="w-5 h-5 animate-spin" />
+                                        <span>Processing...</span>
+                                    </div>
                                 ) : (
-                                    "Confirm Request"
+                                    bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" : "Confirm Request"
                                 )}
                             </Button>
                         </div>

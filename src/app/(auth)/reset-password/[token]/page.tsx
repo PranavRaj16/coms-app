@@ -5,7 +5,7 @@ import { resetPassword } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Lock, Loader2, ArrowRight, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { Lock, Loader2, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
 
 const ResetPassword = () => {
     const params = useParams();
@@ -15,24 +15,24 @@ const ResetPassword = () => {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
-    const [error, setError] = useState("");
+    const [errors, setErrors] = useState<{ password?: string; confirmPassword?: string; general?: string }>({});
 
     const handleReset = async (e: React.FormEvent) => {
         e.preventDefault();
-        setError("");
+        const newErrors: typeof errors = {};
 
         if (!password) {
-            setError("Password is required");
-            return;
-        }
-
-        if (password.length < 6) {
-            setError("Password must be at least 6 characters");
-            return;
+            newErrors.password = "Password is required";
+        } else if (password.length < 6) {
+            newErrors.password = "Password must be at least 6 characters";
         }
 
         if (password !== confirmPassword) {
-            setError("Passwords do not match");
+            newErrors.confirmPassword = "Passwords do not match";
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
             return;
         }
 
@@ -45,7 +45,7 @@ const ResetPassword = () => {
                 router.push("/login");
             }, 3000);
         } catch (err: any) {
-            setError(err.message || "Failed to reset password");
+            setErrors({ general: err.message || "Failed to reset password" });
             toast.error(err.message || "Failed to reset password");
         } finally {
             setIsLoading(false);
@@ -86,7 +86,7 @@ const ResetPassword = () => {
                             <p className="text-muted-foreground font-medium">Resetting password for token: <span className="font-mono text-xs bg-muted px-2 py-0.5 rounded text-primary">{token?.substring(0, 8)}...</span></p>
                         </div>
 
-                        <form onSubmit={handleReset} className="space-y-6">
+                        <form onSubmit={handleReset} className="space-y-6" noValidate>
                             <div className="space-y-4">
                                 <div className="space-y-2">
                                     <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">New Password</label>
@@ -95,11 +95,19 @@ const ResetPassword = () => {
                                         <Input
                                             type="password"
                                             placeholder="••••••••"
-                                            className="pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background"
+                                            className={`pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background ${errors.password ? "border-destructive ring-destructive/20" : ""}`}
                                             value={password}
-                                            onChange={(e) => setPassword(e.target.value)}
+                                            onChange={(e) => {
+                                                setPassword(e.target.value);
+                                                if (errors.password) setErrors({ ...errors, password: undefined });
+                                            }}
                                         />
                                     </div>
+                                    {errors.password && (
+                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <AlertCircle className="w-3 h-3" /> {errors.password}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="space-y-2">
@@ -109,17 +117,26 @@ const ResetPassword = () => {
                                         <Input
                                             type="password"
                                             placeholder="••••••••"
-                                            className="pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background"
+                                            className={`pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background ${errors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
                                             value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            onChange={(e) => {
+                                                setConfirmPassword(e.target.value);
+                                                if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: undefined });
+                                            }}
                                         />
                                     </div>
+                                    {errors.confirmPassword && (
+                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <AlertCircle className="w-3 h-3" /> {errors.confirmPassword}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
-                            {error && (
-                                <div className="bg-destructive/5 border border-destructive/20 text-destructive text-xs p-3 rounded-xl animate-shake">
-                                    {error}
+                            {errors.general && (
+                                <div className="bg-destructive/5 border border-destructive/20 text-destructive text-xs p-3 rounded-xl animate-shake flex items-center gap-2">
+                                    <AlertCircle className="w-4 h-4" />
+                                    {errors.general}
                                 </div>
                             )}
 

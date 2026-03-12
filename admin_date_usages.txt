@@ -1,0 +1,33 @@
+﻿            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    const existingStart = currentWS.allotmentStart ? new Date(currentWS.allotmentStart) : null;
+                    const existingEnd = currentWS.unavailableUntil ? new Date(currentWS.unavailableUntil) : null;
+                    const newStart = allotmentStartDate ? new Date(allotmentStartDate) : new Date();
+                    const newEnd = unavailableUntilDate ? new Date(unavailableUntilDate) : null;
+                                                                {formatDistanceToNow(new Date(notif.date), { addSuffix: true })}
+                                        const date = new Date(ws.unavailableUntil);
+                                        const date = new Date(ws.allotmentStart);
+                                                            date={allotmentStartDate ? new Date(allotmentStartDate) : undefined}
+                                                            date={unavailableUntilDate ? new Date(unavailableUntilDate) : undefined}
+                                        ? (!isNaN(new Date(user.joinedDate).getTime()) 
+                                            ? new Date(user.joinedDate).toLocaleDateString() 
+                                        ? (!isNaN(new Date(user.lastActive).getTime()) 
+                                            ? new Date(user.lastActive).toLocaleDateString() 
+                        {quote.createdAt ? new Date(quote.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                                            {quote.startDate ? new Date(quote.startDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : "N/A"}
+                        {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
+                                            {new Date(contact.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} •
+                                            {new Date(contact.createdAt).toLocaleDateString()}
+                            Starts: {new Date(booking.startDate).toLocaleDateString()}
+                                                    <span className="text-sm font-bold">Planned Start: {new Date(booking.startDate).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
+                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Received {new Date(booking.createdAt).toLocaleString()}</span>
+                        {new Date(visit.visitDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                                                    <span className="text-sm font-bold">Planned Visit: {new Date(visit.visitDate).toLocaleDateString(undefined, { dateStyle: 'full' })}</span>
+                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Requested {new Date(visit.createdAt).toLocaleString()}</span>
+                        {new Date(pass.visitDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
+                                                    <span className="text-sm font-bold">Visit Date: {new Date(pass.visitDate).toLocaleDateString(undefined, { dateStyle: 'full' })}</span>
+                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Issued {new Date(pass.createdAt).toLocaleString()}</span>
+                                new Date(invoice.billingMonth + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) :
+                                new Date(invoice.createdAt).toLocaleDateString()
+                            Due: {new Date(invoice.dueDate).toLocaleDateString()}
+                                                    <span className="text-sm font-bold">Generated: {new Date(invoice.createdAt).toLocaleString()}</span>
+                                        <span className="text-xs font-bold text-emerald-700 uppercase">Paid on {new Date(invoice.paidDate).toLocaleString()}</span>

@@ -1,0 +1,14 @@
+﻿import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
+            newErrors.email = "Invalid email format";
+            newErrors.email = "Invalid email format";
+                                                                {formatDistanceToNow(new Date(notif.date), { addSuffix: true })}
+                                        const formatted = date.toISOString().slice(0, 16);
+                                        setUnavailableUntilDate(formatted);
+                                        const formatted = date.toISOString().slice(0, 16);
+                                        setAllotmentStartDate(formatted);
+                                                    <Building2 className="w-3 h-3" /> Core Information
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Requester Information</h4>
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Visitor Information</h4>
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Visit Information</h4>
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Recipient Information</h4>
