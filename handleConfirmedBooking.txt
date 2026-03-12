@@ -1,0 +1,131 @@
+﻿
+> src\app\(dashboard)\dashboa
+rd\page.tsx:640:    const 
+handleConfirmedBooking = 
+async () => {
+  src\app\(dashboard)\dashboa
+rd\page.tsx:641:        if 
+(!selectedWorkspaceToBook) 
+return;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:642:        if 
+(!bookingParams.startDate) {
+  src\app\(dashboard)\dashboa
+rd\page.tsx:643:            
+toast.error("Please select a 
+start date");
+  src\app\(dashboard)\dashboa
+rd\page.tsx:644:            
+return;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:645:        }
+  src\app\(dashboard)\dashboa
+rd\page.tsx:646:
+  src\app\(dashboard)\dashboa
+rd\page.tsx:647:        
+const allotmentStart = select
+edWorkspaceToBook.allotmentSt
+art ? new Date(selectedWorksp
+aceToBook.allotmentStart) : 
+null;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:648:        if (s
+electedWorkspaceToBook.allott
+edTo && allotmentStart && 
+new Date() < allotmentStart) 
+{
+  src\app\(dashboard)\dashboa
+rd\page.tsx:649:            
+const requestedStart = new Da
+te(bookingParams.startDate);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:650:            
+if (requestedStart >= 
+allotmentStart) {
+  src\app\(dashboard)\dashboa
+rd\page.tsx:651:             
+   toast.error(`This 
+workspace is reserved from ${
+allotmentStart.toLocaleDateSt
+ring()}. Please select an 
+earlier date or a different 
+workspace.`);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:652:             
+   return;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:653:            }
+  src\app\(dashboard)\dashboa
+rd\page.tsx:654:            
+let durationMonths = 0;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:655:            
+const parts = bookingParams.d
+uration.split(" ");
+  src\app\(dashboard)\dashboa
+rd\page.tsx:656:            
+const num = 
+parseInt(parts[0]);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:657:            
+const unit = parts[1];
+  src\app\(dashboard)\dashboa
+rd\page.tsx:658:
+  src\app\(dashboard)\dashboa
+rd\page.tsx:659:            
+if (unit === 'Months' || 
+unit === 'Month') 
+durationMonths = num;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:660:            
+else if (unit === 'Years' || 
+unit === 'Year') 
+durationMonths = num * 12;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:661:            
+else if (unit === 'Weeks' || 
+unit === 'Week') 
+durationMonths = num / 4.34;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:662:            
+else if (unit === 'Days' || 
+unit === 'Day') 
+durationMonths = num / 30.44;
+  src\app\(dashboard)\dashboa
+rd\page.tsx:663:            
+else if (unit === 'Hours' || 
+unit === 'Hour') 
+durationMonths = num / 
+(30.44 * 24);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:664:
+  src\app\(dashboard)\dashboa
+rd\page.tsx:665:            
+if (durationMonths > 0) {
+  src\app\(dashboard)\dashboa
+rd\page.tsx:666:             
+   const requestedEnd = new 
+Date(requestedStart);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:667:             
+   requestedEnd.setMonth(requ
+estedEnd.getMonth() + 
+Math.ceil(durationMonths));
+  src\app\(dashboard)\dashboa
+rd\page.tsx:668:             
+   if (requestedEnd > 
+allotmentStart) {
+  src\app\(dashboard)\dashboa
+rd\page.tsx:669:             
+       toast.error(`Your 
+request exceeds the 
+availability of this space 
+(Reserved from ${allotmentSta
+rt.toLocaleDateString()}). 
+Please select a shorter 
+duration.`);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:670:             
+       return;
+
+

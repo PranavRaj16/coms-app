@@ -1,5 +1,6 @@
 "use client";
 import { useParams } from "next/navigation";
+import { useMemo } from "react";
 import Link from "next/link";
 import { workspaces as initialWorkspaces } from "@/data/workspaces";
 import { useEffect, useState } from "react";
@@ -53,14 +54,27 @@ const WorkspaceDetails = () => {
         contact: "",
         email: "",
         firmName: "",
-        endDate: undefined as Date | undefined,
+        endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)) as Date | undefined,
         paymentMethod: "Pay Now",
-        startDate: undefined as Date | undefined
+        startDate: new Date() as Date | undefined
     });
 
     const [isVisitOpen, setIsVisitOpen] = useState(false);
     const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
     const [isSubmittingVisit, setIsSubmittingVisit] = useState(false);
+
+    const estimatedTotal = useMemo(() => {
+        if (!workspace || !bookingData.startDate || !bookingData.endDate) return 0;
+        
+        const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        
+        const price = Number(workspace.price) || 0;
+        // Calculate based on daily rate (monthly / 30.44)
+        const dailyRate = price / 30.44;
+        
+        return Math.ceil(dailyRate * diffDays);
+    }, [workspace, bookingData.startDate, bookingData.endDate]);
     const [visitData, setVisitData] = useState({
         name: "",
         contact: "",
@@ -676,16 +690,24 @@ const WorkspaceDetails = () => {
                             </div>
 
                             {bookingData.startDate && bookingData.endDate && (
-                                <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between animate-in fade-in zoom-in-95">
-                                    <span className="text-xs font-black uppercase tracking-widest text-primary/60">Calculated Duration</span>
-                                    <span className="text-sm font-bold flex items-center gap-2">
-                                        <Clock className="w-4 h-4" />
-                                        {(() => {
-                                            const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
-                                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                            return `${diffDays} Day${diffDays > 1 ? 's' : ''}`;
-                                        })()}
-                                    </span>
+                                <div className="space-y-3">
+                                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between animate-in fade-in zoom-in-95">
+                                        <div className="space-y-0.5">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Duration</p>
+                                            <p className="text-sm font-bold flex items-center gap-2">
+                                                <Clock className="w-3.5 h-3.5" />
+                                                {(() => {
+                                                    const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
+                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                                                    return `${diffDays} Day${diffDays > 1 ? 's' : ''}`;
+                                                })()}
+                                            </p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Estimated Total</p>
+                                            <p className="text-xl font-black text-primary italic">₹{estimatedTotal.toLocaleString('en-IN')}</p>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

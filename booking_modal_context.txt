@@ -1,0 +1,79 @@
+﻿
+> src\app\(dashboard)\dashboa
+rd\page.tsx:281:    // 
+Booking Modal State
+  src\app\(dashboard)\dashboa
+rd\page.tsx:282:    const 
+[isBookingModalOpen, 
+setIsBookingModalOpen] = 
+useState(false);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:283:    const 
+[selectedWorkspaceToBook, 
+setSelectedWorkspaceToBook] 
+= useState<Workspace | 
+null>(null);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:284:    const 
+[bookingParams, 
+setBookingParams] = 
+useState({
+  src\app\(dashboard)\dashboa
+rd\page.tsx:285:        
+startDate: "",
+  src\app\(dashboard)\dashboa
+rd\page.tsx:286:        
+duration: "1 Months",
+  src\app\(dashboard)\dashboa
+rd\page.tsx:287:        
+paymentMethod: "Pay Now"
+  src\app\(dashboard)\dashboa
+rd\page.tsx:288:    });
+  src\app\(dashboard)\dashboa
+rd\page.tsx:289:
+  src\app\(dashboard)\dashboa
+rd\page.tsx:290:    // 
+Password change state
+  src\app\(dashboard)\dashboa
+rd\page.tsx:291:    const 
+[passwordData, 
+setPasswordData] = useState({
+  src\app\(dashboard)\dashboa
+rd\page.tsx:292:        
+oldPassword: "",
+  src\app\(dashboard)\dashboa
+rd\page.tsx:293:        
+newPassword: "",
+  src\app\(dashboard)\dashboa
+rd\page.tsx:294:        
+confirmPassword: ""
+  src\app\(dashboard)\dashboa
+rd\page.tsx:295:    });
+  src\app\(dashboard)\dashboa
+rd\page.tsx:296:    const 
+[isSecurityModalOpen, 
+setIsSecurityModalOpen] = 
+useState(false);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:297:    const 
+[isChangingPassword, 
+setIsChangingPassword] = 
+useState(false);
+  src\app\(dashboard)\dashboa
+rd\page.tsx:298:    const 
+[securityErrors, 
+setSecurityErrors] = 
+useState<{ [key: string]: 
+string }>({});
+  src\app\(dashboard)\dashboa
+rd\page.tsx:299:
+  src\app\(dashboard)\dashboa
+rd\page.tsx:300:    // 
+Notifications state
+  src\app\(dashboard)\dashboa
+rd\page.tsx:301:    const 
+[viewedNotifications, 
+setViewedNotifications] = 
+useState<string[]>(() => {
+
+

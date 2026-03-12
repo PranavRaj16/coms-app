@@ -283,9 +283,41 @@ const UserDashboard = () => {
     const [selectedWorkspaceToBook, setSelectedWorkspaceToBook] = useState<Workspace | null>(null);
     const [bookingParams, setBookingParams] = useState({
         startDate: "",
+        endDate: "",
         duration: "1 Months",
         paymentMethod: "Pay Now"
     });
+
+    // Dynamic duration calculation
+    useEffect(() => {
+        if (bookingParams.startDate && bookingParams.endDate) {
+            const start = new Date(bookingParams.startDate);
+            const end = new Date(bookingParams.endDate);
+            
+            if (end > start) {
+                const diffTime = Math.abs(end.getTime() - start.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                let durationStr = "";
+                if (diffDays >= 365) {
+                    const years = (diffDays / 365).toFixed(1);
+                    durationStr = `${years} Years`;
+                } else if (diffDays >= 30) {
+                    const months = (diffDays / 30.44).toFixed(1);
+                    durationStr = `${months} Months`;
+                } else if (diffDays >= 7) {
+                    const weeks = (diffDays / 7).toFixed(1);
+                    durationStr = `${weeks} Weeks`;
+                } else {
+                    durationStr = `${diffDays} Days`;
+                }
+                
+                setBookingParams(prev => ({ ...prev, duration: durationStr }));
+            } else {
+                setBookingParams(prev => ({ ...prev, duration: "0 Days" }));
+            }
+        }
+    }, [bookingParams.startDate, bookingParams.endDate]);
 
     // Password change state
     const [passwordData, setPasswordData] = useState({
@@ -628,6 +660,25 @@ const UserDashboard = () => {
     };
 
     const handleRequestWorkspace = async (workspace: Workspace) => {
+        // Set default dates: today to one month from today
+        const today = new Date();
+        const nextMonth = new Date();
+        nextMonth.setMonth(today.getMonth() + 1);
+        
+        const formatDate = (date: Date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        };
+
+        setBookingParams({
+            startDate: formatDate(today),
+            endDate: formatDate(nextMonth),
+            duration: "1.0 Months",
+            paymentMethod: "Pay Now"
+        });
+
         setIsRequestingWorkspace(true);
         try {
             setSelectedWorkspaceToBook(workspace);
@@ -643,32 +694,24 @@ const UserDashboard = () => {
             toast.error("Please select a start date");
             return;
         }
+        if (!bookingParams.endDate) {
+            toast.error("Please select an end date");
+            return;
+        }
 
         const allotmentStart = selectedWorkspaceToBook.allotmentStart ? new Date(selectedWorkspaceToBook.allotmentStart) : null;
         if (selectedWorkspaceToBook.allottedTo && allotmentStart && new Date() < allotmentStart) {
             const requestedStart = new Date(bookingParams.startDate);
+            const requestedEnd = new Date(bookingParams.endDate);
+
             if (requestedStart >= allotmentStart) {
                 toast.error(`This workspace is reserved from ${allotmentStart.toLocaleDateString()}. Please select an earlier date or a different workspace.`);
                 return;
             }
-            let durationMonths = 0;
-            const parts = bookingParams.duration.split(" ");
-            const num = parseInt(parts[0]);
-            const unit = parts[1];
 
-            if (unit === 'Months' || unit === 'Month') durationMonths = num;
-            else if (unit === 'Years' || unit === 'Year') durationMonths = num * 12;
-            else if (unit === 'Weeks' || unit === 'Week') durationMonths = num / 4.34;
-            else if (unit === 'Days' || unit === 'Day') durationMonths = num / 30.44;
-            else if (unit === 'Hours' || unit === 'Hour') durationMonths = num / (30.44 * 24);
-
-            if (durationMonths > 0) {
-                const requestedEnd = new Date(requestedStart);
-                requestedEnd.setMonth(requestedEnd.getMonth() + Math.ceil(durationMonths));
-                if (requestedEnd > allotmentStart) {
-                    toast.error(`Your request exceeds the availability of this space (Reserved from ${allotmentStart.toLocaleDateString()}). Please select a shorter duration.`);
-                    return;
-                }
+            if (requestedEnd > allotmentStart) {
+                toast.error(`Your request exceeds the availability of this space (Reserved from ${allotmentStart.toLocaleDateString()}). Please select an earlier end date.`);
+                return;
             }
         }
 
@@ -683,7 +726,8 @@ const UserDashboard = () => {
                 firmName: userInfo.organization || "",
                 duration: bookingParams.duration,
                 startDate: new Date(bookingParams.startDate),
-                paymentMethod: (bookingParams as any).paymentMethod || "Pay Now", // Added
+                endDate: new Date(bookingParams.endDate),
+                paymentMethod: (bookingParams as any).paymentMethod || "Pay Now",
                 status: 'Pending'
             };
 
@@ -2420,40 +2464,21 @@ const UserDashboard = () => {
                         </div>
 
                         <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Duration of stay</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    type="text"
-                                    placeholder="e.g. 6"
-                                    className="w-24 h-12 rounded-xl bg-muted/30 border-border/50 font-bold"
-                                    value={bookingParams.duration.includes(" ") ? bookingParams.duration.split(" ")[0] : ""}
-                                    onChange={(e) => {
-                                        const val = e.target.value;
-                                        const parts = bookingParams.duration.split(" ");
-                                        const unit = parts.length > 1 ? parts[1] : (parts[0] || "Months");
-                                        setBookingParams({ ...bookingParams, duration: `${val} ${unit}` });
-                                    }}
-                                />
-                                <Select
-                                    value={bookingParams.duration.includes(" ") ? bookingParams.duration.split(" ")[1] : (bookingParams.duration || "Months")}
-                                    onValueChange={(val) => {
-                                        const parts = bookingParams.duration.split(" ");
-                                        const num = parts[0] && !isNaN(Number(parts[0])) ? parts[0] : "1";
-                                        setBookingParams({ ...bookingParams, duration: `${num} ${val}` });
-                                    }}
-                                >
-                                    <SelectTrigger className="flex-1 h-12 rounded-xl bg-muted/30 border-border/50 font-bold">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-xl">
-                                        <SelectItem value="Hours">Hours</SelectItem>
-                                        <SelectItem value="Days">Days</SelectItem>
-                                        <SelectItem value="Weeks">Weeks</SelectItem>
-                                        <SelectItem value="Months">Months</SelectItem>
-                                        <SelectItem value="Years">Years</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Stay until</Label>
+                            <DateTimePicker
+                                date={bookingParams.endDate ? new Date(bookingParams.endDate + 'T23:59:59') : undefined}
+                                setDate={(date) => {
+                                    if (date) {
+                                        const y = date.getFullYear();
+                                        const m = String(date.getMonth() + 1).padStart(2, '0');
+                                        const d = String(date.getDate()).padStart(2, '0');
+                                        setBookingParams({ ...bookingParams, endDate: `${y}-${m}-${d}` });
+                                    } else {
+                                        setBookingParams({ ...bookingParams, endDate: '' });
+                                    }
+                                }}
+                                className="h-12 border-border/50 bg-muted/30 font-bold hover:bg-muted/50 transition-colors focus:ring-primary/20"
+                            />
                         </div>
 
                         <div className="space-y-2">

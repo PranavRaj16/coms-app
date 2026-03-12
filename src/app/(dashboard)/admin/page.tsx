@@ -2641,7 +2641,7 @@ const AdminDashboard = () => {
                                     <Button
                                         variant={requestSubView === "quotes" ? "default" : "ghost"}
                                         onClick={() => setRequestSubView("quotes")}
-                                        className={`rounded-xl px-6 font-bold transition-all ${requestSubView === "quotes" ? "shadow-lg shadow-primary/20" : "hover:bg-primary/5"}`}
+                                        className={`rounded-xl px-6 font-bold transition-all hover:scale-[1.02] active:scale-[0.98] ${requestSubView === "quotes" ? "shadow-lg shadow-primary/20" : "hover:bg-primary/10 hover:text-primary"}`}
                                     >
                                         Quote Requests
                                         {dashboardStats.newQuoteRequests > 0 && (
@@ -2653,7 +2653,7 @@ const AdminDashboard = () => {
                                     <Button
                                         variant={requestSubView === "bookings" ? "default" : "ghost"}
                                         onClick={() => setRequestSubView("bookings")}
-                                        className={`rounded-xl px-6 font-bold transition-all ${requestSubView === "bookings" ? "shadow-lg shadow-primary/20" : "hover:bg-primary/5"}`}
+                                        className={`rounded-xl px-6 font-bold transition-all hover:scale-[1.02] active:scale-[0.98] ${requestSubView === "bookings" ? "shadow-lg shadow-primary/20" : "hover:bg-primary/10 hover:text-primary"}`}
                                     >
                                         Booking Requests
                                         {dashboardStats.newBookingRequests > 0 && (
@@ -2665,7 +2665,7 @@ const AdminDashboard = () => {
                                     <Button
                                         variant={requestSubView === "visits" ? "default" : "ghost"}
                                         onClick={() => setRequestSubView("visits")}
-                                        className={`rounded-xl px-6 font-bold transition-all ${requestSubView === "visits" ? "shadow-lg shadow-primary/20" : "hover:bg-primary/5"}`}
+                                        className={`rounded-xl px-6 font-bold transition-all hover:scale-[1.02] active:scale-[0.98] ${requestSubView === "visits" ? "shadow-lg shadow-primary/20" : "hover:bg-primary/10 hover:text-primary"}`}
                                     >
                                         Visit Requests
                                         {dashboardStats.newVisitRequests > 0 && (
