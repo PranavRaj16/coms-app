@@ -26,11 +26,61 @@ export async function PUT(
             return NextResponse.json({ message: 'Invalid Booking Request ID format' }, { status: 400 });
         }
 
+        const currentRequest = await BookingRequest.findById(id);
+        if (!currentRequest) {
+            return NextResponse.json({ message: 'Booking request not found' }, { status: 404 });
+        }
+
+        const oldStatus = currentRequest.status;
         const updatedRequest = await BookingRequest.findByIdAndUpdate(
             id,
             { status },
             { new: true, runValidators: true }
         );
+
+        // Case 1: Releasing seats (Cancelled/Rejected/Declined/Completed)
+        const releasingStatuses = ['Cancelled', 'Rejected', 'Declined', 'Completed'];
+        if (updatedRequest && releasingStatuses.includes(status) && !releasingStatuses.includes(oldStatus)) {
+            const Workspace = (await import('@/models/Workspace')).default;
+            const workspace = await Workspace.findById(updatedRequest.workspaceId);
+            
+            if (workspace && workspace.type === 'Open WorkStation' && updatedRequest.seatCount) {
+                await Workspace.findByIdAndUpdate(updatedRequest.workspaceId, {
+                    $inc: { availableSeats: updatedRequest.seatCount }
+                });
+            } else if (workspace && workspace.type !== 'Open WorkStation') {
+                if (workspace.allottedTo?.toString() === updatedRequest.userId?.toString()) {
+                     await Workspace.findByIdAndUpdate(updatedRequest.workspaceId, {
+                        allottedTo: null,
+                        allotmentStart: null,
+                        allotmentEnd: null
+                    });
+                }
+            }
+        }
+
+        // Case 2: Allocating seats (Confirmed/Awaiting Payment)
+        const allocatingStatuses = ['Confirmed', 'Awaiting Payment'];
+        if (updatedRequest && allocatingStatuses.includes(status) && !allocatingStatuses.includes(oldStatus) && releasingStatuses.includes(oldStatus)) {
+            const Workspace = (await import('@/models/Workspace')).default;
+            const workspace = await Workspace.findById(updatedRequest.workspaceId);
+            
+            if (workspace && workspace.type === 'Open WorkStation' && updatedRequest.seatCount) {
+                await Workspace.findByIdAndUpdate(updatedRequest.workspaceId, {
+                    $inc: { availableSeats: -updatedRequest.seatCount }
+                });
+            } else if (workspace && workspace.type !== 'Open WorkStation') {
+                // Find User ID for the request
+                const bookingUserId = updatedRequest.userId || (await (await import('@/models/User')).default.findOne({ email: updatedRequest.email }))?._id;
+                if (bookingUserId) {
+                    await Workspace.findByIdAndUpdate(updatedRequest.workspaceId, {
+                        allottedTo: bookingUserId,
+                        allotmentStart: updatedRequest.startDate,
+                        allotmentEnd: updatedRequest.endDate
+                    });
+                }
+            }
+        }
 
         if (updatedRequest) {
             return NextResponse.json(updatedRequest);

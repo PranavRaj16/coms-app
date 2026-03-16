@@ -75,9 +75,12 @@ const Workspaces = () => {
         }).sort((a, b) => {
             const now = new Date();
             const getPriority = (ws: any) => {
+                const now = new Date();
                 const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-                const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
-                const isPreBooked = !!ws.allottedTo && allotmentStart && now < allotmentStart;
+                const isUnavailable = ws.type === "Open WorkStation" 
+                    ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
+                    : !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+                const isPreBooked = ws.type !== "Open WorkStation" && !!ws.allottedTo && allotmentStart && now < allotmentStart;
                 
                 if (isUnavailable) return 2;
                 if (isPreBooked) return 1;
@@ -245,7 +248,9 @@ const Workspaces = () => {
                         {filteredWorkspaces.map((ws) => {
                             const now = new Date();
                             const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-                            const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+                            const isUnavailable = ws.type === "Open WorkStation" 
+                                ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
+                                : !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
                             const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
 
                             if (viewType === "list") {
@@ -271,7 +276,7 @@ const Workspaces = () => {
                                                     {isUnavailable && (
                                                         <span className="px-2 py-0.5 rounded-lg bg-destructive/10 text-destructive text-[9px] font-black uppercase tracking-wider flex items-center gap-1">
                                                             <Clock className="w-2.5 h-2.5" />
-                                                            Unavailable
+                                                            {ws.type === "Open WorkStation" && ws.availableSeats !== undefined && ws.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
                                                         </span>
                                                     )}
                                                 </div>
@@ -285,7 +290,9 @@ const Workspaces = () => {
                                                     </div>
                                                     <div className="flex items-center gap-1.5">
                                                         <Users className="w-4 h-4 text-primary" />
-                                                        {ws.capacity}
+                                                        {ws.type === "Open WorkStation" 
+                                                            ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available` 
+                                                            : ws.capacity}
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-wrap gap-1.5 pt-1">
@@ -344,7 +351,7 @@ const Workspaces = () => {
                                         {isUnavailable && (
                                             <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-destructive text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl animate-pulse flex items-center gap-1.5 ring-4 ring-destructive/20">
                                                 <Clock className="w-3 h-3" />
-                                                Unavailable
+                                                {ws.type === "Open WorkStation" && ws.availableSeats !== undefined && ws.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
                                             </div>
                                         )}
                                         {availableUntil && (
@@ -379,14 +386,18 @@ const Workspaces = () => {
                                                     <Clock className="w-4 h-4" />
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[10px] uppercase font-black tracking-widest text-destructive">Booked Until</span>
+                                                    <span className="text-[10px] uppercase font-black tracking-widest text-destructive">
+                                                        {ws.type === "Open WorkStation" ? "Booking Status" : "Booked Until"}
+                                                    </span>
                                                     <span className="text-xs font-bold text-destructive">
-                                                        {ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
-                                                            month: 'short',
-                                                            day: 'numeric',
-                                                            hour: '2-digit',
-                                                            minute: '2-digit'
-                                                        }) : "Further Notice"}
+                                                        {ws.type === "Open WorkStation" 
+                                                            ? "Current capacity is full" 
+                                                            : (ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
+                                                                month: 'short',
+                                                                day: 'numeric',
+                                                                hour: '2-digit',
+                                                                minute: '2-digit'
+                                                            }) : "Further Notice")}
                                                     </span>
                                                 </div>
                                             </div>
@@ -416,7 +427,9 @@ const Workspaces = () => {
                                             </div>
                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                 <Users className="w-4 h-4 text-primary" />
-                                                {ws.capacity}
+                                                {ws.type === "Open WorkStation" 
+                                                    ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available` 
+                                                    : ws.capacity}
                                             </div>
                                             {/* Amenities */}
                                             <div className="flex flex-wrap gap-2 mt-2">

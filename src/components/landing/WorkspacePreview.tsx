@@ -15,22 +15,24 @@ const WorkspacePreview = () => {
         const data = await fetchWorkspaces();
         // Take first 4 workspaces for the preview
                 // Sort workspaces: Fully Available > Pre-booked > Unavailable
-                const sortedData = [...data].sort((a, b) => {
-                  const now = new Date();
-                  const getPriority = (ws: any) => {
-                    const start = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-                    const isUnavailable = !!ws.allottedTo && (!start || now >= start);
-                    const isPreBooked = !!ws.allottedTo && start && now < start;
-                    if (isUnavailable) return 2;
-                    if (isPreBooked) return 1;
+                  const sortedData = [...data].sort((a, b) => {
+                    const now = new Date();
+                    const getPriority = (ws: any) => {
+                      const start = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+                      const isUnavailable = ws.type === "Open WorkStation" 
+                        ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
+                        : !!ws.allottedTo && (!start || now >= start);
+                      const isPreBooked = ws.type !== "Open WorkStation" && !!ws.allottedTo && start && now < start;
+                      if (isUnavailable) return 2;
+                      if (isPreBooked) return 1;
+                      return 0;
+                    };
+                    const aPriority = getPriority(a);
+                    const bPriority = getPriority(b);
+                    if (aPriority !== bPriority) return aPriority - bPriority;
+                    if (a.featured !== b.featured) return a.featured ? -1 : 1;
                     return 0;
-                  };
-                  const aPriority = getPriority(a);
-                  const bPriority = getPriority(b);
-                  if (aPriority !== bPriority) return aPriority - bPriority;
-                  if (a.featured !== b.featured) return a.featured ? -1 : 1;
-                  return 0;
-                });
+                  });
                 setWorkspaces(sortedData.slice(0, 4));
       } catch (error) {
         console.error("Failed to fetch workspaces for preview:", error);
@@ -80,7 +82,9 @@ const WorkspacePreview = () => {
             workspaces.map((workspace) => {
               const now = new Date();
               const allotmentStart = workspace.allotmentStart ? new Date(workspace.allotmentStart) : null;
-              const isUnavailable = !!workspace.allottedTo && (!allotmentStart || now >= allotmentStart);
+              const isUnavailable = workspace.type === "Open WorkStation" 
+                ? (workspace.availableSeats !== undefined ? workspace.availableSeats <= 0 : false)
+                : !!workspace.allottedTo && (!allotmentStart || now >= allotmentStart);
               const availableUntil = !!workspace.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
 
               return (
@@ -103,7 +107,7 @@ const WorkspacePreview = () => {
                     {isUnavailable && (
                       <div className="absolute top-3 right-3 px-2 py-1 rounded-lg bg-destructive text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-lg ring-2 ring-destructive/20 animate-pulse">
                         <Clock className="w-2.5 h-2.5" />
-                        Unavailable
+                        {workspace.type === "Open WorkStation" && workspace.availableSeats !== undefined && workspace.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
                       </div>
                     )}
                     {availableUntil && (
@@ -134,7 +138,11 @@ const WorkspacePreview = () => {
                     {/* Capacity */}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
                       <Users className="w-4 h-4" />
-                      <span>{workspace.capacity}</span>
+                      <span>
+                        {workspace.type === "Open WorkStation" 
+                          ? `${workspace.availableSeats ?? 0} / ${workspace.totalSeats ?? 0} Seats Available` 
+                          : workspace.capacity}
+                      </span>
                     </div>
 
                     {/* Amenities */}

@@ -11,9 +11,8 @@ export async function GET(req: NextRequest) {
 
         const now = new Date();
 
-        // Only return a workspace as "active" if allotmentStart has arrived.
-        // If allotmentStart is set to a future date the booking is pre-booked but not yet active.
-        const workspaces = await Workspace.find({
+        // 1. Traditional single-user allotments
+        const traditionalWorkspaces = await Workspace.find({
             allottedTo: user._id,
             $or: [
                 { allotmentStart: { $exists: false } },
@@ -22,7 +21,36 @@ export async function GET(req: NextRequest) {
             ]
         });
 
-        return NextResponse.json(workspaces);
+        // 2. Open Workstation / Partial bookings
+        // Find confirmed bookings for this user that are currently active
+        const BookingRequest = (await import('@/models/BookingRequest')).default;
+        const confirmedBookings = await BookingRequest.find({
+            email: user.email,
+            status: { $in: ['Confirmed', 'Awaiting Payment'] },
+            startDate: { $lte: now }
+        });
+
+        const workspaceIdsFromBookings = confirmedBookings.map(b => b.workspaceId);
+        const bookedWorkspaces = await Workspace.find({
+            _id: { $in: workspaceIdsFromBookings },
+            type: "Open WorkStation"
+        });
+
+        // Combine and de-duplicate
+        const allWorkspaces = [...traditionalWorkspaces.map(w => w.toObject())];
+        
+        for (const bw of bookedWorkspaces) {
+            const booking = confirmedBookings.find(b => b.workspaceId.toString() === bw._id.toString());
+            const wsObj = bw.toObject();
+            if (booking) {
+                wsObj.bookedSeats = booking.seatCount || 1;
+            }
+            if (!allWorkspaces.find(aw => aw._id.toString() === wsObj._id.toString())) {
+                allWorkspaces.push(wsObj);
+            }
+        }
+
+        return NextResponse.json(allWorkspaces);
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }

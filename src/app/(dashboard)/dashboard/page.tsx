@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, Fragment, Suspense } from "r
 import Link from "next/link"; import { useRouter, useSearchParams } from "next/navigation";
 import {
     LayoutDashboard,
-    Users as CommunityIcon,
+    Users,
     Settings,
     LogOut,
     Building2,
@@ -38,7 +38,15 @@ import {
     X,
     Loader2,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Globe,
+    Wifi,
+    Activity,
+    Share2,
+    Zap,
+    MessageSquareMore,
+    Coffee,
+    Trophy
 } from "lucide-react";
 import {
     Sidebar,
@@ -177,6 +185,8 @@ const UserDashboard = () => {
     const [communityTab, setCommunityTab] = useState<"stories" | "members">("stories");
     const [activeHashtag, setActiveHashtag] = useState<string | null>(null);
     const [newPostContent, setNewPostContent] = useState("");
+    const [membersSearch, setMembersSearch] = useState("");
+    const [selectedRoleFilter, setSelectedRoleFilter] = useState("All");
 
     const trendingTopics = useMemo(() => {
         const hashtags: { [key: string]: number } = {};
@@ -285,7 +295,8 @@ const UserDashboard = () => {
         startDate: "",
         endDate: "",
         duration: "1 Months",
-        paymentMethod: "Pay Now"
+        paymentMethod: "Pay Now",
+        seatCount: 1
     });
 
     // Dynamic duration calculation
@@ -349,6 +360,8 @@ const UserDashboard = () => {
         const num = parseFloat(parts[0]) || 0;
         const unit = parts[1]?.toLowerCase() || 'months';
         const price = Number(selectedWorkspaceToBook.price) || 0;
+        const isOpenWorkstation = selectedWorkspaceToBook.type === "Open WorkStation";
+        const seatFactor = isOpenWorkstation ? bookingParams.seatCount : 1;
 
         let factor = 0;
         if (unit.startsWith('year')) factor = 12;
@@ -357,8 +370,8 @@ const UserDashboard = () => {
         else if (unit.startsWith('day')) factor = 1 / 30.44;
         else if (unit.startsWith('hour')) factor = 1 / (30.44 * 24);
 
-        return Math.ceil(price * factor * num);
-    }, [selectedWorkspaceToBook, bookingParams.duration]);
+        return Math.ceil(price * factor * num * seatFactor);
+    }, [selectedWorkspaceToBook, bookingParams.duration, bookingParams.seatCount]);
 
     const [expandedInv, setExpandedInv] = useState<string | null>(null);
 
@@ -494,7 +507,22 @@ const UserDashboard = () => {
 
             setMyWorkspaces(Array.isArray(wsData) ? wsData : (wsData ? [wsData] : []));
             setUpcomingWorkspaces(Array.isArray(upcomingWsData) ? upcomingWsData : (upcomingWsData ? [upcomingWsData] : []));
-            setAllWorkspaces(allWsData);
+            setAllWorkspaces(Array.isArray(allWsData) ? [...allWsData].sort((a, b) => {
+                const now = new Date();
+                const startA = a.allotmentStart ? new Date(a.allotmentStart) : null;
+                const isUnavA = a.type === "Open WorkStation" 
+                    ? (a.availableSeats !== undefined ? a.availableSeats <= 0 : false)
+                    : !!a.allottedTo && (!startA || now >= startA);
+                
+                const startB = b.allotmentStart ? new Date(b.allotmentStart) : null;
+                const isUnavB = b.type === "Open WorkStation" 
+                    ? (b.availableSeats !== undefined ? b.availableSeats <= 0 : false)
+                    : !!b.allottedTo && (!startB || now >= startB);
+
+                if (isUnavA !== isUnavB) return isUnavA ? 1 : -1;
+                if (a.featured !== b.featured) return a.featured ? -1 : 1;
+                return 0;
+            }) : []);
             setCommunity(communityData);
             setPosts(postsData);
             setInvoices(invoicesData);
@@ -562,12 +590,12 @@ const UserDashboard = () => {
         }
     };
 
-    const handleUpvote = async (postId: string) => {
+    const handleUpvotePost = async (postId: string) => {
         try {
             const updatedPost = await upvotePost(postId);
             setPosts(posts.map(p => p._id === postId ? updatedPost : p));
         } catch (error: any) {
-            toast.error("Failed to upvote");
+            toast.error("Failed to vibe with post");
         }
     };
 
@@ -676,7 +704,8 @@ const UserDashboard = () => {
             startDate: formatDate(today),
             endDate: formatDate(nextMonth),
             duration: "1.0 Months",
-            paymentMethod: "Pay Now"
+            paymentMethod: "Pay Now",
+            seatCount: 1
         });
 
         setIsRequestingWorkspace(true);
@@ -728,7 +757,8 @@ const UserDashboard = () => {
                 startDate: new Date(bookingParams.startDate),
                 endDate: new Date(bookingParams.endDate),
                 paymentMethod: (bookingParams as any).paymentMethod || "Pay Now",
-                status: 'Pending'
+                status: 'Pending',
+                seatCount: selectedWorkspaceToBook.type === "Open WorkStation" ? bookingParams.seatCount : 1
             };
 
             await (submitBookingRequest as any)(requestData);
@@ -787,7 +817,7 @@ const UserDashboard = () => {
                                         onClick={() => changeView("community")}
                                         className={`rounded-xl h-11 px-3 mb-1 transition-all ${currentView === "community" ? "bg-primary/10 text-primary shadow-sm" : "hover:bg-primary/5"} group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2`}
                                     >
-                                        <CommunityIcon className="w-5 h-5 mr-3 group-data-[collapsible=icon]:mr-0" />
+                                        <Users className="w-5 h-5 mr-3 group-data-[collapsible=icon]:mr-0" />
                                         <span className="font-semibold group-data-[collapsible=icon]:hidden">Community</span>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
@@ -977,7 +1007,7 @@ const UserDashboard = () => {
                                     { label: "My Spaces", value: myWorkspaces.length > 0 ? `${myWorkspaces.length} Active` : "None", icon: Building2, color: "text-primary", bg: "bg-primary/10", activeBg: "group-hover:bg-primary" },
                                     { label: "Open Requests", value: myRequests.filter(r => r.status === 'Pending').length, icon: Ticket, color: "text-amber-500", bg: "bg-amber-500/10", activeBg: "group-hover:bg-amber-500" },
                                     { label: "Pending Dues", value: invoices.filter(i => i.status === 'Pending').length, icon: Calendar, color: "text-rose-500", bg: "bg-rose-500/10", activeBg: "group-hover:bg-rose-500" },
-                                    { label: "Neighbor Hub", value: community.length + " Members", icon: CommunityIcon, color: "text-indigo-500", bg: "bg-indigo-500/10", activeBg: "group-hover:bg-indigo-500" }
+                                    { label: "Neighbor Hub", value: community.length + " Members", icon: Users, color: "text-indigo-500", bg: "bg-indigo-500/10", activeBg: "group-hover:bg-indigo-500" }
                                 ].map((stat, i) => (
                                     <div key={i} className="group p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] bg-card border border-border/50 shadow-soft hover:shadow-xl transition-all duration-300 cursor-default">
                                         <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${stat.bg} ${stat.color} flex items-center justify-center mb-4 transition-all duration-500 ${stat.activeBg} group-hover:text-white group-hover:rotate-12`}>
@@ -1027,24 +1057,29 @@ const UserDashboard = () => {
                                                     <div className="bg-card p-6 sm:p-10 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-10">
                                                         <div className="space-y-1">
                                                             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Plan Type</p>
-                                                            <p className="font-bold text-lg flex items-center gap-2">
+                                                            <div className="font-bold text-lg flex items-center gap-2">
                                                                 <Building2 className="w-4 h-4 text-primary" />
                                                                 {ws.type}
-                                                            </p>
+                                                            </div>
                                                         </div>
                                                         <div className="space-y-1">
                                                             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Capacity</p>
-                                                            <p className="font-bold text-lg flex items-center gap-2">
-                                                                <CommunityIcon className="w-4 h-4 text-primary" />
-                                                                {ws.capacity}
-                                                            </p>
+                                                            <div className="font-bold text-lg flex items-center gap-2">
+                                                                <Users className="w-4 h-4 text-primary" />
+                                                                 {ws.type === "Open WorkStation" ? (
+                                                                    <div className="flex items-baseline gap-1.5">
+                                                                        <span className="text-primary text-2xl font-black italic leading-none">{ws.availableSeats ?? 0}</span>
+                                                                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">/ {ws.totalSeats ?? 0} Seats Available</span>
+                                                                    </div>
+                                                                ) : ws.capacity}
+                                                            </div>
                                                         </div>
                                                         <div className="space-y-1">
                                                             <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Membership</p>
-                                                            <p className="font-bold text-lg flex items-center gap-2 text-emerald-600">
+                                                            <div className="font-bold text-lg flex items-center gap-2 text-emerald-600">
                                                                 <CheckCircle2 className="w-4 h-4" />
                                                                 Premium
-                                                            </p>
+                                                            </div>
                                                         </div>
                                                         <div className="col-span-2 md:col-span-1 flex items-center justify-end">
                                                             <Button
@@ -1073,11 +1108,22 @@ const UserDashboard = () => {
                                                                 ⏳ Pre-Booked
                                                             </Badge>
                                                         </div>
-                                                        <div className="absolute bottom-6 left-6 text-white">
-                                                            <h2 className="text-2xl sm:text-3xl font-black italic tracking-tight">{ws.name}</h2>
-                                                            <div className="flex items-center gap-2 text-white/70 text-sm font-bold mt-1">
-                                                                <MapPin className="w-4 h-4 text-amber-400" />
-                                                                {ws.location}
+                                                        <div className="absolute bottom-6 left-6 text-white max-w-[calc(100%-48px)]">
+                                                            <h2 className="text-2xl sm:text-3xl font-black italic tracking-tight truncate">{ws.name}</h2>
+                                                            <div className="flex flex-wrap items-center gap-3 mt-1">
+                                                                <div className="flex items-center gap-2 text-white/70 text-sm font-bold">
+                                                                    <MapPin className="w-4 h-4 text-amber-400" />
+                                                                    {ws.location}
+                                                                </div>
+                                                                 {ws.type === "Open WorkStation" && (
+                                                                    <div className="flex items-center gap-2 text-white/70 text-sm font-bold bg-white/10 px-3 py-1 rounded-full border border-white/20 shadow-sm backdrop-blur-md">
+                                                                        <Users className="w-4 h-4 text-amber-400" />
+                                                                        <div className="flex items-baseline gap-1">
+                                                                            <span className="text-white text-base">{ws.availableSeats ?? 0}</span>
+                                                                            <span className="text-[10px] opacity-70 uppercase font-black tracking-widest">/ {ws.totalSeats ?? 0} Seats Available</span>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1239,11 +1285,29 @@ const UserDashboard = () => {
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
                                             <div className="bg-muted/30 p-5 rounded-2xl border border-border/50 transition-all hover:bg-muted/50">
                                                 <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Type</p>
-                                                <p className="font-bold text-foreground">{selectedWorkspace.type}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <Building2 className="w-4 h-4 text-primary" />
+                                                    <p className="font-bold text-foreground">{selectedWorkspace.type}</p>
+                                                </div>
                                             </div>
                                             <div className="bg-muted/30 p-5 rounded-2xl border border-border/50 transition-all hover:bg-muted/50">
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Workstations</p>
-                                                <p className="font-bold text-foreground">{selectedWorkspace.features?.workstationSeats || "0"} Seats</p>
+                                                <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">
+                                                    {selectedWorkspace.type === "Open WorkStation" ? "Capacity" : "Workstations"}
+                                                </p>
+                                                 <div className="font-bold text-foreground flex items-center gap-2">
+                                                     <Users className="w-4 h-4 text-primary shrink-0" />
+                                                      {selectedWorkspace.type === "Open WorkStation" 
+                                                         ? (
+                                                             <div className="flex items-baseline gap-1.5">
+                                                                 <span className="text-primary text-2xl font-black italic leading-none">{selectedWorkspace.availableSeats ?? 0}</span>
+                                                                 <div className="flex flex-col">
+                                                                    <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">/ {selectedWorkspace.totalSeats ?? 0}</span>
+                                                                    <span className="text-[8px] text-primary/60 font-black uppercase tracking-tighter leading-none mt-1">Seats Available</span>
+                                                                 </div>
+                                                             </div>
+                                                         )
+                                                         : <span className="text-lg">{selectedWorkspace.features?.workstationSeats || "0"} Seats</span>}
+                                                 </div>
                                             </div>
                                             {selectedWorkspace.features?.hasConferenceHall && (
                                                 <div className="bg-muted/30 p-5 rounded-2xl border border-border/50 transition-all hover:bg-muted/50">
@@ -1258,8 +1322,17 @@ const UserDashboard = () => {
                                                 </div>
                                             )}
                                             <div className="bg-muted/30 p-5 rounded-2xl border border-border/50 transition-all hover:bg-muted/50">
-                                                <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">Max Load</p>
-                                                <p className="font-bold text-foreground">{selectedWorkspace.capacity}</p>
+                                                <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">
+                                                    {selectedWorkspace.type === "Open WorkStation" ? "Total Setup" : "Max Load"}
+                                                </p>
+                                                <div className="font-bold text-foreground flex items-center gap-2">
+                                                    <Layers className="w-4 h-4 text-primary" />
+                                                    <p>
+                                                        {selectedWorkspace.type === "Open WorkStation" 
+                                                            ? `${selectedWorkspace.totalSeats ?? 0} Seats` 
+                                                            : selectedWorkspace.capacity}
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1353,236 +1426,262 @@ const UserDashboard = () => {
                     )}
 
                     {currentView === "community" && (
-                        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex flex-col gap-2">
-                                <h2 className="text-3xl font-black tracking-tight">Ecosystem Community</h2>
-                                <p className="text-muted-foreground font-medium">Connect with fellow innovators and share your journey within the COMS network.</p>
+                        <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            {/* Page Header */}
+                            <div className="relative rounded-[2rem] overflow-hidden border border-border/50">
+                                <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-background to-accent/5" />
+                                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,hsl(var(--primary)/0.08),transparent_60%)]" />
+                                <div className="relative px-8 py-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <div className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/30">
+                                                <Users className="w-4.5 h-4.5" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Ecosystem Network</span>
+                                        </div>
+                                        <h2 className="text-3xl sm:text-4xl font-black tracking-tight">Community Hub</h2>
+                                        <p className="text-muted-foreground text-sm font-medium max-w-lg leading-relaxed">
+                                            Connect with <span className="text-foreground font-semibold">fellow innovators</span>, share stories, and grow together within the COMS network.
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-center px-5 py-3 bg-background/60 backdrop-blur-sm rounded-2xl border border-border/50">
+                                            <p className="text-2xl font-black text-primary">{community.length}</p>
+                                            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Members</p>
+                                        </div>
+                                        <div className="text-center px-5 py-3 bg-background/60 backdrop-blur-sm rounded-2xl border border-border/50">
+                                            <p className="text-2xl font-black text-emerald-500">{posts.length}</p>
+                                            <p className="text-[9px] uppercase tracking-widest text-muted-foreground font-bold">Stories</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <Tabs value={communityTab} onValueChange={(val: any) => setCommunityTab(val)} className="space-y-8">
-                                <TabsList className="bg-muted/50 p-1.5 rounded-2xl w-full sm:w-auto h-auto grid grid-cols-2 lg:flex lg:inline-flex mb-2">
-                                    <TabsTrigger value="stories" className="rounded-xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-md transition-all">
-                                        Community Stories
-                                    </TabsTrigger>
-                                    <TabsTrigger value="members" className="rounded-xl py-3 px-8 font-black text-xs uppercase tracking-widest data-[state=active]:bg-background data-[state=active]:shadow-md transition-all">
-                                        Neighbourhood Profiles
-                                    </TabsTrigger>
-                                </TabsList>
+                                <div className="flex items-center justify-between">
+                                    <TabsList className="bg-muted/40 p-1 rounded-xl border border-border/40 h-10">
+                                        <TabsTrigger
+                                            value="stories"
+                                            className="rounded-lg px-5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                                        >
+                                            Stories
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="members"
+                                            className="rounded-lg px-5 text-xs font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground transition-all"
+                                        >
+                                            Members
+                                        </TabsTrigger>
+                                    </TabsList>
+                                    {activeHashtag && (
+                                        <button
+                                            onClick={() => setActiveHashtag(null)}
+                                            className="flex items-center gap-2 text-xs font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all"
+                                        >
+                                            <X className="w-3 h-3" /> {activeHashtag}
+                                        </button>
+                                    )}
+                                </div>
 
-                                <TabsContent value="stories" className="space-y-8 mt-0 border-none p-0 focus-visible:outline-none">
-                                    <div className="grid lg:grid-cols-3 gap-8">
-                                        <div className="lg:col-span-2 space-y-6">
+                                <TabsContent value="stories" className="space-y-0 mt-0 border-none p-0 focus-visible:outline-none">
+                                    <div className="grid lg:grid-cols-[1fr_320px] gap-6">
+                                        <div className="space-y-5">
                                             {/* Create Post Box */}
-                                            <div className="card-elevated glass p-6 space-y-4">
-                                                <div className="flex gap-4">
-                                                    <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary flex-shrink-0">
-                                                        {(userInfo?.name || "U").split(" ").map((n: string) => n[0]).join("")}
+                                            <div className="bg-card rounded-2xl p-5 border border-border/60 shadow-sm">
+                                                <div className="flex gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center font-black text-white text-sm shadow-md shrink-0">
+                                                        {(userInfo?.name || "U")[0]}
                                                     </div>
-                                                    <Textarea
-                                                        placeholder={`What's on your mind, ${userInfo?.name?.split(" ")[0]}? Share with the community...`}
-                                                        className="min-h-[100px] rounded-2xl border-none bg-muted/30 focus-visible:ring-primary/20 text-sm font-medium p-4 resize-none"
-                                                        value={newPostContent}
-                                                        onChange={(e) => setNewPostContent(e.target.value)}
-                                                    />
-                                                </div>
-                                                <div className="flex justify-end pt-2 border-t border-border/10">
-                                                    <Button
-                                                        onClick={handleCreatePost}
-                                                        disabled={!newPostContent.trim() || isPosting}
-                                                        className="rounded-full px-8 font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                                    >
-                                                        {isPosting ? (
-                                                            <><Loader2 className="w-4 h-4 animate-spin mr-2" />Sharing...</>
-                                                        ) : (
-                                                            <>Post Story <Send className="w-4 h-4 ml-2" /></>
-                                                        )}
-                                                    </Button>
+                                                    <div className="flex-1 space-y-3">
+                                                        <textarea
+                                                            placeholder={`Share something with the community, ${userInfo?.name?.split(' ')[0] || 'there'}...`}
+                                                            className="w-full bg-muted/30 rounded-xl border border-border/50 focus:border-primary/30 focus:ring-0 text-sm font-medium placeholder:text-muted-foreground/50 resize-none min-h-[90px] p-3 outline-none transition-all"
+                                                            value={newPostContent}
+                                                            onChange={(e) => setNewPostContent(e.target.value)}
+                                                        />
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-1.5">
+                                                                {[
+                                                                    { label: "Productive", icon: Zap, color: "text-amber-500" },
+                                                                    { label: "Collab", icon: Users, color: "text-blue-500" },
+                                                                    { label: "Winning", icon: Trophy, color: "text-emerald-500" }
+                                                                ].map((mood) => (
+                                                                    <Button key={mood.label} variant="ghost" size="sm" className={`rounded-lg h-7 px-2.5 font-semibold text-[10px] uppercase tracking-wide hover:bg-muted transition-all gap-1.5 text-muted-foreground hover:${mood.color}`}>
+                                                                        <mood.icon className={`w-3 h-3`} /> {mood.label}
+                                                                    </Button>
+                                                                ))}
+                                                            </div>
+                                                            <Button
+                                                                onClick={handleCreatePost}
+                                                                disabled={isPosting || !newPostContent.trim()}
+                                                                size="sm"
+                                                                className="rounded-xl font-bold text-xs px-5 shadow-sm shadow-primary/20 hover:shadow-md hover:shadow-primary/30 transition-all"
+                                                            >
+                                                                {isPosting ? <Loader2 className="w-3 h-3 animate-spin" /> : <><Send className="w-3 h-3 mr-1.5" />Post</>}
+                                                            </Button>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </div>
 
-                                            {/* Post List */}
-                                            <div className="space-y-6">
-                                                {activeHashtag && (
-                                                    <div className="flex items-center justify-between bg-primary/5 border border-primary/10 p-4 rounded-2xl mb-4">
-                                                        <div className="flex items-center gap-2">
-                                                            <Badge className="bg-primary text-white border-none">{activeHashtag}</Badge>
-                                                            <span className="text-sm font-medium text-muted-foreground">Filtering stories</span>
+                                            {/* Posts Feed */}
+                                            <div className="space-y-4">
+                                                {posts.length === 0 ? (
+                                                    <div className="bg-card rounded-2xl p-16 text-center space-y-4 border border-border/50 border-dashed">
+                                                        <div className="w-16 h-16 bg-muted/50 rounded-2xl flex items-center justify-center mx-auto text-muted-foreground">
+                                                            <MessageSquare className="w-8 h-8" />
                                                         </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="text-xs font-bold hover:bg-primary/10 rounded-lg h-8"
-                                                            onClick={() => setActiveHashtag(null)}
-                                                        >
-                                                            Clear Filter
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                                {posts.filter(p => !activeHashtag || p.content.toLowerCase().includes(activeHashtag.toLowerCase())).length === 0 ? (
-                                                    <div className="py-20 text-center space-y-4 opacity-50">
-                                                        <MessageSquare className="w-16 h-16 mx-auto" />
-                                                        <p className="text-xl font-black italic">
-                                                            {activeHashtag ? "No stories found for this hashtag." : "The feed is silent. Be the first to speak!"}
-                                                        </p>
+                                                        <div>
+                                                            <h3 className="text-lg font-bold">No stories yet</h3>
+                                                            <p className="text-muted-foreground text-sm mt-1">Be the first to share something with the community.</p>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     posts
                                                         .filter(p => !activeHashtag || p.content.toLowerCase().includes(activeHashtag.toLowerCase()))
                                                         .map(post => (
-                                                            <div key={post._id} className="card-elevated glass overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                                                <div className="p-6 space-y-4">
+                                                            <div key={post._id} className="bg-card rounded-2xl border border-border/60 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group/card">
+                                                                <div className="p-5 space-y-4">
+                                                                    {/* Post Header */}
                                                                     <div className="flex items-center justify-between">
                                                                         <div className="flex items-center gap-3">
-                                                                            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-black text-xs">
-                                                                                {(post.authorName || "C").split(" ").map((n: string) => n[0]).join("")}
+                                                                            <div className="relative">
+                                                                                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center font-bold text-primary text-sm">
+                                                                                    {post.authorName ? post.authorName[0] : "U"}
+                                                                                </div>
+                                                                                <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 border-2 border-card rounded-full" />
                                                                             </div>
-                                                                            <div className="flex flex-col">
-                                                                                <h4 className="font-bold text-sm">{post.authorName}</h4>
-                                                                                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-tighter">
-                                                                                    {new Date(post.createdAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}
-                                                                                </span>
+                                                                            <div>
+                                                                                <p className="font-bold text-sm leading-tight">{post.authorName}</p>
+                                                                                <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                                                                    <Clock className="w-2.5 h-2.5" />
+                                                                                    {new Date(post.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                                                                                </p>
                                                                             </div>
                                                                         </div>
-                                                                        {(isAuth(post.author, userInfo?._id) || userInfo?.role === 'Admin') && (
+                                                                        {isAuth(post.author, userInfo?._id) && (
                                                                             <Button
                                                                                 variant="ghost"
                                                                                 size="icon"
-                                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-full transition-all"
-                                                                                onClick={() => handleDeletePost(post._id)}
+                                                                                className="h-8 w-8 rounded-lg text-muted-foreground opacity-0 group-hover/card:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-all"
+                                                                                onClick={() => { setPostToDelete(post._id); setIsDeleteDialogOpen(true); }}
                                                                             >
-                                                                                <Trash2 className="w-4 h-4" />
+                                                                                <Trash2 className="w-3.5 h-3.5" />
                                                                             </Button>
                                                                         )}
                                                                     </div>
 
-                                                                    <p className="text-base text-foreground/90 leading-relaxed font-medium whitespace-pre-wrap">
-                                                                        {post.content}
+                                                                    {/* Post Content */}
+                                                                    <p className="text-sm leading-relaxed text-foreground/90">
+                                                                        {post.content.split(' ').map((word: string, wi: number) =>
+                                                                            word.startsWith('#') ? (
+                                                                                <button key={wi} className="text-primary font-semibold hover:underline" onClick={() => setActiveHashtag(activeHashtag === word ? null : word)}>{word} </button>
+                                                                            ) : <span key={wi}>{word} </span>
+                                                                        )}
                                                                     </p>
 
-                                                                    <div className="pt-2 flex items-center gap-4 text-muted-foreground border-t border-border/10">
+                                                                    {/* Actions */}
+                                                                    <div className="flex items-center gap-2 pt-1 border-t border-border/30">
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="sm"
-                                                                            onClick={() => handleUpvote(post._id)}
-                                                                            className={`rounded-full gap-2 font-black transition-all ${(post.upvotes || []).includes(userInfo?._id?.toString()) ? "bg-primary/10 text-primary" : "hover:bg-primary/5 hover:text-primary"}`}
+                                                                            className={`rounded-lg h-8 px-3 text-xs font-semibold gap-1.5 transition-all ${
+                                                                                post.upvotes.includes(userInfo?._id)
+                                                                                    ? "bg-primary/10 text-primary"
+                                                                                    : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+                                                                            }`}
+                                                                            onClick={() => handleUpvotePost(post._id)}
                                                                         >
-                                                                            <ArrowBigUp className={`w-5 h-5 ${(post.upvotes || []).includes(userInfo?._id?.toString()) ? "fill-current" : ""}`} />
-                                                                            Upvote • {post.upvotes.length}
+                                                                            <Zap className={`w-3.5 h-3.5 ${post.upvotes.includes(userInfo?._id) ? "fill-current" : ""}`} />
+                                                                            {post.upvotes.length > 0 && post.upvotes.length} Vibe
                                                                         </Button>
-                                                                        <div className="flex items-center gap-2 text-xs font-bold px-4">
-                                                                            <MessageCircle className="w-4 h-4" /> {post.comments.length} Comments
-                                                                        </div>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="rounded-lg h-8 px-3 text-xs font-semibold gap-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all"
+                                                                        >
+                                                                            <MessageSquare className="w-3.5 h-3.5" />
+                                                                            {post.comments.length > 0 && post.comments.length} Reply
+                                                                        </Button>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all ml-auto"
+                                                                            onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/community?post=${post._id}`); toast.success("Link copied!"); }}
+                                                                        >
+                                                                            <Share2 className="w-3.5 h-3.5" />
+                                                                        </Button>
                                                                     </div>
 
-                                                                    {/* Comment Section */}
-                                                                    <div className="space-y-4 pt-4 border-t border-border/10 bg-muted/10 -mx-6 px-6 pb-6">
-                                                                        <div className="space-y-4">
+                                                                    {/* Comments */}
+                                                                    {post.comments.length > 0 && (
+                                                                        <div className="space-y-3 pt-3 border-t border-border/30">
                                                                             {post.comments.map(comment => (
-                                                                                <div key={comment._id} className="space-y-3">
-                                                                                    <div className="flex gap-3 animate-in fade-in slide-in-from-left-2 duration-200">
-                                                                                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-bold text-[8px] flex-shrink-0">
-                                                                                            {(comment.userName || "C").split(" ").map((n: string) => n[0]).join("")}
-                                                                                        </div>
-                                                                                        <div className="flex-1 space-y-2">
-                                                                                            <div className="bg-background p-3 rounded-2xl rounded-tl-none border border-border/50 shadow-sm relative group/comment">
-                                                                                                <div className="flex items-center justify-between gap-2 mb-1">
-                                                                                                    <p className="text-[10px] font-black text-primary uppercase">{comment.userName}</p>
-                                                                                                    {(isAuth(comment.user, userInfo?._id) || isAuth(post.author, userInfo?._id) || userInfo?.role === 'Admin') && (
-                                                                                                        <button
-                                                                                                            onClick={() => handleDeleteComment(post._id, comment._id)}
-                                                                                                            className="text-muted-foreground/40 hover:text-destructive transition-colors"
-                                                                                                        >
-                                                                                                            <Trash2 className="w-2.5 h-2.5" />
-                                                                                                        </button>
-                                                                                                    )}
-                                                                                                </div>
-                                                                                                <p className="text-xs font-medium text-foreground/80">{comment.text}</p>
-
-                                                                                                <div className="flex items-center gap-4 mt-2 pt-2 border-t border-border/5 text-[9px] font-bold text-muted-foreground">
-                                                                                                    <button
-                                                                                                        onClick={() => handleUpvoteComment(post._id, comment._id)}
-                                                                                                        className={`flex items-center gap-1 transition-colors ${(comment.upvotes || []).includes(userInfo?._id?.toString()) ? "text-rose-500" : "hover:text-rose-500"}`}
-                                                                                                    >
-                                                                                                        <Heart className={`w-3 h-3 ${(comment.upvotes || []).includes(userInfo?._id?.toString()) ? "fill-current" : ""}`} />
-                                                                                                        {comment.upvotes?.length || 0} Like
+                                                                                <div key={comment._id} className="flex gap-3 group/comment">
+                                                                                    <div className="w-8 h-8 rounded-lg bg-muted/60 flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                                                                                        {comment.userName ? comment.userName[0] : "U"}
+                                                                                    </div>
+                                                                                    <div className="flex-1 bg-muted/30 rounded-xl p-3 space-y-1">
+                                                                                        <div className="flex items-center justify-between">
+                                                                                            <span className="text-xs font-bold">{comment.userName}</span>
+                                                                                            <div className="flex items-center gap-2">
+                                                                                                <span className="text-[10px] text-muted-foreground">{new Date(comment.createdAt).toLocaleDateString()}</span>
+                                                                                                {isAuth(comment.user, userInfo?._id) && (
+                                                                                                    <button className="opacity-0 group-hover/comment:opacity-100 text-muted-foreground hover:text-destructive transition-all" onClick={() => { setCommentToDelete({ postId: post._id, commentId: comment._id }); setIsCommentDeleteDialogOpen(true); }}>
+                                                                                                        <Trash2 className="w-3 h-3" />
                                                                                                     </button>
-                                                                                                    <button
-                                                                                                        onClick={() => setActiveReplyBox(activeReplyBox === comment._id ? null : comment._id)}
-                                                                                                        className="hover:text-primary transition-colors flex items-center gap-1"
-                                                                                                    >
-                                                                                                        Reply
-                                                                                                    </button>
-                                                                                                </div>
-                                                                                            </div>
-
-                                                                                            <div className="space-y-3 pl-4 border-l-2 border-border/20 ml-2">
-                                                                                                {comment.replies?.map((reply, rid) => (
-                                                                                                    <div key={rid} className="flex gap-2 animate-in fade-in slide-in-from-left-1 duration-200">
-                                                                                                        <CornerDownRight className="w-3 h-3 text-muted-foreground/30 mt-2" />
-                                                                                                        <div className="w-6 h-6 rounded-full bg-muted/50 flex items-center justify-center font-bold text-[7px] flex-shrink-0">
-                                                                                                            {(reply.userName || "R").split(" ").map((n: string) => n[0]).join("")}
-                                                                                                        </div>
-                                                                                                        <div className="bg-muted/30 p-2 rounded-xl border border-border/30 flex-1 shadow-xs">
-                                                                                                            <p className="text-[8px] font-black text-primary/70 uppercase mb-0.5">{reply.userName}</p>
-                                                                                                            <p className="text-[11px] font-medium text-foreground/70">{reply.text}</p>
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                ))}
-
-                                                                                                {activeReplyBox === comment._id && (
-                                                                                                    <div className="flex gap-2 items-center bg-background rounded-xl p-1 border border-primary/20 shadow-sm animate-in zoom-in-95 duration-200">
-                                                                                                        <Input
-                                                                                                            placeholder="Write a reply..."
-                                                                                                            className="border-none bg-transparent h-7 text-[10px] focus-visible:ring-0 font-medium px-3"
-                                                                                                            value={replyTexts[comment._id] || ""}
-                                                                                                            autoFocus
-                                                                                                            onChange={(e) => setReplyTexts({ ...replyTexts, [comment._id]: e.target.value })}
-                                                                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddReply(post._id, comment._id)}
-                                                                                                        />
-                                                                                                        <Button
-                                                                                                            size="icon"
-                                                                                                            variant="ghost"
-                                                                                                            className="h-6 w-6 rounded-lg text-primary hover:bg-primary/10"
-                                                                                                            onClick={() => handleAddReply(post._id, comment._id)}
-                                                                                disabled={submittingReplyCommentId === comment._id || !(replyTexts[comment._id]?.trim())}
-                                                                                                        >
-                                                                                                            {submittingReplyCommentId === comment._id ? (
-                                                                                <Loader2 className="w-2.5 h-2.5 animate-spin" />
-                                                                            ) : (
-                                                                                <Send className="w-2.5 h-2.5" />
-                                                                            )}
-                                                                                                        </Button>
-                                                                                                    </div>
                                                                                                 )}
                                                                                             </div>
                                                                                         </div>
+                                                                                        <p className="text-xs text-muted-foreground leading-relaxed">{comment.text}</p>
+                                                                                        <div className="flex items-center gap-3 pt-1">
+                                                                                            <button className="text-[10px] font-semibold text-muted-foreground hover:text-primary transition-colors" onClick={() => setActiveReplyBox(activeReplyBox === comment._id ? null : comment._id)}>Reply</button>
+                                                                                        </div>
+                                                                                        {activeReplyBox === comment._id && (
+                                                                                            <div className="flex gap-2 pt-2">
+                                                                                                <Input
+                                                                                                    placeholder="Write a reply..."
+                                                                                                    className="text-xs h-8 rounded-lg bg-background border-border/50"
+                                                                                                    value={replyTexts[comment._id] || ""}
+                                                                                                    onChange={(e) => setReplyTexts({ ...replyTexts, [comment._id]: e.target.value })}
+                                                                                                    onKeyDown={(e) => e.key === 'Enter' && handleAddReply(post._id, comment._id)}
+                                                                                                />
+                                                                                                <Button size="icon" className="h-8 w-8 rounded-lg shrink-0" onClick={() => handleAddReply(post._id, comment._id)} disabled={submittingReplyCommentId === comment._id || !replyTexts[comment._id]?.trim()}>
+                                                                                                    {submittingReplyCommentId === comment._id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                                                                                                </Button>
+                                                                                            </div>
+                                                                                        )}
+                                                                                        {comment.replies && comment.replies.length > 0 && (
+                                                                                            <div className="pt-2 space-y-2 pl-3 border-l-2 border-border/20">
+                                                                                                {comment.replies.map((reply: any) => (
+                                                                                                    <div key={reply._id} className="flex gap-2">
+                                                                                                        <div className="w-6 h-6 rounded-md bg-muted/50 flex items-center justify-center font-bold text-[9px] shrink-0">{reply.userName?.[0] || "U"}</div>
+                                                                                                        <div>
+                                                                                                            <p className="text-[10px] font-bold">{reply.userName}</p>
+                                                                                                            <p className="text-[10px] text-muted-foreground">{reply.content || reply.text}</p>
+                                                                                                        </div>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        )}
                                                                                     </div>
                                                                                 </div>
                                                                             ))}
                                                                         </div>
+                                                                    )}
 
-                                                                        <div className="flex gap-2 items-center bg-background rounded-2xl p-1 border border-border/50 shadow-inner group-focus-within:border-primary/30 transition-all">
-                                                                            <Input
-                                                                                placeholder="Add a comment..."
-                                                                                className="border-none bg-transparent h-9 text-xs focus-visible:ring-0 font-medium px-4"
-                                                                                value={commentTexts[post._id] || ""}
-                                                                                onChange={(e) => setCommentTexts({ ...commentTexts, [post._id]: e.target.value })}
-                                                                                onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post._id)}
-                                                                            />
-                                                                            <Button
-                                                                                size="icon"
-                                                                                variant="ghost"
-                                                                                className="h-8 w-8 rounded-xl text-primary hover:bg-primary/10"
-                                                                                onClick={() => handleAddComment(post._id)}
-                                                                                disabled={submittingCommentPostId === post._id || !(commentTexts[post._id]?.trim())}
-                                                                            >
-                                                                                {submittingCommentPostId === post._id ? (
-                                                                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                                                                ) : (
-                                                                                    <Send className="w-3 h-3" />
-                                                                                )}
-                                                                            </Button>
-                                                                        </div>
+                                                                    {/* Add Comment */}
+                                                                    <div className="flex gap-2 items-center">
+                                                                        <Input
+                                                                            placeholder="Add a comment..."
+                                                                            className="text-xs h-9 rounded-xl bg-muted/30 border-border/50 focus-visible:ring-1 focus-visible:ring-primary/30"
+                                                                            value={commentTexts[post._id] || ""}
+                                                                            onChange={(e) => setCommentTexts({ ...commentTexts, [post._id]: e.target.value })}
+                                                                            onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post._id)}
+                                                                        />
+                                                                        <Button size="icon" className="h-9 w-9 rounded-xl shrink-0" onClick={() => handleAddComment(post._id)} disabled={submittingCommentPostId === post._id || !commentTexts[post._id]?.trim()}>
+                                                                            {submittingCommentPostId === post._id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                                                                        </Button>
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1591,140 +1690,216 @@ const UserDashboard = () => {
                                             </div>
                                         </div>
 
-                                        <div className="lg:col-span-1 space-y-6">
-                                            <div className="card-elevated glass p-6 sm:p-8 space-y-6 relative overflow-hidden group">
-                                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-all">
-                                                    <KeyRound className="w-20 h-20" />
-                                                </div>
-                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                                    <ShieldIcon className="w-3 h-3" /> Digital Concierge
-                                                </h3>
-                                                <div className="space-y-4">
-                                                    <div className="p-4 rounded-2xl bg-muted/50 border border-border/50 hover:bg-muted transition-colors cursor-pointer group/item">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">High-Speed WiFi</p>
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-sm font-bold italic">COMS_Premium_5G</span>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                                                <ExternalLink className="w-3 h-3" />
-                                                            </Button>
+                                        {/* Right Sidebar */}
+                                        <div className="space-y-5">
+                                            {/* Community Stats */}
+                                            <div className="bg-card rounded-2xl p-5 border border-border/60 shadow-sm space-y-4">
+                                                <h3 className="text-sm font-bold">Community Pulse</h3>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="bg-primary/5 rounded-xl p-3 border border-primary/10">
+                                                        <div className="flex items-center gap-1.5 mb-1">
+                                                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider">Live</p>
                                                         </div>
+                                                        <p className="text-2xl font-black text-primary">{community.length}</p>
+                                                        <p className="text-[9px] text-muted-foreground">members active</p>
                                                     </div>
-                                                    <div className="p-4 rounded-2xl bg-muted/50 border border-border/50 hover:bg-muted transition-colors cursor-pointer group/item">
-                                                        <p className="text-[10px] font-black uppercase text-muted-foreground mb-1">Support Desk</p>
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-sm font-bold italic">Ext. 404 / Support Chat</span>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                                                <MessageCircle className="w-3 h-3" />
-                                                            </Button>
+                                                    <div className="bg-emerald-500/5 rounded-xl p-3 border border-emerald-500/10">
+                                                        <div className="flex items-center gap-1.5 mb-1">
+                                                            <div className="flex items-end gap-0.5 h-3">
+                                                                {[40,70,45,90,65].map((h,i) => <div key={i} className="w-0.5 bg-emerald-500/40 rounded-full" style={{height:`${h}%`}} />)}
+                                                            </div>
                                                         </div>
+                                                        <p className="text-2xl font-black text-emerald-600">{posts.length}</p>
+                                                        <p className="text-[9px] text-muted-foreground">stories shared</p>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            <div className="card-elevated glass p-8 space-y-6 relative overflow-hidden group">
-                                                <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-all">
-                                                    <TrendingUp className="w-20 h-20" />
+                                            {/* Trending Tags */}
+                                            <div className="bg-card rounded-2xl p-5 border border-border/60 shadow-sm space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <TrendingUp className="w-3.5 h-3.5 text-primary" />
+                                                    <h3 className="text-sm font-bold">Trending</h3>
                                                 </div>
-                                                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                                    <TrendingUp className="w-3 h-3" /> Trending Tags
-                                                </h3>
                                                 <div className="flex flex-wrap gap-2">
-                                                    {trendingTopics.length > 0 ? (
-                                                        trendingTopics.map(t => (
-                                                            <button
-                                                                key={t.topicRaw}
-                                                                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all border ${activeHashtag?.toLowerCase() === t.topicRaw.toLowerCase()
-                                                                    ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
-                                                                    : "bg-muted/50 text-muted-foreground border-border/50 hover:border-primary/30 hover:text-primary"}`}
-                                                                onClick={() => setActiveHashtag(activeHashtag?.toLowerCase() === t.topicRaw.toLowerCase() ? null : t.topicRaw)}
-                                                            >
-                                                                {t.topicRaw}
-                                                            </button>
-                                                        ))
-                                                    ) : (
-                                                        <div className="w-full py-4 text-center">
-                                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest italic opacity-50">Discovery in progress...</p>
-                                                        </div>
-                                                    )}
+                                                    {["#Innovation", "#Networking", "#Design", "#Tech", "#Growth"].map((tag) => (
+                                                        <button
+                                                            key={tag}
+                                                            onClick={() => setActiveHashtag(activeHashtag === tag ? null : tag)}
+                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                                                                activeHashtag === tag
+                                                                    ? "bg-primary text-primary-foreground shadow-sm"
+                                                                    : "bg-muted/60 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                                            }`}
+                                                        >
+                                                            {tag}
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             </div>
 
-                                            <div className="p-6 sm:p-8 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl sm:rounded-[2.5rem] text-white space-y-4 relative overflow-hidden shadow-2xl group">
-                                                <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl transition-transform group-hover:scale-150 duration-1000" />
-                                                <Sparkles className="w-8 h-8 text-white/50" />
-                                                <div className="space-y-2 relative z-10">
-                                                    <h4 className="text-lg font-black italic leading-tight">Elite Networking</h4>
-                                                    <p className="text-xs font-medium opacity-80 leading-relaxed">Unlock collaboration opportunities with decision makers in your industry.</p>
+                                            {/* Elite Networking CTA */}
+                                            <div className="rounded-2xl overflow-hidden relative">
+                                                <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950" />
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-2xl" />
+                                                <div className="relative p-5 space-y-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center">
+                                                        <Trophy className="w-5 h-5 text-amber-400" />
+                                                    </div>
+                                                    <div className="space-y-1.5">
+                                                        <h4 className="text-white font-bold text-base">Elite Network</h4>
+                                                        <p className="text-indigo-200/70 text-xs leading-relaxed">Connect with top professionals and industry leaders in the neighborhood.</p>
+                                                    </div>
+                                                    <Button
+                                                        className="w-full bg-white text-indigo-950 hover:bg-white/90 rounded-xl font-bold text-xs h-9 transition-all hover:scale-[1.02]"
+                                                        onClick={() => setCommunityTab("members")}
+                                                    >
+                                                        Explore Members <ArrowRight className="w-3.5 h-3.5 ml-1" />
+                                                    </Button>
                                                 </div>
-                                                <Button
-                                                    className="w-full h-12 bg-white text-indigo-700 hover:bg-white/90 rounded-xl font-black italic shadow-xl shadow-black/20"
-                                                    onClick={() => setCommunityTab("members")}
-                                                >
-                                                    Join Neighborhood
-                                                </Button>
                                             </div>
                                         </div>
                                     </div>
                                 </TabsContent>
 
                                 <TabsContent value="members" className="space-y-8 mt-0 border-none p-0 focus-visible:outline-none">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {community.length === 0 ? (
-                                            <div className="col-span-full py-20 text-center space-y-4 opacity-50">
-                                                <CommunityIcon className="w-16 h-16 mx-auto" />
-                                                <p className="text-xl font-black italic">You're the pioneer in this location!</p>
+                                    <div className="flex flex-col sm:flex-row gap-4 items-center justify-between mb-8 pb-4 border-b border-border/10">
+                                        <div className="relative w-full sm:max-w-md group">
+                                            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-primary transition-colors">
+                                                <Users className="w-4 h-4" />
+                                            </div>
+                                            <Input 
+                                                placeholder="Search members by name or role..." 
+                                                className="bg-muted/20 border-border/50 rounded-2xl pl-12 h-12 focus-visible:ring-primary/20 focus-visible:border-primary/30 transition-all font-medium"
+                                                value={membersSearch}
+                                                onChange={(e) => setMembersSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-none w-full sm:w-auto">
+                                            {["All", "Founders", "Designers", "Devs", "Strategists"].map(role => (
+                                                <Button
+                                                    key={role}
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className={`rounded-xl px-4 py-2 font-black uppercase text-[9px] tracking-widest border border-transparent transition-all ${selectedRoleFilter === role ? "bg-primary/10 text-primary border-primary/20 shadow-sm" : "hover:bg-primary/5 text-muted-foreground"}`}
+                                                    onClick={() => setSelectedRoleFilter(role)}
+                                                >
+                                                    {role}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                        {community.filter(m => 
+                                            (m.user?.name?.toLowerCase().includes(membersSearch.toLowerCase()) || m.user?.role?.toLowerCase().includes(membersSearch.toLowerCase())) &&
+                                            (selectedRoleFilter === "All" || m.user?.role?.toLowerCase().includes(selectedRoleFilter.slice(0, -1).toLowerCase()))
+                                        ).length === 0 ? (
+                                            <div className="col-span-full card-elevated glass rounded-[2.5rem] p-24 text-center space-y-6 border border-dashed border-border/50">
+                                                <div className="w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center mx-auto text-muted-foreground animate-pulse">
+                                                    <Users className="w-10 h-10" />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <h3 className="text-2xl font-black italic">No matches found</h3>
+                                                    <p className="text-muted-foreground text-sm font-medium">Try adjusting your search or filters to find what you're looking for.</p>
+                                                </div>
                                             </div>
                                         ) : (
-                                            community.map((member, i) => (
-                                                <div key={i} className="card-elevated glass p-5 sm:p-6 space-y-6 flex flex-col group hover:scale-[1.02] transition-all duration-300">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center font-black text-primary text-xl shadow-inner group-hover:bg-primary group-hover:text-white transition-all duration-500">
-                                                            {(member.user?.name || "U").split(" ").map((n: string) => n[0]).join("")}
+                                            community
+                                                .filter(m => 
+                                                    (m.user?.name?.toLowerCase().includes(membersSearch.toLowerCase()) || m.user?.role?.toLowerCase().includes(membersSearch.toLowerCase())) &&
+                                                    (selectedRoleFilter === "All" || m.user?.role?.toLowerCase().includes(selectedRoleFilter.slice(0, -1).toLowerCase()))
+                                                )
+                                                .map((member, i) => (
+                                                <div key={i} className="bg-card glass rounded-[2.5rem] p-8 space-y-8 flex flex-col group/member hover:shadow-2xl hover:scale-[1.02] transition-all duration-700 border border-border/50 relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover/member:bg-primary/10 transition-colors" />
+
+                                                    <div className="flex items-center gap-5 relative z-10">
+                                                        <div className="relative group/avatar">
+                                                            <div className={`w-24 h-24 rounded-[2rem] ${[
+                                                                'bg-gradient-to-tr from-primary/30 via-primary/10 to-accent/10',
+                                                                'bg-gradient-to-tr from-violet-500/30 via-violet-500/10 to-indigo-500/10',
+                                                                'bg-gradient-to-tr from-emerald-500/30 via-emerald-500/10 to-teal-500/10',
+                                                                'bg-gradient-to-tr from-rose-500/30 via-rose-500/10 to-orange-500/10',
+                                                                'bg-gradient-to-tr from-amber-500/30 via-amber-500/10 to-yellow-500/10',
+                                                                'bg-gradient-to-tr from-blue-500/30 via-blue-500/10 to-cyan-500/10',
+                                                            ][i % 6]} flex items-center justify-center font-black text-primary text-3xl shadow-xl group-hover/member:rotate-6 transition-all duration-700 border border-primary/20 relative overflow-hidden`}>
+                                                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover/member:opacity-100 transition-opacity" />
+                                                                {(member.user?.name || "U")[0]}
+                                                            </div>
+                                                            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 border-4 border-background rounded-full shadow-xl flex items-center justify-center">
+                                                                <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                                            </div>
                                                         </div>
-                                                        <div className="flex flex-col">
-                                                            <h4 className="font-black text-lg italic leading-tight">{member.user?.name}</h4>
-                                                            <span className="text-[10px] font-black text-primary uppercase tracking-widest">{member.user?.role || "Member"}</span>
+                                                        <div className="space-y-2">
+                                                            <h4 className="text-2xl font-black italic leading-tight group-hover/member:text-primary transition-colors tracking-tight">{member.user?.name}</h4>
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black uppercase px-2 py-0.5 rounded-lg tracking-widest shadow-sm">
+                                                                    Top Pro
+                                                                </Badge>
+                                                                <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                                                                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                                                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Active</span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
 
-                                                    <div className="space-y-4 flex-1">
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Workspace</p>
-                                                            <div className="flex items-center gap-2">
-                                                                <Building2 className="w-3 h-3 text-primary" />
-                                                                <p className="text-sm font-bold truncate">{member.workspaceName}</p>
-                                                            </div>
+                                                    <div className="space-y-6 flex-1 relative z-10">
+                                                        <div className="space-y-3 bg-muted/10 p-5 rounded-[2rem] border border-border/50 group-hover/member:bg-muted/30 transition-all">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 leading-none mb-2">Ecosystem Role</p>
+                                                            <p className="text-sm font-bold text-foreground/80 leading-relaxed italic line-clamp-2 min-h-[2.5rem]">
+                                                                {member.user?.role || "Independent Professional Shaping the Future of the Ecosystem"}
+                                                            </p>
                                                         </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest">Affiliation</p>
-                                                            <p className="text-sm font-bold text-foreground/80">{member.user?.organization || "Independent Professional"}</p>
+
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {(member.user?.skills?.length ? member.user.skills.slice(0,3) : ["Strategy", "Scale", "Innovation"]).map((skill: string) => (
+                                                                <span key={skill} className="px-3 py-1 rounded-lg bg-muted/50 text-[9px] font-black uppercase text-muted-foreground tracking-widest group-hover/member:bg-primary/5 group-hover/member:text-primary transition-colors">
+                                                                    {skill}
+                                                                </span>
+                                                            ))}
                                                         </div>
-                                                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-border/10">
-                                                            <div className="space-y-1">
-                                                                <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest leading-none">Joined COMS</p>
-                                                                <p className="text-[11px] font-bold">
-                                                                    {member.user?.joinedDate
-                                                                        ? (!isNaN(new Date(member.user.joinedDate).getTime())
-                                                                            ? new Date(member.user.joinedDate).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
-                                                                            : member.user.joinedDate)
-                                                                        : "Feb 2026"}
-                                                                </p>
+
+                                                        {(member.user?.organization || member.user?.email) && (
+                                                            <div className="flex items-center gap-2 bg-muted/20 px-3 py-2 rounded-xl border border-border/40">
+                                                                {member.user?.organization && (
+                                                                    <span className="text-[10px] font-bold text-muted-foreground truncate flex items-center gap-1.5">
+                                                                        <Building2 className="w-3 h-3 shrink-0" /> {member.user.organization}
+                                                                    </span>
+                                                                )}
+                                                                {member.user?.email && (
+                                                                    <span className="text-[10px] font-bold text-muted-foreground truncate flex items-center gap-1.5 ml-auto">
+                                                                        <Mail className="w-3 h-3 shrink-0" /> {member.user.email}
+                                                                    </span>
+                                                                )}
                                                             </div>
-                                                            <div className="flex justify-end items-end">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    className="h-7 rounded-lg text-[9px] font-black uppercase tracking-tighter hover:bg-primary/5 hover:text-primary transition-all"
-                                                                    onClick={() => {
-                                                                        console.log("[USER-DASHBOARD] Opening contact for:", member.user);
-                                                                        setSelectedMember(member.user);
-                                                                        setIsContactModalOpen(true);
-                                                                    }}
-                                                                >
-                                                                    <Mail className="w-3 h-3 mr-1.5" /> Contact
-                                                                </Button>
-                                                            </div>
-                                                        </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="pt-6 border-t border-border/10 flex items-center gap-3 relative z-10">
+                                                        <Button
+                                                            className="flex-1 rounded-2xl h-12 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                                                            onClick={() => {
+                                                                setSelectedMember(member.user);
+                                                                setIsContactModalOpen(true);
+                                                            }}
+                                                        >
+                                                            Collaborate
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-12 w-12 rounded-2xl bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:rotate-12 transition-all"
+                                                        >
+                                                            <Activity className="w-5 h-5" />
+                                                        </Button>
+                                                    </div>
+
+                                                    <div className="absolute bottom-6 right-8">
+                                                        <p className="text-[8px] font-black uppercase text-muted-foreground/20 tracking-widest italic group-hover/member:text-primary/30 transition-colors">
+                                                            Active {i % 2 === 0 ? "Now" : (i + 1) + "h ago"}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             ))
@@ -1756,6 +1931,7 @@ const UserDashboard = () => {
                                     </div>
                                     <div className="w-px h-8 sm:h-10 bg-border/50" />
                                     <div className="flex flex-col items-end px-3 sm:px-4">
+                                        <span className="text-[9px] sm:text-[10px] font-black uppercase text-muted-foreground tracking-widest">Completed Bookings</span>
                                         <span className="text-lg sm:text-xl font-black text-emerald-600">{myRequests.filter(r => r.status === 'Completed').length}</span>
                                     </div>
                                 </div>
@@ -1777,7 +1953,12 @@ const UserDashboard = () => {
                                 <TabsContent value="explore" className="mt-0 focus-visible:ring-0">
                                     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
                                         {allWorkspaces.map((ws) => {
-                                            const isUnavailable = !!ws.allottedTo;
+                                            const now = new Date();
+                                            const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+                                            const isUnavailable = ws.type === "Open WorkStation" 
+                                                ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
+                                                : !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+                                            const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
 
                                             return (
                                                 <div key={ws._id || ws.id} className={`card-elevated group overflow-hidden flex flex-col h-full transition-all duration-500 ${isUnavailable ? 'grayscale opacity-80' : ''}`}>
@@ -1795,7 +1976,7 @@ const UserDashboard = () => {
                                                         {isUnavailable && (
                                                             <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-destructive text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl animate-pulse flex items-center gap-1.5 ring-4 ring-destructive/20">
                                                                 <Clock className="w-3 h-3" />
-                                                                Unavailable
+                                                                {ws.type === "Open WorkStation" && ws.availableSeats !== undefined && ws.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
                                                             </div>
                                                         )}
                                                     </div>
@@ -1817,13 +1998,17 @@ const UserDashboard = () => {
                                                                     <Clock className="w-4 h-4" />
                                                                 </div>
                                                                 <div className="flex flex-col">
-                                                                    <span className="text-[10px] uppercase font-black tracking-widest text-destructive">Booked Until</span>
+                                                                    <span className="text-[10px] uppercase font-black tracking-widest text-destructive">
+                                                                        {ws.type === "Open WorkStation" ? "Booking Status" : "Booked Until"}
+                                                                    </span>
                                                                     <span className="text-xs font-bold text-destructive">
-                                                                        {ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
-                                                                            month: 'short',
-                                                                            day: 'numeric',
-                                                                            year: 'numeric'
-                                                                        }) : "Further Notice"}
+                                                                        {ws.type === "Open WorkStation" 
+                                                                            ? "Current capacity is full" 
+                                                                            : (ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
+                                                                                month: 'short',
+                                                                                day: 'numeric',
+                                                                                year: 'numeric'
+                                                                            }) : "Further Notice")}
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -1835,8 +2020,10 @@ const UserDashboard = () => {
                                                                 {ws.location}
                                                             </div>
                                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                <CommunityIcon className="w-4 h-4 text-primary" />
-                                                                {ws.capacity}
+                                                                <Users className="w-4 h-4 text-primary" />
+                                                                {ws.type === "Open WorkStation" 
+                                                                    ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available` 
+                                                                    : ws.capacity}
                                                             </div>
                                                         </div>
 
@@ -1872,6 +2059,7 @@ const UserDashboard = () => {
                                                 <thead>
                                                     <tr className="bg-muted/30 border-b border-border/50">
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Workspace</th>
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Seats</th>
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Duration</th>
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</th>
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Status</th>
@@ -1881,7 +2069,7 @@ const UserDashboard = () => {
                                                 <tbody className="divide-y divide-border/30">
                                                     {myRequests.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={5} className="px-8 py-20 text-center">
+                                                            <td colSpan={6} className="px-8 py-20 text-center">
                                                                 <div className="flex flex-col items-center gap-4 opacity-50">
                                                                     <Ticket className="w-12 h-12" />
                                                                     <p className="text-xl font-black italic">No booking requests found</p>
@@ -1897,6 +2085,9 @@ const UserDashboard = () => {
                                                                         <span className="font-bold italic">{req.requiredWorkspace}</span>
                                                                         <span className="text-[10px] text-muted-foreground font-medium">{new Date(req.createdAt).toLocaleDateString()}</span>
                                                                     </div>
+                                                                </td>
+                                                                <td className="px-8 py-5">
+                                                                    <span className="text-sm font-black italic">{req.seatCount || 1}</span>
                                                                 </td>
                                                                 <td className="px-8 py-5">
                                                                     <span className="text-sm font-medium">{req.duration}</span>
@@ -2195,7 +2386,7 @@ const UserDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.name}
+                                                            value={editProfileData.name || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, name: e.target.value })}
                                                         />
                                                     ) : (
@@ -2207,7 +2398,7 @@ const UserDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.email}
+                                                            value={editProfileData.email || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, email: e.target.value })}
                                                         />
                                                     ) : (
@@ -2219,7 +2410,7 @@ const UserDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.organization}
+                                                            value={editProfileData.organization || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, organization: e.target.value })}
                                                         />
                                                     ) : (
@@ -2231,7 +2422,7 @@ const UserDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.mobile}
+                                                            value={editProfileData.mobile || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, mobile: e.target.value })}
                                                         />
                                                     ) : (
@@ -2273,7 +2464,7 @@ const UserDashboard = () => {
                                                                         type="password"
                                                                         placeholder="••••••••"
                                                                         className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.oldPassword}
+                                                                        value={passwordData.oldPassword || ""}
                                                                         onChange={(e) => {
                                                                             setPasswordData({ ...passwordData, oldPassword: e.target.value });
                                                                             if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
@@ -2292,7 +2483,7 @@ const UserDashboard = () => {
                                                                         type="password"
                                                                         placeholder="••••••••"
                                                                         className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.newPassword}
+                                                                        value={passwordData.newPassword || ""}
                                                                         onChange={(e) => {
                                                                             setPasswordData({ ...passwordData, newPassword: e.target.value });
                                                                             if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
@@ -2311,7 +2502,7 @@ const UserDashboard = () => {
                                                                         type="password"
                                                                         placeholder="••••••••"
                                                                         className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.confirmPassword}
+                                                                        value={passwordData.confirmPassword || ""}
                                                                         onChange={(e) => {
                                                                             setPasswordData({ ...passwordData, confirmPassword: e.target.value });
                                                                             if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
@@ -2484,7 +2675,7 @@ const UserDashboard = () => {
                         <div className="space-y-2">
                             <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Payment Strategy</Label>
                             <Select
-                                value={bookingParams.paymentMethod}
+                                value={bookingParams.paymentMethod || "Pay Now"}
                                 onValueChange={(val) => setBookingParams({ ...bookingParams, paymentMethod: val })}
                             >
                                 <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-border/50 font-bold">
@@ -2511,6 +2702,19 @@ const UserDashboard = () => {
                                 </SelectContent>
                             </Select>
                         </div>
+                        {selectedWorkspaceToBook?.type === "Open WorkStation" && (
+                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Number of Seats (Available: {selectedWorkspaceToBook.availableSeats ?? (selectedWorkspaceToBook as any).features?.workstationSeats ?? 0})</Label>
+                                <Input
+                                    type="number"
+                                    min={1}
+                                    max={selectedWorkspaceToBook.availableSeats ?? (selectedWorkspaceToBook as any).features?.workstationSeats ?? 20}
+                                    value={bookingParams.seatCount || 1}
+                                    onChange={(e) => setBookingParams({ ...bookingParams, seatCount: parseInt(e.target.value) || 1 })}
+                                    className="h-12 border-border/50 bg-muted/30 font-bold focus:ring-primary/20"
+                                />
+                            </div>
+                        )}
 
                         <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
                             <div className="space-y-0.5">

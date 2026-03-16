@@ -64,17 +64,31 @@ export async function POST(req: NextRequest) {
         else if (unit.startsWith('day')) durationMonths = num / 30.44;
         else if (unit.startsWith('hour')) durationMonths = num / (30.44 * 24);
 
-        const totalAmount = Math.ceil(workspace.price * durationMonths);
+        const isOpenWorkstation = workspace.type === "Open WorkStation";
+        const seatCount = body.seatCount || 1;
+
+        if (isOpenWorkstation && workspace.availableSeats < seatCount) {
+            return NextResponse.json({ message: `Only ${workspace.availableSeats} seats available in this workspace.` }, { status: 400 });
+        }
+
+        const pricePerUnit = isOpenWorkstation ? workspace.price : workspace.price; // Both use price as base, but logic differs later
+        const totalAmount = Math.ceil((workspace.price * (isOpenWorkstation ? seatCount : 1)) * durationMonths);
         const invoiceId = `INV-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
         // Calculate allotment dates
         const allotStart = new Date(body.startDate);
-        const allotEnd = new Date(allotStart);
-        if (unit.startsWith('year')) allotEnd.setFullYear(allotEnd.getFullYear() + num);
-        else if (unit.startsWith('month')) allotEnd.setMonth(allotEnd.getMonth() + num);
-        else if (unit.startsWith('week')) allotEnd.setDate(allotEnd.getDate() + num * 7);
-        else if (unit.startsWith('day')) allotEnd.setDate(allotEnd.getDate() + num);
-        else if (unit.startsWith('hour')) allotEnd.setHours(allotEnd.getHours() + num);
+        let allotEnd: Date;
+        
+        if (body.endDate) {
+            allotEnd = new Date(body.endDate);
+        } else {
+            allotEnd = new Date(allotStart);
+            if (unit.startsWith('year')) allotEnd.setFullYear(allotEnd.getFullYear() + num);
+            else if (unit.startsWith('month')) allotEnd.setMonth(allotEnd.getMonth() + num);
+            else if (unit.startsWith('week')) allotEnd.setDate(allotEnd.getDate() + num * 7);
+            else if (unit.startsWith('day')) allotEnd.setDate(allotEnd.getDate() + num);
+            else if (unit.startsWith('hour')) allotEnd.setHours(allotEnd.getHours() + num);
+        }
 
         const isPayNow = body.paymentMethod === 'Pay Now';
 
@@ -82,8 +96,10 @@ export async function POST(req: NextRequest) {
             ...body,
             totalAmount,
             invoiceId,
+            seatCount: isOpenWorkstation ? seatCount : 1,
             paymentStatus: isPayNow ? 'Paid' : 'Pending',
-            status: isPayNow ? 'Confirmed' : 'Awaiting Payment'
+            status: isPayNow ? 'Confirmed' : 'Awaiting Payment',
+            endDate: allotEnd
         };
 
         const createdBooking = await BookingRequest.create(bookingData);
@@ -106,11 +122,23 @@ export async function POST(req: NextRequest) {
         }
 
         if (bookingUserId) {
-            await Workspace.findByIdAndUpdate(body.workspaceId, {
-                allottedTo: bookingUserId,
+            const updateData: any = {
                 allotmentStart: allotStart,
                 allotmentEnd: allotEnd
-            });
+            };
+
+            if (isOpenWorkstation) {
+                // For Open Workstations, we decrement available seats instead of full allotment
+                updateData.$inc = { availableSeats: -seatCount };
+                // We keep allottedTo as null or the last person? 
+                // Actually if it's Open Workstation, maybe we don't set a single allottedTo.
+                // But for the user to see it in their dashboard, the current logic needs allottedTo.
+                // This is a conflict. Let's fix the dashboard fetching logic after this.
+            } else {
+                updateData.allottedTo = bookingUserId;
+            }
+
+            await Workspace.findByIdAndUpdate(body.workspaceId, updateData);
         }
 
         // ── Create Invoice ──────────────────────────────────────────────────────
@@ -211,7 +239,12 @@ export async function POST(req: NextRequest) {
         <td style="padding:10px 14px;font-weight:700;color:#6b7280;text-transform:uppercase;font-size:11px;letter-spacing:.5px;">Total Amount</td>
         <td style="padding:10px 14px;font-weight:700;color:#059669;font-size:16px;">₹${totalAmount.toLocaleString('en-IN')} ${isPayNow ? '(Paid)' : '(Pending)'}</td>
       </tr>
+      ${isOpenWorkstation ? `
       <tr>
+        <td style="padding:10px 14px;font-weight:700;color:#6b7280;text-transform:uppercase;font-size:11px;letter-spacing:.5px;">Seats Booked</td>
+        <td style="padding:10px 14px;font-weight:600;">${seatCount} Seats</td>
+      </tr>` : ''}
+      <tr style="${isOpenWorkstation ? 'background:#f0fdf4;' : ''}">
         <td style="padding:10px 14px;font-weight:700;color:#6b7280;text-transform:uppercase;font-size:11px;letter-spacing:.5px;">Invoice ID</td>
         <td style="padding:10px 14px;font-family:monospace;font-weight:700;">${invoiceId}</td>
       </tr>
@@ -254,7 +287,7 @@ export async function POST(req: NextRequest) {
       <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.5px;">Booking Details</p>
       <p style="margin:6px 0;font-size:15px;font-weight:700;color:#111827;">${body.workspaceName}</p>
       <p style="margin:4px 0;font-size:14px;color:#374151;">Starting: <strong>${startDateStr}</strong></p>
-      <p style="margin:4px 0;font-size:14px;color:#374151;">Duration: <strong>${body.duration}</strong></p>
+      <p style="margin:4px 0;font-size:14px;color:#374151;">Duration: <strong>${body.duration}</strong>${isOpenWorkstation ? ` (${seatCount} Seats)` : ''}</p>
       <p style="margin:4px 0;font-size:14px;color:${isPayNow ? '#059669' : '#d97706'};font-weight:700;">Status: ${isPayNow ? 'Paid Online' : 'Pay Later (Pending)'}</p>
       <p style="margin:4px 0;font-size:14px;color:#374151;font-weight:700;">Total Amount: ₹${totalAmount.toLocaleString('en-IN')}</p>
       <p style="margin:4px 0;font-size:13px;color:#6b7280;font-family:monospace;">Invoice: ${invoiceId}</p>

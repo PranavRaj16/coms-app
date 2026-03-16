@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Lock, Mail, Loader2, ArrowRight, AlertCircle } from "lucide-react";
+import { Lock, Mail, Loader2, ArrowRight, AlertCircle, Eye, EyeOff } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 
@@ -17,13 +17,14 @@ const Login = () => {
     const [forgotEmail, setForgotEmail] = useState("");
     const [isForgotLoading, setIsForgotLoading] = useState(false);
     const [isForgotOpen, setIsForgotOpen] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
     const router = useRouter();
 
     const handleForgotPassword = async (e: React.FormEvent) => {
         e.preventDefault();
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        
+
         if (!forgotEmail) {
             setErrors({ email: "Email is required" });
             return;
@@ -189,15 +190,26 @@ const Login = () => {
                                     <div className="relative group">
                                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                         <Input
-                                            type="password"
+                                            type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
-                                            className={`pl-10 h-12 rounded-xl border-primary/10 transition-all focus:ring-primary/20 ${errors.password ? "border-destructive ring-destructive/20" : ""}`}
+                                            className={`pl-10 pr-10 h-12 rounded-xl border-primary/10 transition-all focus:ring-primary/20 ${errors.password ? "border-destructive ring-destructive/20" : ""}`}
                                             value={password}
                                             onChange={(e) => {
                                                 setPassword(e.target.value);
                                                 if (errors.password) setErrors({ ...errors, password: undefined });
                                             }}
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="w-5 h-5" />
+                                            ) : (
+                                                <Eye className="w-5 h-5" />
+                                            )}
+                                        </button>
                                     </div>
                                     {errors.password && <p className="text-destructive text-xs mt-1 ml-1 animate-in fade-in slide-in-from-top-1 duration-200">{errors.password}</p>}
                                 </div>
@@ -226,7 +238,7 @@ const Login = () => {
 
                     <div className="mt-8 text-center bg-primary/5 p-4 rounded-2xl border border-primary/10">
                         <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Test Credentials</p>
-                        <p className="text-sm text-muted-foreground">Admin: <span className="font-semibold text-foreground">pranav@cohort.com</span> / <span className="font-semibold text-foreground">password123</span></p>
+                        <p className="text-sm text-muted-foreground">Admin: <span className="font-semibold text-foreground">k.pranavraj123@gmail.com</span> / <span className="font-semibold text-foreground">password123</span></p>
                     </div>
                 </div>
             </main>

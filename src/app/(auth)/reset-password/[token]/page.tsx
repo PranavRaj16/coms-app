@@ -5,7 +5,7 @@ import { resetPassword } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { Lock, Loader2, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from "lucide-react";
+import { Lock, Loader2, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 const ResetPassword = () => {
     const params = useParams();
@@ -15,6 +15,8 @@ const ResetPassword = () => {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [errors, setErrors] = useState<{ password?: string; confirmPassword?: string; general?: string }>({});
 
     const handleReset = async (e: React.FormEvent) => {
@@ -93,15 +95,26 @@ const ResetPassword = () => {
                                     <div className="relative group">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                         <Input
-                                            type="password"
+                                            type={showPassword ? "text" : "password"}
                                             placeholder="••••••••"
-                                            className={`pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background ${errors.password ? "border-destructive ring-destructive/20" : ""}`}
+                                            className={`pl-11 pr-10 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background ${errors.password ? "border-destructive ring-destructive/20" : ""}`}
                                             value={password}
                                             onChange={(e) => {
                                                 setPassword(e.target.value);
                                                 if (errors.password) setErrors({ ...errors, password: undefined });
                                             }}
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="w-4 h-4" />
+                                            ) : (
+                                                <Eye className="w-4 h-4" />
+                                            )}
+                                        </button>
                                     </div>
                                     {errors.password && (
                                         <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
@@ -115,15 +128,26 @@ const ResetPassword = () => {
                                     <div className="relative group">
                                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                         <Input
-                                            type="password"
+                                            type={showConfirmPassword ? "text" : "password"}
                                             placeholder="••••••••"
-                                            className={`pl-11 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background ${errors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                            className={`pl-11 pr-10 h-12 rounded-2xl bg-muted/30 border-border/50 transition-all focus:ring-primary/20 focus:bg-background ${errors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
                                             value={confirmPassword}
                                             onChange={(e) => {
                                                 setConfirmPassword(e.target.value);
                                                 if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: undefined });
                                             }}
                                         />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors focus:outline-none"
+                                        >
+                                            {showConfirmPassword ? (
+                                                <EyeOff className="w-4 h-4" />
+                                            ) : (
+                                                <Eye className="w-4 h-4" />
+                                            )}
+                                        </button>
                                     </div>
                                     {errors.confirmPassword && (
                                         <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">

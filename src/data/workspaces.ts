@@ -26,6 +26,8 @@ export interface Workspace {
     } | string | null;
     allotmentStart?: string;
     unavailableUntil?: string;
+    totalSeats?: number;
+    availableSeats?: number;
     createdAt?: string;
 }
 

@@ -56,7 +56,8 @@ const WorkspaceDetails = () => {
         firmName: "",
         endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)) as Date | undefined,
         paymentMethod: "Pay Now",
-        startDate: new Date() as Date | undefined
+        startDate: new Date() as Date | undefined,
+        seatCount: 1
     });
 
     const [isVisitOpen, setIsVisitOpen] = useState(false);
@@ -72,9 +73,11 @@ const WorkspaceDetails = () => {
         const price = Number(workspace.price) || 0;
         // Calculate based on daily rate (monthly / 30.44)
         const dailyRate = price / 30.44;
+        const isOpenWorkstation = workspace.type === "Open WorkStation";
+        const seatFactor = isOpenWorkstation ? (bookingData.seatCount || 1) : 1;
         
-        return Math.ceil(dailyRate * diffDays);
-    }, [workspace, bookingData.startDate, bookingData.endDate]);
+        return Math.ceil(dailyRate * diffDays * seatFactor);
+    }, [workspace, bookingData.startDate, bookingData.endDate, bookingData.seatCount]);
     const [visitData, setVisitData] = useState({
         name: "",
         contact: "",
@@ -150,7 +153,8 @@ const WorkspaceDetails = () => {
                 startDate: bookingData.startDate ? (() => {
                     const d = bookingData.startDate;
                     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                })() : undefined
+                })() : undefined,
+                seatCount: workspace?.type === "Open WorkStation" ? bookingData.seatCount : 1
             };
 
             await submitBookingRequest(payload);
@@ -164,7 +168,8 @@ const WorkspaceDetails = () => {
                 firmName: "",
                 endDate: undefined,
                 paymentMethod: "Pay Now",
-                startDate: undefined
+                startDate: undefined,
+                seatCount: 1
             });
         } catch (error: any) {
             toast.error(error.message || "Failed to submit booking request");
@@ -285,7 +290,9 @@ const WorkspaceDetails = () => {
 
     const now = new Date();
     const allotmentStart = workspace.allotmentStart ? new Date(workspace.allotmentStart) : null;
-    const isUnavailable = !!workspace.allottedTo && (!allotmentStart || now >= allotmentStart);
+    const isUnavailable = workspace.type === "Open WorkStation" 
+        ? (workspace.availableSeats !== undefined ? workspace.availableSeats <= 0 : false)
+        : !!workspace.allottedTo && (!allotmentStart || now >= allotmentStart);
     const availableUntil = !!workspace.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
 
     const iconMap: Record<string, any> = {
@@ -411,7 +418,11 @@ const WorkspaceDetails = () => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <Users className="w-5 h-5 text-primary" />
-                                        <span className="font-medium">Up to {workspace.capacity}</span>
+                                        <span className="font-medium">
+                                            {workspace.type === "Open WorkStation" 
+                                                ? `${workspace.availableSeats ?? 0} / ${workspace.totalSeats ?? 0} Seats Available` 
+                                                : `Up to ${workspace.capacity}`}
+                                        </span>
                                     </div>
                                     {workspace.floor && (
                                         <div className="flex items-center gap-2">
@@ -500,10 +511,12 @@ const WorkspaceDetails = () => {
                                         <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 space-y-2 mb-4">
                                             <div className="flex items-center gap-2 text-destructive font-black text-[10px] uppercase tracking-widest">
                                                 <Clock className="w-4 h-4" />
-                                                Currently Booked
+                                                {workspace.type === "Open WorkStation" ? "Fully Booked" : "Currently Booked"}
                                             </div>
                                             <p className="text-xs font-bold text-destructive/80">
-                                                This space is currently occupied and unavailable for immediate booking.
+                                                {workspace.type === "Open WorkStation" 
+                                                    ? "This workstation has reached its full capacity and is currently unavailable for booking."
+                                                    : "This space is currently occupied and unavailable for immediate booking."}
                                             </p>
                                         </div>
                                     )}
@@ -560,7 +573,7 @@ const WorkspaceDetails = () => {
                                     name="name"
                                     placeholder="John Doe"
                                     className={bookingErrors.name ? "border-destructive ring-destructive/20" : ""}
-                                    value={bookingData.name}
+                                    value={bookingData.name || ""}
                                     onChange={(e) => {
                                         handleInputChange(e);
                                         if (bookingErrors.name) setBookingErrors({ ...bookingErrors, name: "" });
@@ -577,7 +590,7 @@ const WorkspaceDetails = () => {
                                         name="contact"
                                         placeholder="+91 9876..."
                                         className={bookingErrors.contact ? "border-destructive ring-destructive/20" : ""}
-                                        value={bookingData.contact}
+                                        value={bookingData.contact || ""}
                                         onChange={(e) => {
                                             handleInputChange(e);
                                             if (bookingErrors.contact) setBookingErrors({ ...bookingErrors, contact: "" });
@@ -593,7 +606,7 @@ const WorkspaceDetails = () => {
                                         type="email"
                                         placeholder="john@example.com"
                                         className={bookingErrors.email ? "border-destructive ring-destructive/20" : ""}
-                                        value={bookingData.email}
+                                        value={bookingData.email || ""}
                                         onChange={(e) => {
                                             handleInputChange(e);
                                             if (bookingErrors.email) setBookingErrors({ ...bookingErrors, email: "" });
@@ -609,7 +622,7 @@ const WorkspaceDetails = () => {
                                     id="firmName"
                                     name="firmName"
                                     placeholder="Acme Inc."
-                                    value={bookingData.firmName}
+                                    value={bookingData.firmName || ""}
                                     onChange={handleInputChange}
                                 />
                             </div>
@@ -689,6 +702,20 @@ const WorkspaceDetails = () => {
                                 </div>
                             </div>
 
+                            {workspace?.type === "Open WorkStation" && (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-6">
+                                    <Label className="text-xs font-bold">Number of Seats (Available: {workspace.availableSeats ?? (workspace as any).features?.workstationSeats ?? 0})</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={workspace.availableSeats ?? (workspace as any).features?.workstationSeats ?? 20}
+                                        value={bookingData.seatCount || 1}
+                                        onChange={(e) => setBookingData({ ...bookingData, seatCount: parseInt(e.target.value) || 1 })}
+                                        className="h-12 rounded-xl"
+                                    />
+                                </div>
+                            )}
+
                             {bookingData.startDate && bookingData.endDate && (
                                 <div className="space-y-3">
                                     <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between animate-in fade-in zoom-in-95">
@@ -746,7 +773,7 @@ const WorkspaceDetails = () => {
                                     id="vname"
                                     placeholder="John Doe"
                                     className={visitErrors.name ? "border-destructive ring-destructive/20" : ""}
-                                    value={visitData.name}
+                                    value={visitData.name || ""}
                                     onChange={(e) => {
                                         setVisitData(prev => ({ ...prev, name: e.target.value }));
                                         if (visitErrors.name) setVisitErrors({ ...visitErrors, name: "" });
@@ -762,7 +789,7 @@ const WorkspaceDetails = () => {
                                         id="vcontact"
                                         placeholder="+91 9876..."
                                         className={visitErrors.contact ? "border-destructive ring-destructive/20" : ""}
-                                        value={visitData.contact}
+                                        value={visitData.contact || ""}
                                         onChange={(e) => {
                                             setVisitData(prev => ({ ...prev, contact: e.target.value }));
                                             if (visitErrors.contact) setVisitErrors({ ...visitErrors, contact: "" });
@@ -777,7 +804,7 @@ const WorkspaceDetails = () => {
                                         type="email"
                                         placeholder="john@example.com"
                                         className={visitErrors.email ? "border-destructive ring-destructive/20" : ""}
-                                        value={visitData.email}
+                                        value={visitData.email || ""}
                                         onChange={(e) => {
                                             setVisitData(prev => ({ ...prev, email: e.target.value }));
                                             if (visitErrors.email) setVisitErrors({ ...visitErrors, email: "" });

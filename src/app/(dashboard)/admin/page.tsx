@@ -129,6 +129,7 @@ import {
     uploadWorkspaceImages,
     fetchBookingRequests,
     updateBookingRequest as updateBookingRequestApi,
+    submitBookingRequest,
     fetchVisitRequests,
     updateVisitRequest as updateVisitRequestApi,
     fetchDayPasses,
@@ -182,6 +183,8 @@ interface BookingRequest {
     startDate: string;
     status: string;
     createdAt: string;
+    seatCount?: number;
+    endDate?: string;
 }
 
 interface VisitRequest {
@@ -217,6 +220,9 @@ const AdminDashboard = () => {
     const [requestSubView, setRequestSubView] = useState<"quotes" | "bookings" | "visits">("quotes");
     const [searchTerm, setSearchTerm] = useState("");
     const [userStatusFilter, setUserStatusFilter] = useState<string>("all");
+    const [workspaceTypeFilter, setWorkspaceTypeFilter] = useState<string>("all");
+    const [workspaceStatusFilter, setWorkspaceStatusFilter] = useState<string>("all");
+    const [workspaceLocationFilter, setWorkspaceLocationFilter] = useState<string>("all");
     const [users, setUsers] = useState<User[]>([]);
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
@@ -229,6 +235,9 @@ const AdminDashboard = () => {
     const [isResettingInvoices, setIsResettingInvoices] = useState(false);
     const [isAdminLoading, setIsAdminLoading] = useState(true);
     const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
+    const [bookingToUnallot, setBookingToUnallot] = useState<BookingRequest | null>(null);
+    const [isUnallotConfirmDialogOpen, setIsUnallotConfirmDialogOpen] = useState(false);
+    const [allottedSeats, setAllottedSeats] = useState(1);
 
     const [userInfo, setUserInfo] = useState<any>(null);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
@@ -703,14 +712,35 @@ const AdminDashboard = () => {
 
             console.log("Allotting workspace:", selectedWorkspace, "to user:", allotValue);
 
-            const updatedWorkspace = await updateWorkspaceApi(selectedWorkspace, {
-                allottedTo: allotValue,
-                allotmentStart: allotValue ? (allotmentStartDate || null) : null,
-                unavailableUntil: allotValue ? (unavailableUntilDate || null) : null
-            });
+            if (currentWS?.type === "Open WorkStation" && allotValue) {
+                const userObj = users.find(u => u._id === allotValue);
+                if (!userObj) throw new Error("Selected user not found");
 
-            // Re-fetch or update local state
-            setWorkspaces(workspaces.map(ws => (ws._id === selectedWorkspace || (ws.id && ws.id.toString() === selectedWorkspace)) ? updatedWorkspace : ws));
+                // For Open Workstation, we create a CONFIRMED booking request
+                const duration = "1 Month"; // Default for direct allotment
+                await submitBookingRequest({
+                    workspaceId: selectedWorkspace,
+                    workspaceName: currentWS.name,
+                    fullName: userObj.name,
+                    email: userObj.email,
+                    contactNumber: userObj.mobile || "0000000000",
+                    duration: duration,
+                    startDate: allotmentStartDate || new Date().toISOString(),
+                    endDate: unavailableUntilDate || null,
+                    seatCount: allottedSeats,
+                    paymentMethod: "Pay Later",
+                    status: "Confirmed"
+                });
+            } else {
+                const updatedWorkspace = await updateWorkspaceApi(selectedWorkspace, {
+                    allottedTo: allotValue,
+                    allotmentStart: allotValue ? (allotmentStartDate || null) : null,
+                    unavailableUntil: allotValue ? (unavailableUntilDate || null) : null
+                });
+                // Re-fetch or update local state
+                setWorkspaces(workspaces.map(ws => (ws._id === selectedWorkspace || (ws.id && ws.id.toString() === selectedWorkspace)) ? updatedWorkspace : ws));
+            }
+
             await loadData(); // Ensure UI gets populated user data
             setIsAllotDialogOpen(false);
             toast.success("Workspace allotment updated successfully!");
@@ -796,6 +826,8 @@ const AdminDashboard = () => {
                 image: DEFAULT_WORKSPACE_IMAGE,
                 featured: false,
                 price: Number(newWorkspace.price) || 0,
+                totalSeats: (newWorkspace.type === "Open WorkStation") ? (Number(newWorkspace.features?.workstationSeats) || 0) : 0,
+                availableSeats: (newWorkspace.type === "Open WorkStation") ? (Number(newWorkspace.features?.workstationSeats) || 0) : 0,
                 features: {
                     ...newWorkspace.features,
                     workstationSeats: Number(newWorkspace.features?.workstationSeats) || 0,
@@ -895,7 +927,17 @@ const AdminDashboard = () => {
         setIsLoadingWorkspace(true);
         try {
             // Create a sanitized payload excluding populated fields that shouldn't be updated directly
-            const { allottedTo, ...payload } = editingWorkspace;
+            const { allottedTo, ...payload }: any = editingWorkspace;
+
+            if (payload.type === "Open WorkStation") {
+                const oldTotal = payload.totalSeats || 0;
+                const newTotal = Number(payload.features?.workstationSeats) || 0;
+                const difference = newTotal - oldTotal;
+                
+                payload.totalSeats = newTotal;
+                payload.availableSeats = (payload.availableSeats || 0) + difference;
+            }
+
             await updateWorkspaceApi(editingWorkspace._id!, payload);
 
             // Upload new images if any
@@ -966,10 +1008,20 @@ const AdminDashboard = () => {
         return matchesSearch && matchesStatus;
     });
 
-    const filteredWorkspaces = workspaces.filter((ws) =>
-        (ws.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-        (ws.location?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-    );
+    const filteredWorkspaces = workspaces.filter((ws) => {
+        const matchesSearch = (ws.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            (ws.location?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+        const matchesType = workspaceTypeFilter === "all" || ws.type === workspaceTypeFilter;
+        const matchesLocation = workspaceLocationFilter === "all" || ws.location === workspaceLocationFilter;
+        
+        const now = new Date();
+        const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+        const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+        const status = isUnavailable ? "unavailable" : "available";
+        const matchesStatus = workspaceStatusFilter === "all" || status === workspaceStatusFilter;
+
+        return matchesSearch && matchesType && matchesStatus && matchesLocation;
+    });
 
     const stats = [
         { label: "Total Users", value: (dashboardStats.totalUsers ?? 0).toString(), icon: UsersIcon, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -1376,7 +1428,7 @@ const AdminDashboard = () => {
                                         <Input
                                             placeholder="Search users..."
                                             className="pl-9 h-10 rounded-xl"
-                                            value={searchTerm}
+                                            value={searchTerm || ""}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
                                     </div>
@@ -1405,7 +1457,7 @@ const AdminDashboard = () => {
                                                                 id="user-name"
                                                                 placeholder="Pranav Raj"
                                                                 className={`pl-9 ${userErrors.name ? "border-destructive ring-destructive/20" : ""}`}
-                                                                value={newUserData.name}
+                                                                value={newUserData.name || ""}
                                                                 onChange={(e) => {
                                                                     setNewUserData({ ...newUserData, name: e.target.value });
                                                                     if (userErrors.name) setUserErrors({ ...userErrors, name: "" });
@@ -1427,7 +1479,7 @@ const AdminDashboard = () => {
                                                                 type="email"
                                                                 placeholder="pranav@example.com"
                                                                 className={`pl-9 ${userErrors.email ? "border-destructive ring-destructive/20" : ""}`}
-                                                                value={newUserData.email}
+                                                                value={newUserData.email || ""}
                                                                 onChange={(e) => {
                                                                     setNewUserData({ ...newUserData, email: e.target.value });
                                                                     if (userErrors.email) setUserErrors({ ...userErrors, email: "" });
@@ -1450,7 +1502,7 @@ const AdminDashboard = () => {
                                                                     type="password"
                                                                     placeholder="••••••••"
                                                                     className={`pl-9 ${userErrors.password ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newUserData.password}
+                                                                    value={newUserData.password || ""}
                                                                     onChange={(e) => {
                                                                         setNewUserData({ ...newUserData, password: e.target.value });
                                                                         if (userErrors.password) setUserErrors({ ...userErrors, password: "" });
@@ -1471,7 +1523,7 @@ const AdminDashboard = () => {
                                                                     id="user-mobile"
                                                                     placeholder="+91 98765 43210"
                                                                     className="pl-9"
-                                                                    value={newUserData.mobile}
+                                                                    value={newUserData.mobile || ""}
                                                                     onChange={(e) => setNewUserData({ ...newUserData, mobile: e.target.value })}
                                                                 />
                                                             </div>
@@ -1486,7 +1538,7 @@ const AdminDashboard = () => {
                                                                 id="user-org"
                                                                 placeholder="e.g. Cohort Creative"
                                                                 className="pl-9"
-                                                                value={newUserData.organization}
+                                                                value={newUserData.organization || ""}
                                                                 onChange={(e) => setNewUserData({ ...newUserData, organization: e.target.value })}
                                                             />
                                                         </div>
@@ -1643,7 +1695,7 @@ const AdminDashboard = () => {
                                                         <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Access Level</Label>
                                                         <div className="mt-1.5">
                                                             <Select
-                                                                value={editingUser?.role}
+                                                                value={editingUser?.role || "Member"}
                                                                 onValueChange={(val: any) => editingUser && setEditingUser({ ...editingUser, role: val })}
                                                             >
                                                                 <SelectTrigger className="rounded-2xl h-12 bg-background/50 border-border/50 font-bold"><SelectValue /></SelectTrigger>
@@ -1659,7 +1711,7 @@ const AdminDashboard = () => {
                                                         <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Account Sync</Label>
                                                         <div className="mt-1.5">
                                                             <Select
-                                                                value={editingUser?.status}
+                                                                value={editingUser?.status || "Active"}
                                                                 onValueChange={(val: any) => editingUser && setEditingUser({ ...editingUser, status: val })}
                                                             >
                                                                 <SelectTrigger className="rounded-2xl h-12 bg-background/50 border-border/50 font-bold"><SelectValue /></SelectTrigger>
@@ -1692,10 +1744,12 @@ const AdminDashboard = () => {
                                         <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto ring-8 ring-destructive/5">
                                             <CircleX className="w-10 h-10 text-destructive" />
                                         </div>
-                                        <div className="space-y-2">
-                                            <h3 className="text-2xl font-black tracking-tight">Revoke Access?</h3>
-                                            <p className="text-muted-foreground font-medium">This action will permanently remove this member from the network. This cannot be undone.</p>
-                                        </div>
+                                        <DialogHeader>
+                                            <DialogTitle className="text-2xl font-black tracking-tight text-center">Revoke Access?</DialogTitle>
+                                            <DialogDescription className="text-muted-foreground font-medium text-center">
+                                                This action will permanently remove this member from the network. This cannot be undone.
+                                            </DialogDescription>
+                                        </DialogHeader>
                                         <div className="flex flex-col gap-3">
                                             <Button
                                                 variant="destructive"
@@ -1717,6 +1771,7 @@ const AdminDashboard = () => {
                                     </div>
                                 </DialogContent>
                             </Dialog>
+
                         </div>
                     )}
 
@@ -1724,15 +1779,52 @@ const AdminDashboard = () => {
                         <div className="space-y-4">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                                 <h2 className="text-2xl font-bold">Workspace Portfolio</h2>
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
                                     <div className="relative flex-1 sm:w-64">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <Input
                                             placeholder="Search workspaces..."
                                             className="pl-9 h-10 rounded-xl"
-                                            value={searchTerm}
+                                            value={searchTerm || ""}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <Select value={workspaceLocationFilter} onValueChange={setWorkspaceLocationFilter}>
+                                            <SelectTrigger className="w-[140px] h-10 rounded-xl">
+                                                <SelectValue placeholder="Location" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Locations</SelectItem>
+                                                {Array.from(new Set(workspaces.map(ws => ws.location))).filter(Boolean).map(loc => (
+                                                    <SelectItem key={loc} value={loc || ""}>{loc}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select value={workspaceTypeFilter} onValueChange={setWorkspaceTypeFilter}>
+                                            <SelectTrigger className="w-[140px] h-10 rounded-xl">
+                                                <SelectValue placeholder="Type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Types</SelectItem>
+                                                {Array.from(new Set(workspaces.map(ws => ws.type))).filter(Boolean).map(type => (
+                                                    <SelectItem key={type} value={type || ""}>{type}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select value={workspaceStatusFilter} onValueChange={setWorkspaceStatusFilter}>
+                                            <SelectTrigger className="w-[140px] h-10 rounded-xl">
+                                                <SelectValue placeholder="Status" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">All Status</SelectItem>
+                                                <SelectItem value="available">Available</SelectItem>
+                                                <SelectItem value="unavailable">Unavailable</SelectItem>
+                                            </SelectContent>
+                                        </Select>
                                     </div>
 
                                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -1760,7 +1852,7 @@ const AdminDashboard = () => {
                                                                     id="name"
                                                                     placeholder="e.g. Neon Suite"
                                                                     className={`pl-9 ${workspaceErrors.name ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newWorkspace.name}
+                                                                    value={newWorkspace.name || ""}
                                                                     onChange={(e) => {
                                                                         setNewWorkspace({ ...newWorkspace, name: e.target.value });
                                                                         if (workspaceErrors.name) setWorkspaceErrors({ ...workspaceErrors, name: "" });
@@ -1782,7 +1874,7 @@ const AdminDashboard = () => {
                                                                     list="existing-locations"
                                                                     placeholder="e.g. Gachibowli"
                                                                     className={`pl-9 ${workspaceErrors.location ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newWorkspace.location}
+                                                                    value={newWorkspace.location || ""}
                                                                     onChange={(e) => {
                                                                         setNewWorkspace({ ...newWorkspace, location: e.target.value });
                                                                         if (workspaceErrors.location) setWorkspaceErrors({ ...workspaceErrors, location: "" });
@@ -1811,7 +1903,7 @@ const AdminDashboard = () => {
                                                                     id="floor"
                                                                     placeholder="e.g. 5th Floor"
                                                                     className={`pl-9 ${workspaceErrors.floor ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newWorkspace.floor}
+                                                                    value={newWorkspace.floor || ""}
                                                                     onChange={(e) => {
                                                                         setNewWorkspace({ ...newWorkspace, floor: e.target.value });
                                                                         if (workspaceErrors.floor) setWorkspaceErrors({ ...workspaceErrors, floor: "" });
@@ -1832,7 +1924,7 @@ const AdminDashboard = () => {
                                                                     id="capacity"
                                                                     placeholder="e.g. 10 people"
                                                                     className={`pl-9 ${workspaceErrors.capacity ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newWorkspace.capacity}
+                                                                    value={newWorkspace.capacity || ""}
                                                                     onChange={(e) => {
                                                                         setNewWorkspace({ ...newWorkspace, capacity: e.target.value });
                                                                         if (workspaceErrors.capacity) setWorkspaceErrors({ ...workspaceErrors, capacity: "" });
@@ -1854,7 +1946,7 @@ const AdminDashboard = () => {
                                                             list="existing-types"
                                                             placeholder="e.g. Private Suite"
                                                             className={workspaceErrors.type ? "border-destructive ring-destructive/20" : ""}
-                                                            value={newWorkspace.type}
+                                                            value={newWorkspace.type || ""}
                                                             onChange={(e) => {
                                                                 setNewWorkspace({ ...newWorkspace, type: e.target.value });
                                                                 if (workspaceErrors.type) setWorkspaceErrors({ ...workspaceErrors, type: "" });
@@ -1884,7 +1976,7 @@ const AdminDashboard = () => {
                                                                 type="number"
                                                                 placeholder="0"
                                                                 className={`pl-8 ${workspaceErrors.price ? "border-destructive ring-destructive/20" : ""}`}
-                                                                value={newWorkspace.price}
+                                                                value={newWorkspace.price || ""}
                                                                 onChange={(e) => {
                                                                     setNewWorkspace({ ...newWorkspace, price: e.target.value });
                                                                     if (workspaceErrors.price) setWorkspaceErrors({ ...workspaceErrors, price: "" });
@@ -2000,11 +2092,13 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
 
-                                                    {newWorkspace.type === "Dedicated Workspace" && (
+                                                    {(newWorkspace.type === "Dedicated Workspace" || newWorkspace.type === "Open WorkStation") && (
                                                         <div className="space-y-6 p-5 rounded-2xl bg-primary/5 border border-primary/10 shadow-inner">
                                                             <div className="flex items-center justify-between">
-                                                                <Label className="text-primary font-black uppercase tracking-widest text-[10px]">Workspace Architecture</Label>
-                                                                <Badge variant="outline" className="bg-background text-primary border-primary/20 text-[10px] uppercase font-black">Capacity: {newWorkspace.capacity}</Badge>
+                                                                <Label className="text-primary font-black uppercase tracking-widest text-[10px]">{newWorkspace.type === "Open WorkStation" ? "Capacity Configuration" : "Workspace Architecture"}</Label>
+                                                                <Badge variant="outline" className="bg-background text-primary border-primary/20 text-[10px] uppercase font-black">
+                                                                    {newWorkspace.type === "Open WorkStation" ? `Total Seats: ${newWorkspace.features?.workstationSeats || 0}` : `Capacity: ${newWorkspace.capacity}`}
+                                                                </Badge>
                                                             </div>
 
                                                             <div className="space-y-4">
@@ -2022,75 +2116,77 @@ const AdminDashboard = () => {
                                                                     />
                                                                 </div>
 
-                                                                <div className="grid grid-cols-2 gap-4">
-                                                                    <div className="space-y-3 p-3 rounded-xl bg-background border border-border/50">
-                                                                        <div className="flex items-center space-x-2">
-                                                                            <Checkbox
-                                                                                id="conference"
-                                                                                checked={newWorkspace.features?.hasConferenceHall}
-                                                                                onCheckedChange={(checked) =>
-                                                                                    setNewWorkspace({
-                                                                                        ...newWorkspace,
-                                                                                        features: {
-                                                                                            ...newWorkspace.features!,
-                                                                                            hasConferenceHall: !!checked,
-                                                                                            conferenceHallSeats: checked ? (newWorkspace.features?.conferenceHallSeats || 0) : 0
-                                                                                        }
-                                                                                    })
-                                                                                }
-                                                                            />
-                                                                            <Label htmlFor="conference" className="text-sm font-bold cursor-pointer">Conf. Hall</Label>
-                                                                        </div>
-                                                                        {newWorkspace.features?.hasConferenceHall && (
-                                                                            <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                                <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
-                                                                                <Input
-                                                                                    type="number"
-                                                                                    className="h-8 text-xs rounded-lg"
-                                                                                    value={newWorkspace.features?.conferenceHallSeats || 0}
-                                                                                    onChange={(e) => setNewWorkspace({
-                                                                                        ...newWorkspace,
-                                                                                        features: { ...newWorkspace.features!, conferenceHallSeats: parseInt(e.target.value) || 0 }
-                                                                                    })}
+                                                                {newWorkspace.type !== "Open WorkStation" && (
+                                                                    <div className="grid grid-cols-2 gap-4">
+                                                                        <div className="space-y-3 p-3 rounded-xl bg-background border border-border/50">
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <Checkbox
+                                                                                    id="conference"
+                                                                                    checked={newWorkspace.features?.hasConferenceHall}
+                                                                                    onCheckedChange={(checked) =>
+                                                                                        setNewWorkspace({
+                                                                                            ...newWorkspace,
+                                                                                            features: {
+                                                                                                ...newWorkspace.features!,
+                                                                                                hasConferenceHall: !!checked,
+                                                                                                conferenceHallSeats: checked ? (newWorkspace.features?.conferenceHallSeats || 0) : 0
+                                                                                            }
+                                                                                        })
+                                                                                    }
                                                                                 />
+                                                                                <Label htmlFor="conference" className="text-sm font-bold cursor-pointer">Conf. Hall</Label>
                                                                             </div>
-                                                                        )}
-                                                                    </div>
+                                                                            {newWorkspace.features?.hasConferenceHall && (
+                                                                                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                                    <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
+                                                                                    <Input
+                                                                                        type="number"
+                                                                                        className="h-8 text-xs rounded-lg"
+                                                                                        value={newWorkspace.features?.conferenceHallSeats || 0}
+                                                                                        onChange={(e) => setNewWorkspace({
+                                                                                            ...newWorkspace,
+                                                                                            features: { ...newWorkspace.features!, conferenceHallSeats: parseInt(e.target.value) || 0 }
+                                                                                        })}
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
 
-                                                                    <div className="space-y-3 p-3 rounded-xl bg-background border border-border/50">
-                                                                        <div className="flex items-center space-x-2">
-                                                                            <Checkbox
-                                                                                id="cabin"
-                                                                                checked={newWorkspace.features?.hasCabin}
-                                                                                onCheckedChange={(checked) =>
-                                                                                    setNewWorkspace({
-                                                                                        ...newWorkspace,
-                                                                                        features: {
-                                                                                            ...newWorkspace.features!,
-                                                                                            hasCabin: !!checked,
-                                                                                            cabinSeats: checked ? (newWorkspace.features?.cabinSeats || 0) : 0
-                                                                                        }
-                                                                                    })
-                                                                                }
-                                                                            />
-                                                                            <Label htmlFor="cabin" className="text-sm font-bold cursor-pointer">Private Cabin</Label>
-                                                                        </div>
-                                                                        {newWorkspace.features?.hasCabin && (
-                                                                            <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                                <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
-                                                                                <Input
-                                                                                    type="number"
-                                                                                    className="h-8 text-xs rounded-lg"
-                                                                                    value={newWorkspace.features?.cabinSeats || 0}
-                                                                                    onChange={(e) => setNewWorkspace({
-                                                                                        ...newWorkspace,
-                                                                                        features: { ...newWorkspace.features!, cabinSeats: parseInt(e.target.value) || 0 }
-                                                                                    })}
+                                                                        <div className="space-y-3 p-3 rounded-xl bg-background border border-border/50">
+                                                                            <div className="flex items-center space-x-2">
+                                                                                <Checkbox
+                                                                                    id="cabin"
+                                                                                    checked={newWorkspace.features?.hasCabin}
+                                                                                    onCheckedChange={(checked) =>
+                                                                                        setNewWorkspace({
+                                                                                            ...newWorkspace,
+                                                                                            features: {
+                                                                                                ...newWorkspace.features!,
+                                                                                                hasCabin: !!checked,
+                                                                                                cabinSeats: checked ? (newWorkspace.features?.cabinSeats || 0) : 0
+                                                                                            }
+                                                                                        })
+                                                                                    }
                                                                                 />
+                                                                                <Label htmlFor="cabin" className="text-sm font-bold cursor-pointer">Private Cabin</Label>
                                                                             </div>
-                                                                        )}
+                                                                            {newWorkspace.features?.hasCabin && (
+                                                                                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                                    <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
+                                                                                    <Input
+                                                                                        type="number"
+                                                                                        className="h-8 text-xs rounded-lg"
+                                                                                        value={newWorkspace.features?.cabinSeats || 0}
+                                                                                        onChange={(e) => setNewWorkspace({
+                                                                                            ...newWorkspace,
+                                                                                            features: { ...newWorkspace.features!, cabinSeats: parseInt(e.target.value) || 0 }
+                                                                                        })}
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
                                                                     </div>
-                                                                </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     )}
@@ -2109,10 +2205,12 @@ const AdminDashboard = () => {
                             <WorkspacesTable
                                 workspaces={filteredWorkspaces}
                                 users={users}
+                                bookings={bookings}
                                 onAllot={(wsId, userId) => {
                                     setSelectedWorkspace(wsId);
                                     const ws = workspaces.find(w => w._id === wsId || (w.id && w.id.toString() === wsId));
                                     setSelectedUserForAllotment(userId || "none");
+                                    setAllottedSeats(1);
                                     if (ws?.unavailableUntil) {
                                         const date = new Date(ws.unavailableUntil);
                                         const formatted = date.toISOString().slice(0, 16);
@@ -2134,6 +2232,11 @@ const AdminDashboard = () => {
                                     setIsEditWorkspaceDialogOpen(true);
                                 }}
                                 onDelete={handleDeleteWorkspace}
+                                onUnallotBooking={(booking) => {
+                                    setBookingToUnallot(booking);
+                                    setIsUnallotConfirmDialogOpen(true);
+                                }}
+                                updatingRequestId={updatingRequestId}
                                 currentPage={tablePages.workspaces}
                                 onPageChange={(page) => setTablePages({ ...tablePages, workspaces: page })}
                                 itemsPerPage={ITEMS_PER_PAGE}
@@ -2171,6 +2274,25 @@ const AdminDashboard = () => {
 
                                             {selectedUserForAllotment !== "none" && (
                                                 <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    {workspaces.find(w => w._id === selectedWorkspace || (w.id && w.id.toString() === selectedWorkspace))?.type === "Open WorkStation" && (
+                                                        <div className="space-y-2">
+                                                            <Label className="text-primary font-bold flex items-center gap-2">
+                                                                <UsersIcon className="w-4 h-4" />
+                                                                Number of Seats
+                                                            </Label>
+                                                            <Input
+                                                                type="number"
+                                                                min={1}
+                                                                max={workspaces.find(w => w._id === selectedWorkspace || (w.id && w.id.toString() === selectedWorkspace))?.availableSeats || 25}
+                                                                value={allottedSeats}
+                                                                onChange={(e) => setAllottedSeats(Number(e.target.value))}
+                                                                className="border-primary/20 focus:ring-primary/10 rounded-xl"
+                                                            />
+                                                            <p className="text-[10px] text-muted-foreground italic">
+                                                                Available: {workspaces.find(w => w._id === selectedWorkspace || (w.id && w.id.toString() === selectedWorkspace))?.availableSeats || 0} seats
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                     <div className="space-y-2">
                                                         <Label className="text-primary font-bold flex items-center gap-2">
                                                             <Calendar className="w-4 h-4" />
@@ -2492,11 +2614,13 @@ const AdminDashboard = () => {
                                                 </div>
                                             </div>
 
-                                            {editingWorkspace?.type === "Dedicated Workspace" && (
+                                            {(editingWorkspace?.type === "Dedicated Workspace" || editingWorkspace?.type === "Open WorkStation") && (
                                                 <div className="space-y-6 p-5 rounded-2xl bg-primary/5 border border-primary/10 shadow-inner">
                                                     <div className="flex items-center justify-between">
-                                                        <Label className="text-primary font-black uppercase tracking-widest text-[10px]">Workspace Architecture</Label>
-                                                        <Badge variant="outline" className="bg-background text-primary border-primary/20 text-[10px] uppercase font-black">Capacity: {editingWorkspace?.capacity}</Badge>
+                                                        <Label className="text-primary font-black uppercase tracking-widest text-[10px]">{editingWorkspace?.type === "Open WorkStation" ? "Capacity Configuration" : "Workspace Architecture"}</Label>
+                                                        <Badge variant="outline" className="bg-background text-primary border-primary/20 text-[10px] uppercase font-black">
+                                                            {editingWorkspace?.type === "Open WorkStation" ? `Total Seats: ${editingWorkspace?.features?.workstationSeats || 0}` : `Capacity: ${editingWorkspace?.capacity}`}
+                                                        </Badge>
                                                     </div>
 
                                                     <div className="space-y-4">
@@ -2514,75 +2638,77 @@ const AdminDashboard = () => {
                                                             />
                                                         </div>
 
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div className="space-y-3 p-3 rounded-xl bg-background/50 border border-border/50">
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id="edit-conference"
-                                                                        checked={editingWorkspace?.features?.hasConferenceHall}
-                                                                        onCheckedChange={(checked) =>
-                                                                            editingWorkspace && setEditingWorkspace({
-                                                                                ...editingWorkspace,
-                                                                                features: {
-                                                                                    ...editingWorkspace.features!,
-                                                                                    hasConferenceHall: !!checked,
-                                                                                    conferenceHallSeats: checked ? (editingWorkspace.features?.conferenceHallSeats || 0) : 0
-                                                                                }
-                                                                            })
-                                                                        }
-                                                                    />
-                                                                    <Label htmlFor="edit-conference" className="text-sm font-bold cursor-pointer">Conf. Hall</Label>
-                                                                </div>
-                                                                {editingWorkspace?.features?.hasConferenceHall && (
-                                                                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                        <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
-                                                                        <Input
-                                                                            type="number"
-                                                                            className="h-8 text-xs rounded-lg"
-                                                                            value={editingWorkspace?.features?.conferenceHallSeats || 0}
-                                                                            onChange={(e) => editingWorkspace && setEditingWorkspace({
-                                                                                ...editingWorkspace,
-                                                                                features: { ...editingWorkspace.features!, conferenceHallSeats: parseInt(e.target.value) || 0 }
-                                                                            })}
+                                                        {editingWorkspace?.type !== "Open WorkStation" && (
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                <div className="space-y-3 p-3 rounded-xl bg-background/50 border border-border/50">
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <Checkbox
+                                                                            id="edit-conference"
+                                                                            checked={editingWorkspace?.features?.hasConferenceHall}
+                                                                            onCheckedChange={(checked) =>
+                                                                                editingWorkspace && setEditingWorkspace({
+                                                                                    ...editingWorkspace,
+                                                                                    features: {
+                                                                                        ...editingWorkspace.features!,
+                                                                                        hasConferenceHall: !!checked,
+                                                                                        conferenceHallSeats: checked ? (editingWorkspace.features?.conferenceHallSeats || 0) : 0
+                                                                                    }
+                                                                                })
+                                                                            }
                                                                         />
+                                                                        <Label htmlFor="edit-conference" className="text-sm font-bold cursor-pointer">Conf. Hall</Label>
                                                                     </div>
-                                                                )}
-                                                            </div>
+                                                                    {editingWorkspace?.features?.hasConferenceHall && (
+                                                                        <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                            <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
+                                                                            <Input
+                                                                                type="number"
+                                                                                className="h-8 text-xs rounded-lg"
+                                                                                value={editingWorkspace?.features?.conferenceHallSeats || 0}
+                                                                                onChange={(e) => editingWorkspace && setEditingWorkspace({
+                                                                                    ...editingWorkspace,
+                                                                                    features: { ...editingWorkspace.features!, conferenceHallSeats: parseInt(e.target.value) || 0 }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
 
-                                                            <div className="space-y-3 p-3 rounded-xl bg-background/50 border border-border/50">
-                                                                <div className="flex items-center space-x-2">
-                                                                    <Checkbox
-                                                                        id="edit-cabin"
-                                                                        checked={editingWorkspace?.features?.hasCabin}
-                                                                        onCheckedChange={(checked) =>
-                                                                            editingWorkspace && setEditingWorkspace({
-                                                                                ...editingWorkspace,
-                                                                                features: {
-                                                                                    ...editingWorkspace.features!,
-                                                                                    hasCabin: !!checked,
-                                                                                    cabinSeats: checked ? (editingWorkspace.features?.cabinSeats || 0) : 0
-                                                                                }
-                                                                            })
-                                                                        }
-                                                                    />
-                                                                    <Label htmlFor="edit-cabin" className="text-sm font-bold cursor-pointer">Private Cabin</Label>
-                                                                </div>
-                                                                {editingWorkspace?.features?.hasCabin && (
-                                                                    <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                        <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
-                                                                        <Input
-                                                                            type="number"
-                                                                            className="h-8 text-xs rounded-lg"
-                                                                            value={editingWorkspace?.features?.cabinSeats || 0}
-                                                                            onChange={(e) => editingWorkspace && setEditingWorkspace({
-                                                                                ...editingWorkspace,
-                                                                                features: { ...editingWorkspace.features!, cabinSeats: parseInt(e.target.value) || 0 }
-                                                                            })}
+                                                                <div className="space-y-3 p-3 rounded-xl bg-background/50 border border-border/50">
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <Checkbox
+                                                                            id="edit-cabin"
+                                                                            checked={editingWorkspace?.features?.hasCabin}
+                                                                            onCheckedChange={(checked) =>
+                                                                                editingWorkspace && setEditingWorkspace({
+                                                                                    ...editingWorkspace,
+                                                                                    features: {
+                                                                                        ...editingWorkspace.features!,
+                                                                                        hasCabin: !!checked,
+                                                                                        cabinSeats: checked ? (editingWorkspace.features?.cabinSeats || 0) : 0
+                                                                                    }
+                                                                                })
+                                                                            }
                                                                         />
+                                                                        <Label htmlFor="edit-cabin" className="text-sm font-bold cursor-pointer">Private Cabin</Label>
                                                                     </div>
-                                                                )}
+                                                                    {editingWorkspace?.features?.hasCabin && (
+                                                                        <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                            <Label className="text-[9px] font-black uppercase text-muted-foreground/60">Seats</Label>
+                                                                            <Input
+                                                                                type="number"
+                                                                                className="h-8 text-xs rounded-lg"
+                                                                                value={editingWorkspace?.features?.cabinSeats || 0}
+                                                                                onChange={(e) => editingWorkspace && setEditingWorkspace({
+                                                                                    ...editingWorkspace,
+                                                                                    features: { ...editingWorkspace.features!, cabinSeats: parseInt(e.target.value) || 0 }
+                                                                                })}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                             </div>
-                                                        </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
@@ -2680,7 +2806,7 @@ const AdminDashboard = () => {
                                     <Input
                                         placeholder={`Search ${requestSubView}...`}
                                         className="pl-9 h-10 rounded-xl"
-                                        value={searchTerm}
+                                        value={searchTerm || ""}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
@@ -2787,7 +2913,7 @@ const AdminDashboard = () => {
                                     <Input
                                         placeholder="Search messages..."
                                         className="pl-9 h-10 rounded-xl"
-                                        value={searchTerm}
+                                        value={searchTerm || ""}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                     />
                                 </div>
@@ -2831,7 +2957,7 @@ const AdminDashboard = () => {
                                         <Input
                                             placeholder="Search visitors or codes..."
                                             className="pl-9 h-10 rounded-xl"
-                                            value={searchTerm}
+                                            value={searchTerm || ""}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
                                     </div>
@@ -2958,7 +3084,7 @@ const AdminDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.name}
+                                                            value={editProfileData.name || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, name: e.target.value })}
                                                         />
                                                     ) : (
@@ -2970,7 +3096,7 @@ const AdminDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.email}
+                                                            value={editProfileData.email || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, email: e.target.value })}
                                                         />
                                                     ) : (
@@ -2982,7 +3108,7 @@ const AdminDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.organization}
+                                                            value={editProfileData.organization || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, organization: e.target.value })}
                                                         />
                                                     ) : (
@@ -2994,7 +3120,7 @@ const AdminDashboard = () => {
                                                     {isEditingProfile ? (
                                                         <Input
                                                             className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.mobile}
+                                                            value={editProfileData.mobile || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, mobile: e.target.value })}
                                                         />
                                                     ) : (
@@ -3062,7 +3188,7 @@ const AdminDashboard = () => {
                                                                         type="password"
                                                                         placeholder="••••••••"
                                                                         className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.oldPassword}
+                                                                        value={passwordData.oldPassword || ""}
                                                                         onChange={(e) => {
                                                                             setPasswordData({ ...passwordData, oldPassword: e.target.value });
                                                                             if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
@@ -3081,7 +3207,7 @@ const AdminDashboard = () => {
                                                                         type="password"
                                                                         placeholder="••••••••"
                                                                         className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.newPassword}
+                                                                        value={passwordData.newPassword || ""}
                                                                         onChange={(e) => {
                                                                             setPasswordData({ ...passwordData, newPassword: e.target.value });
                                                                             if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
@@ -3100,7 +3226,7 @@ const AdminDashboard = () => {
                                                                         type="password"
                                                                         placeholder="••••••••"
                                                                         className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.confirmPassword}
+                                                                        value={passwordData.confirmPassword || ""}
                                                                         onChange={(e) => {
                                                                             setPasswordData({ ...passwordData, confirmPassword: e.target.value });
                                                                             if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
@@ -3134,6 +3260,64 @@ const AdminDashboard = () => {
                         </div>
                     )}
                 </main>
+
+                {/* Unallot Seat Confirmation Modal */}
+                <Dialog open={isUnallotConfirmDialogOpen} onOpenChange={setIsUnallotConfirmDialogOpen}>
+                    <DialogContent className="sm:max-w-[400px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                        <div className="p-8 text-center space-y-6 bg-gradient-to-b from-destructive/5 to-background">
+                            <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto ring-8 ring-destructive/5">
+                                <CircleX className="w-10 h-10 text-destructive" />
+                            </div>
+                            <DialogHeader>
+                                <DialogTitle className="text-2xl font-black tracking-tight text-center">Release Seats?</DialogTitle>
+                                <DialogDescription className="text-muted-foreground font-medium text-sm text-center">
+                                    Are you sure you want to unallot <span className="text-foreground font-bold">{bookingToUnallot?.fullName}</span> and release <span className="text-foreground font-bold">{bookingToUnallot?.seatCount || 1} {(bookingToUnallot?.seatCount || 1) === 1 ? 'seat' : 'seats'}</span>?
+                                </DialogDescription>
+                            </DialogHeader>
+                            <div className="flex flex-col gap-3">
+                                <Button
+                                    variant="destructive"
+                                    onClick={async () => {
+                                        if (bookingToUnallot) {
+                                            const bId = bookingToUnallot._id || (bookingToUnallot as any).id;
+                                            setIsUnallotConfirmDialogOpen(false);
+                                            setUpdatingRequestId(bId);
+                                            try {
+                                                await updateBookingRequestApi(bId, "Cancelled");
+                                                toast.success("Booking cancelled and seats released");
+                                                setBookings(bookings.map(b => (b._id === bId || (b as any).id === bId) ? { ...b, status: "Cancelled" } : b));
+                                                const wsData = await fetchWorkspaces();
+                                                setWorkspaces(wsData);
+                                                const statsData = await fetchDashboardStats();
+                                                setDashboardStats(statsData);
+                                            } catch (err: any) {
+                                                toast.error(`Failed to unallot: ${err.message}`);
+                                            } finally {
+                                                setUpdatingRequestId(null);
+                                                setBookingToUnallot(null);
+                                            }
+                                        }
+                                    }}
+                                    className="w-full h-14 rounded-2xl font-black shadow-lg shadow-destructive/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                    disabled={!!updatingRequestId}
+                                >
+                                    {updatingRequestId ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : "Confirm Release"}
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    onClick={() => {
+                                        setIsUnallotConfirmDialogOpen(false);
+                                        setBookingToUnallot(null);
+                                    }}
+                                    className="w-full h-14 rounded-2xl font-bold"
+                                    disabled={!!updatingRequestId}
+                                >
+                                    Keep Booking
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </SidebarInset >
         </SidebarProvider >
     );
@@ -3303,18 +3487,24 @@ function UsersTable({
 function WorkspacesTable({
     workspaces,
     users,
+    bookings,
     onAllot,
     onEdit,
     onDelete,
+    onUnallotBooking,
+    updatingRequestId,
     currentPage,
     onPageChange,
     itemsPerPage
 }: {
     workspaces: Workspace[],
     users: User[],
+    bookings: BookingRequest[],
     onAllot: (wsId: string, userId: string | null) => void,
     onEdit: (ws: Workspace) => void,
     onDelete: (id: string) => void,
+    onUnallotBooking: (booking: BookingRequest) => void,
+    updatingRequestId: string | null,
     currentPage: number,
     onPageChange: (page: number) => void,
     itemsPerPage: number
@@ -3325,6 +3515,7 @@ function WorkspacesTable({
             <Table>
                 <TableHeader className="bg-muted/30">
                     <TableRow>
+                        <TableHead className="w-[40px]"></TableHead>
                         <TableHead>Workspace Name</TableHead>
                         <TableHead>Location</TableHead>
                         <TableHead>Floor</TableHead>
@@ -3335,58 +3526,18 @@ function WorkspacesTable({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {paginatedWorkspaces.map((ws, i) => {
-                        if (!ws) return null;
-                        const allottedUser = typeof ws.allottedTo === 'object' ? ws.allottedTo : null;
-
-                        return (
-                            <TableRow key={ws._id || ws.id || i} className="hover:bg-muted/20 transition-colors">
-                                <TableCell className="font-semibold">{ws.name}</TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-2 text-muted-foreground">
-                                        <MapPin className="w-4 h-4" />
-                                        <span className="text-sm">{ws.location}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-sm">{ws.floor || "N/A"}</TableCell>
-                                <TableCell>
-                                    <Badge variant="secondary" className="rounded-full font-medium">
-                                        {ws.type}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell className="text-sm">{ws.capacity}</TableCell>
-                                <TableCell>
-                                    {allottedUser ? (
-                                        <div className="flex flex-col">
-                                            <span className="text-xs font-bold text-primary">{allottedUser.name}</span>
-                                            <span className="text-[10px] text-muted-foreground">{allottedUser.email}</span>
-                                        </div>
-                                    ) : (
-                                        <Badge variant="outline" className="text-[10px] text-muted-foreground opacity-50 border-dashed">
-                                            Unallotted
-                                        </Badge>
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                                <MoreHorizontal className="w-4 h-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="rounded-xl">
-                                            <DropdownMenuItem onClick={() => onAllot((ws._id || (ws.id ? ws.id.toString() : "")), allottedUser?._id || null)}>
-                                                {allottedUser ? "Change Allotment" : "Allot to User"}
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onClick={() => onEdit(ws)}>Edit Details</DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem className="text-destructive" onClick={() => onDelete(ws._id || (ws.id ? ws.id.toString() : ""))}>Delete Space</DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        );
-                    })}
+                    {paginatedWorkspaces.map((ws, i) => (
+                        <WorkspaceRow 
+                            key={ws._id || ws.id || i} 
+                            ws={ws} 
+                            bookings={bookings} 
+                            onAllot={onAllot} 
+                            onEdit={onEdit} 
+                            onDelete={onDelete} 
+                            onUnallotBooking={onUnallotBooking}
+                            updatingBookingId={updatingRequestId}
+                        />
+                    ))}
                 </TableBody>
             </Table>
             <TablePagination
@@ -3398,6 +3549,244 @@ function WorkspacesTable({
         </div>
     );
 }
+
+const WorkspaceRow = ({ 
+    ws, 
+    bookings, 
+    onAllot, 
+    onEdit, 
+    onDelete,
+    onUnallotBooking,
+    updatingBookingId
+}: { 
+    ws: Workspace, 
+    bookings: BookingRequest[], 
+    onAllot: (wsId: string, userId: string | null) => void,
+    onEdit: (ws: Workspace) => void,
+    onDelete: (id: string) => void,
+    onUnallotBooking: (booking: BookingRequest) => void,
+    updatingBookingId: string | null
+}) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    if (!ws) return null;
+    const allottedUser = typeof ws.allottedTo === 'object' ? ws.allottedTo : null;
+
+    const confirmedBookings = bookings.filter(b => 
+        String(b.workspaceId) === String(ws._id || ws.id) && 
+        (b.status === "Confirmed" || b.status === "Awaiting Payment")
+    );
+
+    const occupiedSeats = confirmedBookings.reduce((sum, b) => sum + (b.seatCount || 1), 0);
+    const availableSeats = ws.type === "Open WorkStation" ? Math.max(0, (ws.totalSeats || 0) - occupiedSeats) : (ws.allottedTo ? 0 : 1);
+
+    return (
+        <>
+            <TableRow 
+                className={`hover:bg-muted/20 transition-colors cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <TableCell>
+                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                </TableCell>
+                <TableCell className="font-semibold">{ws.name}</TableCell>
+                <TableCell>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="w-4 h-4" />
+                        <span className="text-sm">{ws.location}</span>
+                    </div>
+                </TableCell>
+                <TableCell className="text-sm">{ws.floor || "N/A"}</TableCell>
+                <TableCell>
+                    <Badge variant="secondary" className="rounded-full font-medium">
+                        {ws.type}
+                    </Badge>
+                </TableCell>
+                <TableCell className="text-sm">{ws.capacity}</TableCell>
+                <TableCell>
+                    {ws.type === "Open WorkStation" ? (
+                        <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                                <UsersIcon className="w-3.5 h-3.5 text-primary" />
+                                <span className="text-xs font-black text-primary">
+                                    {confirmedBookings.length} People
+                                </span>
+                            </div>
+                            <div className="w-full bg-muted/50 rounded-full h-1 overflow-hidden">
+                                <div 
+                                    className="h-full bg-primary transition-all duration-500 ease-out" 
+                                    style={{ width: `${Math.min(100, Math.max(0, (((ws.totalSeats || 0) - availableSeats) / (ws.totalSeats || 1)) * 100))}%` }}
+                                />
+                            </div>
+                        </div>
+                    ) : allottedUser ? (
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold text-primary">{allottedUser.name}</span>
+                            <span className="text-[10px] text-muted-foreground">{allottedUser.email}</span>
+                        </div>
+                    ) : (
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground opacity-50 border-dashed">
+                            Unallotted
+                        </Badge>
+                    )}
+                </TableCell>
+                <TableCell className="text-right">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => e.stopPropagation()}>
+                                <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAllot((ws._id || (ws.id ? ws.id.toString() : "")), allottedUser?._id || null); }}>
+                                {allottedUser ? "Change Allotment" : "Allot to User"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(ws); }}>Edit Details</DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(ws._id || (ws.id ? ws.id.toString() : "")); }}>Delete Space</DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </TableCell>
+            </TableRow>
+            {isExpanded && (
+                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
+                    <TableCell colSpan={8} className="p-0">
+                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                                
+                                {ws.type === "Open WorkStation" ? (
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
+                                                    <UsersIcon className="w-5 h-5 text-primary" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-sm font-black tracking-tight">Utilisation Overview</h4>
+                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Real-time seat distribution</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex flex-col items-end px-3 py-1.5 rounded-2xl border border-primary/10 bg-primary/[0.02]">
+                                                    <span className="text-[9px] font-black text-primary/40 uppercase tracking-tighter">Current Occupancy</span>
+                                                    <span className="text-xs font-black text-primary">{confirmedBookings.length} {confirmedBookings.length === 1 ? 'Booking' : 'Bookings'}</span>
+                                                </div>
+                                                <div className="flex flex-col items-end px-3 py-1.5 rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.02]">
+                                                    <span className="text-[9px] font-black text-emerald-600/40 uppercase tracking-tighter">Vacancy Status</span>
+                                                    <span className="text-xs font-black text-emerald-600">{availableSeats} { availableSeats === 1 ? "Seat" : "Seats" } Ready</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="h-px w-full bg-gradient-to-r from-transparent via-border/50 to-transparent my-4" />
+
+                                        {confirmedBookings.length > 0 ? (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                {confirmedBookings.map((booking) => (
+                                                    <div key={booking._id} className="flex items-center gap-3 p-3 rounded-2xl bg-muted/30 border border-border/50">
+                                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                            <UserIcon className="w-5 h-5" />
+                                                        </div>
+                                                         <div className="flex flex-col flex-1 min-w-0">
+                                                            <span className="text-sm font-bold truncate tracking-tight">{booking.fullName}</span>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
+                                                                    <Calendar className="w-2.5 h-2.5" />
+                                                                    {new Date(booking.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                                                                </div>
+                                                                <span className="text-[9px] text-muted-foreground/50">→</span>
+                                                                <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
+                                                                    <Clock className="w-2.5 h-2.5" />
+                                                                    {booking.endDate ? new Date(booking.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : "Notice"}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between mt-1.5">
+                                                                <span className="text-[10px] text-primary/80 font-black tracking-widest">{booking.seatCount || 1} {(booking.seatCount || 1) === 1 ? 'SEAT' : 'SEATS'}</span>
+                                                                <span className="text-[9px] text-emerald-600 font-black bg-emerald-500/10 px-1.5 rounded-full">ACTIVE</span>
+                                                            </div>
+                                                        </div>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
+                                                            disabled={updatingBookingId === (booking._id || (booking as any).id)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onUnallotBooking(booking);
+                                                            }}
+                                                        >
+                                                            {updatingBookingId === (booking._id || (booking as any).id) ? (
+                                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                                            ) : (
+                                                                <CircleX className="w-4 h-4" />
+                                                            )}
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="py-8 text-center text-muted-foreground italic text-sm bg-muted/10 rounded-2xl border border-dashed">
+                                                No active seat bookings found for this workstation.
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="grid md:grid-cols-2 gap-8">
+                                        <div className="space-y-4">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Space Metadata</h4>
+                                            <div className="space-y-3">
+                                                <div className="flex items-center gap-3">
+                                                    <Building className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">{ws.type}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <MapPin className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">{ws.location}, {ws.floor}</span>
+                                                </div>
+                                                <div className="flex items-center gap-3">
+                                                    <UsersIcon className="w-4 h-4 text-muted-foreground" />
+                                                    <span className="text-sm font-bold">Capacity: {ws.capacity}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {allottedUser ? (
+                                            <div className="space-y-4">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Allotment Details</h4>
+                                                <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
+                                                            {allottedUser.name[0]}
+                                                        </div>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-black text-foreground italic">{allottedUser.name}</span>
+                                                            <span className="text-xs text-muted-foreground font-medium">{allottedUser.email}</span>
+                                                        </div>
+                                                    </div>
+                                                    {ws.allotmentStart && (
+                                                        <div className="mt-4 pt-4 border-t border-primary/10 flex items-center gap-2 text-[10px] font-black text-primary/70 uppercase">
+                                                            <Calendar className="w-3 h-3" /> Allotted: {new Date(ws.allotmentStart).toLocaleDateString()}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex items-center justify-center p-8 bg-muted/10 rounded-2xl border border-dashed">
+                                                <p className="text-muted-foreground font-bold italic text-sm">Space currently unallotted</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </TableCell>
+                </TableRow>
+            )}
+        </>
+    );
+};
 
 function QuotesTable({
     quotes,

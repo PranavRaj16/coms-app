@@ -22,6 +22,8 @@ export interface IWorkspace extends Document {
     allotmentStart?: Date;
     allotmentEnd?: Date;
     unavailableUntil?: Date;
+    totalSeats?: number;
+    availableSeats?: number;
 }
 
 const workspaceSchema: Schema = new Schema({
@@ -102,6 +104,14 @@ const workspaceSchema: Schema = new Schema({
     unavailableUntil: {
         type: Date,
         default: null
+    },
+    totalSeats: {
+        type: Number,
+        default: 0
+    },
+    availableSeats: {
+        type: Number,
+        default: 0
     }
 }, {
     timestamps: true,
