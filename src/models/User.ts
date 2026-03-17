@@ -10,9 +10,10 @@ export interface IUser extends Document {
     role: 'Admin' | 'Member' | 'Manager' | 'Authenticator';
     status: 'Active' | 'Inactive' | 'Pending';
     joinedDate: string;
-    lastActive: string;
+    lastActive: Date;
     resetPasswordToken?: string;
     resetPasswordExpire?: Date;
+    viewedNotifications: string[];
     matchPassword(password: string): Promise<boolean>;
 }
 
@@ -53,8 +54,12 @@ const userSchema: Schema = new Schema({
         default: () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     },
     lastActive: {
-        type: String,
-        default: 'Just now',
+        type: Date,
+        default: Date.now,
+    },
+    viewedNotifications: {
+        type: [String],
+        default: []
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date

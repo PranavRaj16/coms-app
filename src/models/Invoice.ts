@@ -9,7 +9,7 @@ export interface IInvoice extends Document {
     customerEmail: string;
     workspaceName: string;
     amount: number;
-    paymentMethod: 'Pay Now' | 'Pay Later' | 'Invoice' | 'Monthly';
+    paymentMethod: 'Pay Now' | 'Pay Later' | 'Invoice' | 'Pay Monthly' | 'Pay Montly';
     status: 'Pending' | 'Paid' | 'Cancelled';
     type: 'booking' | 'recurring';
     billingMonth?: string; // e.g. "2026-03" for March 2026
@@ -56,7 +56,6 @@ const invoiceSchema: Schema = new Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['Pay Now', 'Pay Later', 'Invoice', 'Monthly'],
         required: true
     },
     status: {
@@ -84,5 +83,9 @@ const invoiceSchema: Schema = new Schema({
     timestamps: true
 });
 
-const Invoice = mongoose.models.Invoice || mongoose.model<IInvoice>('Invoice', invoiceSchema);
+if (mongoose.models.Invoice) {
+    delete mongoose.models.Invoice;
+}
+
+const Invoice = mongoose.model<IInvoice>('Invoice', invoiceSchema);
 export default Invoice;

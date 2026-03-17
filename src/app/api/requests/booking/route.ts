@@ -91,49 +91,48 @@ export async function POST(req: NextRequest) {
         }
 
         const isPayNow = body.paymentMethod === 'Pay Now';
+        const isMonthly = body.paymentMethod === 'Pay Monthly' || body.paymentMethod === 'Pay Montly';
+
+        // ── Identify Booking User ────────────────────────────────────────────────
+        // Assign to logged-in user, registered user with this email, or Admin guest placeholder
+        let bookingUserId = user?._id;
+        if (!bookingUserId) {
+            const foundUser = await User.findOne({ email: body.email });
+            bookingUserId = foundUser?._id;
+        }
+        if (!bookingUserId) {
+            const adminUser = await User.findOne({ role: 'Admin' });
+            bookingUserId = adminUser?._id;
+        }
 
         const bookingData = {
             ...body,
+            userId: bookingUserId,
             totalAmount,
             invoiceId,
             seatCount: isOpenWorkstation ? seatCount : 1,
             paymentStatus: isPayNow ? 'Paid' : 'Pending',
-            status: isPayNow ? 'Confirmed' : 'Awaiting Payment',
+            status: isPayNow ? 'Confirmed' : (isMonthly ? 'Confirmed' : 'Awaiting Payment'),
             endDate: allotEnd
         };
 
         const createdBooking = await BookingRequest.create(bookingData);
 
         // ── Auto Allotment ──────────────────────────────────────────────────────
-        // Assign workspace to the logged-in user OR, for unregistered guests,
-        // fall back to the Admin account so the workspace is visibly held.
-        let bookingUserId = user?._id;
-
-        if (!bookingUserId) {
-            // Try to find a registered user with this email
-            const foundUser = await User.findOne({ email: body.email });
-            bookingUserId = foundUser?._id;
-        }
-
-        if (!bookingUserId) {
-            // Unregistered guest → assign to Admin as placeholder
-            const adminUser = await User.findOne({ role: 'Admin' });
-            bookingUserId = adminUser?._id;
-        }
-
         if (bookingUserId) {
             const updateData: any = {
                 allotmentStart: allotStart,
-                allotmentEnd: allotEnd
+                allotmentEnd: allotEnd,
+                paymentMethod: body.paymentMethod
             };
 
             if (isOpenWorkstation) {
                 // For Open Workstations, we decrement available seats instead of full allotment
                 updateData.$inc = { availableSeats: -seatCount };
-                // We keep allottedTo as null or the last person? 
-                // Actually if it's Open Workstation, maybe we don't set a single allottedTo.
-                // But for the user to see it in their dashboard, the current logic needs allottedTo.
-                // This is a conflict. Let's fix the dashboard fetching logic after this.
+                // Also set allottedTo for the first user if it's currently null, 
+                // but for Open Workstations we usually keep it null to allow multiple.
+                // However, the user wants "booking should be allocated to user".
+                // We've already handled this in the dashboard fetchers by looking at BookingRequest.
             } else {
                 updateData.allottedTo = bookingUserId;
             }
@@ -145,6 +144,11 @@ export async function POST(req: NextRequest) {
         const dueDate = new Date();
         dueDate.setDate(dueDate.getDate() + 7);
 
+        // For Pay Monthly, the initial invoice is only for the first month
+        const invoiceAmount = isMonthly 
+            ? Math.ceil(workspace.price * (isOpenWorkstation ? seatCount : 1))
+            : totalAmount;
+
         const invoiceData: any = {
             invoiceNumber: invoiceId,
             bookingId: createdBooking._id,
@@ -152,7 +156,7 @@ export async function POST(req: NextRequest) {
             customerName: body.fullName,
             customerEmail: body.email,
             workspaceName: body.workspaceName,
-            amount: totalAmount,
+            amount: invoiceAmount,
             paymentMethod: body.paymentMethod,
             status: bookingData.paymentStatus,
             dueDate: dueDate,

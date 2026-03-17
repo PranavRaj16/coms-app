@@ -10,11 +10,12 @@ export interface IBookingRequest extends Document {
     duration: string;
     startDate: Date;
     totalAmount: number;
-    paymentMethod: 'Pay Now' | 'Pay Later' | 'Invoice';
+    paymentMethod: 'Pay Now' | 'Pay Later' | 'Pay Monthly' | 'Pay Montly';
     paymentStatus: 'Pending' | 'Paid';
     endDate?: Date;
     invoiceId?: string;
     seatCount?: number;
+    userId?: string;
     status: 'Pending' | 'Awaiting Payment' | 'Confirmed' | 'Rejected' | 'Completed' | 'Cancelled';
 }
 
@@ -56,7 +57,6 @@ const bookingRequestSchema: Schema = new Schema({
     },
     paymentMethod: {
         type: String,
-        enum: ['Pay Now', 'Pay Later', 'Invoice'],
         required: true,
     },
     paymentStatus: {
@@ -76,6 +76,9 @@ const bookingRequestSchema: Schema = new Schema({
         type: Number,
         default: 1
     },
+    userId: {
+        type: String,
+    },
     status: {
         type: String,
         enum: ['Pending', 'Awaiting Payment', 'Confirmed', 'Rejected', 'Completed', 'Cancelled'],
@@ -85,7 +88,11 @@ const bookingRequestSchema: Schema = new Schema({
     timestamps: true,
 });
 
-const BookingRequest = mongoose.models.BookingRequest || mongoose.model<IBookingRequest>('BookingRequest', bookingRequestSchema);
+if (mongoose.models.BookingRequest) {
+    delete mongoose.models.BookingRequest;
+}
+
+const BookingRequest = mongoose.model<IBookingRequest>('BookingRequest', bookingRequestSchema);
 
 export default BookingRequest;
 

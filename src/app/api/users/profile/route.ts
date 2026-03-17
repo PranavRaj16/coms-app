@@ -9,7 +9,13 @@ export async function GET(req: NextRequest) {
         const user = await getAuthUser(req);
         if (!user) return authResponse('Not authorized');
 
-        return NextResponse.json(user);
+        const dbUser = await User.findById(user._id);
+        if (dbUser) {
+            dbUser.lastActive = new Date();
+            await dbUser.save();
+        }
+
+        return NextResponse.json(dbUser || user);
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });
     }
@@ -30,11 +36,15 @@ export async function PUT(req: NextRequest) {
         dbUser.email = data.email || dbUser.email;
         dbUser.mobile = data.mobile || dbUser.mobile;
         dbUser.organization = data.organization || dbUser.organization;
+        if (data.viewedNotifications) {
+            dbUser.viewedNotifications = data.viewedNotifications;
+        }
 
         if (data.password) {
             dbUser.password = data.password;
         }
 
+        dbUser.lastActive = new Date();
         const updatedUser = await dbUser.save();
 
         return NextResponse.json({
@@ -43,7 +53,8 @@ export async function PUT(req: NextRequest) {
             email: updatedUser.email,
             role: updatedUser.role,
             mobile: updatedUser.mobile,
-            organization: updatedUser.organization
+            organization: updatedUser.organization,
+            viewedNotifications: updatedUser.viewedNotifications
         });
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });

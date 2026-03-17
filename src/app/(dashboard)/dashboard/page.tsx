@@ -19,10 +19,11 @@ import {
     Map,
     Calendar,
     TrendingUp,
-    ShieldCheck as ShieldIcon,
+    ShieldCheck,
     KeyRound,
     CheckCircle2,
     AlertCircle,
+    Lock as LockIcon,
     ArrowBigUp,
     Send,
     MessageCircle,
@@ -98,6 +99,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import cohortimage from "@/assets/cohort-logo.png";
 import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice } from "@/lib/api";
 import { Workspace } from "@/data/workspaces";
@@ -112,7 +114,6 @@ import {
     PopoverTrigger
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDistanceToNow } from "date-fns";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 
 
@@ -426,6 +427,20 @@ const UserDashboard = () => {
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .slice(0, 15);
     }, [posts, userInfo, viewedNotifications]);
+
+    const markAllAsRead = useCallback(() => {
+        const unreadIds = userNotifications.filter(n => !n.isRead).map(n => n.id);
+        if (unreadIds.length > 0) {
+            setViewedNotifications(prev => {
+                const newIds = [...prev];
+                unreadIds.forEach(id => {
+                    if (!newIds.includes(id)) newIds.push(id);
+                });
+                return newIds;
+            });
+            toast.success("All notifications marked as read");
+        }
+    }, [userNotifications]);
 
     const unreadCount = userNotifications.filter(n => !n.isRead).length;
 
@@ -910,11 +925,28 @@ const UserDashboard = () => {
                             <PopoverContent className="w-80 p-0 rounded-2xl overflow-hidden glass border-border/50 shadow-2xl" align="end">
                                 <div className="p-4 border-b border-border/50 bg-muted/30">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Activity Center</h4>
+                                        <div className="flex flex-col">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Activity Center</h4>
+                                            {unreadCount > 0 ? (
+                                                <span className="text-[9px] font-bold text-muted-foreground mt-0.5">{unreadCount} unread alerts</span>
+                                            ) : (
+                                                <span className="text-[9px] font-bold text-emerald-500 mt-0.5 flex items-center gap-1">
+                                                    <CheckCircle2 className="w-3 h-3" /> All Clear
+                                                </span>
+                                            )}
+                                        </div>
                                         {unreadCount > 0 && (
-                                            <Badge variant="outline" className="rounded-full px-2 py-0 text-[10px] uppercase font-black bg-primary/10 border-primary/20 text-primary">
-                                                {unreadCount} New
-                                            </Badge>
+                                            <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 transition-all border border-primary/20"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    markAllAsRead();
+                                                }}
+                                            >
+                                                Mark All Read
+                                            </Button>
                                         )}
                                     </div>
                                 </div>
@@ -924,27 +956,26 @@ const UserDashboard = () => {
                                             {userNotifications.map((notif: any) => (
                                                 <button
                                                     key={notif.id}
-                                                    className={`flex items-start gap-4 p-4 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-all text-left w-full group ${notif.isRead ? 'opacity-60' : 'bg-primary/5'}`}
+                                                    className={`flex items-start gap-4 p-4 hover:bg-muted/50 border-b border-border/50 last:border-0 transition-all text-left w-full group ${notif.isRead ? 'bg-transparent' : 'bg-primary/5'}`}
                                                     onClick={() => {
                                                         markAsRead(notif.id);
                                                         changeView("community");
-                                                        // Could add logic to scroll to post here if needed
                                                     }}
                                                 >
-                                                    <div className={`mt-1 p-2 rounded-xl bg-muted/50 ${notif.color} group-hover:scale-110 transition-transform`}>
+                                                    <div className={`mt-1 p-2 rounded-xl transition-transform group-hover:scale-110 ${notif.isRead ? 'bg-muted/50 text-muted-foreground' : `bg-primary/10 ${notif.color}`}`}>
                                                         <notif.icon className="w-3.5 h-3.5" />
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center justify-between gap-2 mb-1">
                                                             <div className="flex items-center gap-2 overflow-hidden">
-                                                                {!notif.isRead && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0" />}
-                                                                <p className="text-[11px] font-black text-foreground uppercase tracking-tight truncate">{notif.title}</p>
+                                                                {!notif.isRead && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0 animate-pulse" />}
+                                                                <p className={`text-[11px] font-black uppercase tracking-tight truncate ${notif.isRead ? 'text-muted-foreground' : 'text-foreground'}`}>{notif.title}</p>
                                                             </div>
                                                             <span className="text-[9px] font-bold text-muted-foreground whitespace-nowrap px-1">
                                                                 {formatDistanceToNow(new Date(notif.date), { addSuffix: true })}
                                                             </span>
                                                         </div>
-                                                        <p className="text-xs font-bold text-muted-foreground truncate italic">{notif.subtitle}</p>
+                                                        <p className={`text-xs font-bold truncate italic ${notif.isRead ? 'text-muted-foreground/50' : 'text-muted-foreground'}`}>{notif.subtitle}</p>
                                                         <div className="flex items-center gap-2 mt-2">
                                                             <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground opacity-50">• {notif.type}</span>
                                                         </div>
@@ -1063,13 +1094,20 @@ const UserDashboard = () => {
                                                             </div>
                                                         </div>
                                                         <div className="space-y-1">
-                                                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Capacity</p>
+                                                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">
+                                                                {ws.type === "Open WorkStation" ? "My Booking" : "Capacity"}
+                                                            </p>
                                                             <div className="font-bold text-lg flex items-center gap-2">
                                                                 <Users className="w-4 h-4 text-primary" />
                                                                  {ws.type === "Open WorkStation" ? (
-                                                                    <div className="flex items-baseline gap-1.5">
-                                                                        <span className="text-primary text-2xl font-black italic leading-none">{ws.availableSeats ?? 0}</span>
-                                                                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">/ {ws.totalSeats ?? 0} Seats Available</span>
+                                                                    <div className="flex flex-col">
+                                                                        <div className="flex items-baseline gap-1.5">
+                                                                            <span className="text-primary text-2xl font-black italic">{(ws as any).bookedSeats || 1}</span>
+                                                                            <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">Seats Secured</span>
+                                                                        </div>
+                                                                        <p className="text-[9px] text-muted-foreground/60 font-bold uppercase tracking-tighter mt-1">
+                                                                            {ws.availableSeats ?? 0} available in hub
+                                                                        </p>
                                                                     </div>
                                                                 ) : ws.capacity}
                                                             </div>
@@ -1094,75 +1132,100 @@ const UserDashboard = () => {
                                                 </div>
                                             ))}
 
-                                            {upcomingWorkspaces.map((ws: Workspace) => (
-                                                <div key={String(ws._id || ws.id)} className="relative overflow-hidden rounded-2xl sm:rounded-[2.5rem] border border-amber-500/30 shadow-2xl bg-gradient-to-br from-amber-500/5 via-card to-card">
-                                                    <div className="relative overflow-hidden h-40 sm:h-56">
-                                                        <img
-                                                            src={ws.image || DEFAULT_WORKSPACE_IMAGE}
-                                                            alt={ws.name}
-                                                            className="object-cover w-full h-full brightness-50"
-                                                        />
-                                                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                                                        <div className="absolute top-4 left-4">
-                                                            <Badge className="bg-amber-500 text-black border-none px-3 py-1 font-black uppercase tracking-widest text-[10px] animate-pulse">
-                                                                ⏳ Pre-Booked
-                                                            </Badge>
-                                                        </div>
-                                                        <div className="absolute bottom-6 left-6 text-white max-w-[calc(100%-48px)]">
-                                                            <h2 className="text-2xl sm:text-3xl font-black italic tracking-tight truncate">{ws.name}</h2>
-                                                            <div className="flex flex-wrap items-center gap-3 mt-1">
-                                                                <div className="flex items-center gap-2 text-white/70 text-sm font-bold">
-                                                                    <MapPin className="w-4 h-4 text-amber-400" />
-                                                                    {ws.location}
-                                                                </div>
-                                                                 {ws.type === "Open WorkStation" && (
-                                                                    <div className="flex items-center gap-2 text-white/70 text-sm font-bold bg-white/10 px-3 py-1 rounded-full border border-white/20 shadow-sm backdrop-blur-md">
-                                                                        <Users className="w-4 h-4 text-amber-400" />
-                                                                        <div className="flex items-baseline gap-1">
-                                                                            <span className="text-white text-base">{ws.availableSeats ?? 0}</span>
-                                                                            <span className="text-[10px] opacity-70 uppercase font-black tracking-widest">/ {ws.totalSeats ?? 0} Seats Available</span>
-                                                                        </div>
+                                            {upcomingWorkspaces.map((ws: Workspace) => {
+                                                const daysUntilActive = ws.allotmentStart
+                                                    ? Math.max(0, Math.ceil((new Date(ws.allotmentStart).getTime() - Date.now()) / 86400000))
+                                                    : null;
+
+                                                return (
+                                                    <div key={String(ws._id || ws.id)} className="relative group overflow-hidden rounded-2xl sm:rounded-[2.5rem] border border-border/50 shadow-2xl transition-all hover:shadow-primary/10">
+                                                        <div className="aspect-video sm:aspect-[21/10] w-full relative">
+                                                            <img
+                                                                src={ws.image || DEFAULT_WORKSPACE_IMAGE}
+                                                                alt={ws.name}
+                                                                className="object-cover w-full h-full transition-transform duration-1000 group-hover:scale-105"
+                                                            />
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                                                            <div className="absolute bottom-6 left-6 right-6 sm:bottom-10 sm:left-10 sm:right-10 text-white">
+                                                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                                                                    <Badge className="bg-amber-500 text-black border-none px-3 py-1 font-black uppercase tracking-widest text-[10px] animate-pulse">
+                                                                        ⏳ Pre-Booked
+                                                                    </Badge>
+                                                                    <div className="flex items-center gap-2 bg-amber-500/20 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-amber-500/30">
+                                                                        <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-amber-500 animate-pulse" />
+                                                                        <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-400">Reserved</span>
                                                                     </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="p-6 sm:p-8 space-y-4">
-                                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                                                            <div className="space-y-1">
-                                                                <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">Your Workspace Starts On</p>
-                                                                <p className="text-2xl font-black italic text-foreground">
-                                                                    {ws.allotmentStart
-                                                                        ? new Date(ws.allotmentStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
-                                                                        : 'Scheduled'}
-                                                                </p>
-                                                            </div>
-                                                            <div className="flex items-center gap-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl px-5 py-3">
-                                                                <Clock className="w-5 h-5 text-amber-600" />
-                                                                <div>
-                                                                    <p className="text-[9px] font-black uppercase tracking-widest text-amber-600">Days Until Active</p>
-                                                                    <p className="text-xl font-black italic text-amber-700">
-                                                                        {ws.allotmentStart
-                                                                            ? Math.max(0, Math.ceil((new Date(ws.allotmentStart).getTime() - Date.now()) / 86400000))
-                                                                            : '—'}
-                                                                    </p>
+                                                                </div>
+                                                                <h2 className="text-3xl sm:text-4xl font-black lg:text-5xl italic tracking-tight mb-2">{ws.name}</h2>
+                                                                <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-white/90 text-[10px] sm:text-sm font-bold uppercase tracking-widest bg-white/5 backdrop-blur-sm w-fit px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/10">
+                                                                    <div className="flex items-center gap-1.5 sm:gap-2">
+                                                                        <MapPin className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-primary" />
+                                                                        {ws.location}
+                                                                    </div>
+                                                                    <div className="hidden sm:block w-px h-4 bg-white/20" />
+                                                                    <div className="flex items-center gap-1.5 sm:gap-2">
+                                                                        <Layers className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-primary" />
+                                                                        {ws.floor}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <p className="text-sm text-muted-foreground font-medium">
-                                                            Your workspace is confirmed and will be activated on your start date. No action needed — it will appear here automatically.
-                                                        </p>
-                                                        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                                                            <Button size="lg" className="w-full sm:w-auto rounded-xl font-black italic shadow-lg shadow-amber-500/10 h-12" onClick={() => changeView("bookings")}>
-                                                                View Booking Details
-                                                            </Button>
-                                                            <Button variant="outline" size="lg" className="w-full sm:w-auto rounded-xl font-black h-12" asChild>
-                                                                <Link href="/contact">Contact Admin</Link>
-                                                            </Button>
+                                                        <div className="bg-card p-6 sm:p-10 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-10">
+                                                            <div className="space-y-1">
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">Plan Type</p>
+                                                                <div className="font-bold text-lg flex items-center gap-2">
+                                                                    <Building2 className="w-4 h-4 text-primary" />
+                                                                    {ws.type}
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-black">
+                                                                    {ws.type === "Open WorkStation" ? "My Booking" : "Capacity"}
+                                                                </p>
+                                                                <div className="font-bold text-lg flex items-center gap-2">
+                                                                    <Users className="w-4 h-4 text-primary" />
+                                                                     {ws.type === "Open WorkStation" ? (
+                                                                        <div className="flex flex-col">
+                                                                            <div className="flex items-baseline gap-1.5">
+                                                                                <span className="text-primary text-2xl font-black italic">{(ws as any).bookedSeats || 1}</span>
+                                                                                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">Seats Secured</span>
+                                                                            </div>
+                                                                            <p className="text-[9px] text-muted-foreground/60 font-bold uppercase tracking-tighter mt-1">
+                                                                                {ws.availableSeats ?? 0} available in hub
+                                                                            </p>
+                                                                        </div>
+                                                                    ) : ws.capacity}
+                                                                </div>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <p className="text-[10px] uppercase tracking-widest text-amber-600 font-black">Starts On</p>
+                                                                <div className="flex flex-col">
+                                                                    <div className="font-bold text-lg flex items-center gap-2">
+                                                                        <Calendar className="w-4 h-4 text-amber-500" />
+                                                                        {ws.allotmentStart
+                                                                            ? new Date(ws.allotmentStart).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+                                                                            : 'Scheduled'}
+                                                                    </div>
+                                                                    {daysUntilActive !== null && (
+                                                                        <p className="text-[9px] text-amber-600/80 font-black uppercase tracking-widest mt-1">
+                                                                            {daysUntilActive} Days Left
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="col-span-2 md:col-span-1 flex items-center justify-end">
+                                                                <Button
+                                                                    size="lg"
+                                                                    className="w-full sm:w-auto rounded-xl sm:rounded-2xl gap-2 font-black italic shadow-xl shadow-primary/20 group/btn transition-all hover:scale-[1.05]"
+                                                                    onClick={() => changeView("workspace-details", String(ws._id || ws.id))}
+                                                                >
+                                                                    Space HUB <ArrowRight className="w-5 h-5 group-hover/btn:translate-x-1 transition-transform" />
+                                                                </Button>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     ) : (
                                         <div className="bg-card rounded-2xl sm:rounded-[3rem] p-8 sm:p-16 text-center border border-border/50 shadow-xl space-y-6 sm:space-y-8 relative overflow-hidden group">
@@ -1379,7 +1442,7 @@ const UserDashboard = () => {
 
                                             <div>
                                                 <h3 className="text-lg font-black mb-4 flex items-center gap-2">
-                                                    <ShieldIcon className="w-5 h-5 text-primary" /> Included Amenities
+                                                    <ShieldCheck className="w-5 h-5 text-primary" /> Included Amenities
                                                 </h3>
                                                 <div className="flex flex-wrap gap-2">
                                                     {selectedWorkspace.amenities?.map((amenity, i) => (
@@ -2273,77 +2336,112 @@ const UserDashboard = () => {
                     )}
 
                     {currentView === "profile" && userInfo && (
-                        <div className="max-w-4xl mx-auto space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex flex-col gap-1 sm:gap-2">
-                                <h2 className="text-2xl sm:text-3xl font-black tracking-tight">Personal Identity</h2>
-                                <p className="text-sm sm:text-base text-muted-foreground font-medium">Manage your security and preferences within the COMS ecosystem.</p>
+                        <div className="max-w-5xl mx-auto space-y-8 sm:space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 relative">
+                            {/* Decorative Background Elements */}
+                            <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl opacity-50" />
+                            <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-50" />
+
+                            <div className="flex flex-col gap-3 relative z-10 text-center sm:text-left">
+                                <h1 className="text-4xl sm:text-5xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-500 to-violet-600">Personal Identity</h1>
+                                <div className="flex items-center justify-center sm:justify-start gap-3">
+                                    <div className="h-px w-8 bg-primary/40 hidden sm:block" />
+                                    <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-[10px] sm:text-xs">Secure Ecosystem Presence Profile</p>
+                                </div>
                             </div>
 
-                            <div className="grid lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-1 space-y-6">
-                                    <div className="card-elevated glass p-6 sm:p-8 flex flex-col items-center text-center space-y-6 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl" />
-                                        <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-2xl sm:rounded-[2.5rem] bg-gradient-to-tr from-primary to-accent flex items-center justify-center font-black text-white text-3xl sm:text-4xl shadow-2xl relative z-10">
-                                            {(userInfo?.name || "U").split(" ").map((n: string) => n[0]).join("")}
-                                        </div>
-                                        <div className="space-y-2 relative z-10">
-                                            <h3 className="text-2xl font-black italic">{userInfo.name}</h3>
-                                            <Badge className="bg-primary/10 text-primary border-none px-4 py-1 rounded-full uppercase tracking-widest text-[10px] font-black">
-                                                Verified {userInfo.role}
-                                            </Badge>
-                                        </div>
-                                        <div className="w-full pt-6 border-t border-border/50 space-y-4">
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-muted-foreground font-bold uppercase tracking-tighter">Profile Mastery</span>
-                                                <span className="font-black text-primary">92%</span>
+                            <div className="grid lg:grid-cols-12 gap-8 relative z-10">
+                                <div className="lg:col-span-4 space-y-6">
+                                    {/* Profile Overview Card */}
+                                    <div className="card-elevated glass p-8 flex flex-col items-center text-center space-y-8 relative overflow-hidden group/card shadow-2xl border-primary/5">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary/10 transition-colors" />
+                                        
+                                        <div className="relative">
+                                            <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-[3rem] bg-gradient-to-tr from-primary via-primary to-accent flex items-center justify-center font-black text-white text-4xl sm:text-5xl shadow-2xl relative z-10 rotate-3 group-hover:rotate-0 transition-all duration-500">
+                                                {(userInfo?.name || "U").split(" ").map((n: string) => n[0]).join("")}
                                             </div>
-                                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                                                <div className="h-full bg-primary w-[92%] rounded-full shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
+                                            <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-background rounded-2xl flex items-center justify-center shadow-lg border border-border/50 z-20">
+                                                <ShieldCheck className="w-6 h-6 text-emerald-500" />
                                             </div>
+                                        </div>
+
+                                        <div className="space-y-3 relative z-10">
+                                            <h3 className="text-3xl font-black tracking-tight">{userInfo.name}</h3>
+                                            <div className="flex flex-wrap justify-center gap-2">
+                                                <Badge className="bg-primary/10 text-primary border border-primary/20 px-4 py-1.5 rounded-xl uppercase tracking-widest text-[10px] font-black">
+                                                    {userInfo.role}
+                                                </Badge>
+                                                <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-500/5 px-4 py-1.5 rounded-xl uppercase tracking-widest text-[10px] font-black">
+                                                    Status: Active
+                                                </Badge>
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full pt-8 border-t border-border/50 space-y-5">
+                                            <div className="flex justify-between items-end">
+                                                <div className="flex flex-col items-start translate-y-1">
+                                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Profile Mastery</span>
+                                                    <span className="text-2xl font-black text-primary">92%</span>
+                                                </div>
+                                                <span className="text-[10px] font-black text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md uppercase tracking-tighter">Gold Tier</span>
+                                            </div>
+                                            <div className="h-3 w-full bg-muted/50 rounded-full overflow-hidden p-0.5">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-primary to-accent w-[92%] rounded-full shadow-[0_0_15px_rgba(var(--primary),0.4)] relative"
+                                                >
+                                                    <div className="absolute top-0 right-0 w-4 h-full bg-white/20 animate-shimmer" />
+                                                </div>
+                                            </div>
+                                            <p className="text-[10px] text-muted-foreground font-medium text-left">Your identity is almost complete. Add a professional bio to reach 100%.</p>
                                         </div>
                                     </div>
 
-                                    <div className="card-elevated glass p-6 space-y-4">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Ecosystem Access</h4>
+                                    {/* Ecosystem Access Card */}
+                                    <div className="card-elevated glass p-6 space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Ecosystem Access</h4>
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                        </div>
                                         <div className="space-y-3">
-                                            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
-                                                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                                                    <ShieldIcon className="w-4 h-4" />
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-black text-emerald-600 uppercase">Status</span>
-                                                    <span className="text-xs font-bold">Active Member</span>
-                                                </div>
-                                            </div>
-                                            {myWorkspaces.length > 0 && (
-                                                <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
-                                                    <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
-                                                        <Building2 className="w-4 h-4" />
+                                            {[
+                                                { icon: ShieldCheck, label: "Global ID", value: "Verified Member", color: "text-emerald-500" },
+                                                ...(myWorkspaces.length > 0 ? [{ icon: Building2, label: "Asset Status", value: "Workspace Allotted", color: "text-blue-500" }] : [])
+                                            ].map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-4 p-4 rounded-2xl bg-muted/10 border border-transparent hover:border-primary/10 transition-all group/item text-left">
+                                                    <div className={`w-10 h-10 rounded-xl bg-background flex items-center justify-center transition-colors group-hover/item:shadow-lg`}>
+                                                        <item.icon className={`w-5 h-5 ${item.color}`} />
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-blue-600 uppercase">Access</span>
-                                                        <span className="text-xs font-bold">Workspace Active</span>
+                                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">{item.label}</span>
+                                                        <span className="text-sm font-black">{item.value}</span>
                                                     </div>
                                                 </div>
-                                            )}
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="lg:col-span-2 space-y-6">
-                                    <div className="card-elevated glass p-6 sm:p-8 space-y-8">
+                                <div className="lg:col-span-8 space-y-8">
+                                    <div className="card-elevated glass p-8 sm:p-10 space-y-10 relative overflow-hidden">
+                                        <div className="absolute top-0 left-0 w-1 h-full bg-primary/20" />
+                                        
                                         <div>
-                                            <div className="flex items-center justify-between mb-6">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                                    <UserIcon className="w-3 h-3" /> Profile Details
-                                                </h4>
+                                            <div className="flex items-center justify-between mb-8">
+                                                <div className="space-y-1">
+                                                    <h3 className="text-xl font-black flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                                                            <UserIcon className="w-4 h-4 text-primary" />
+                                                        </div>
+                                                        Core Information
+                                                    </h3>
+                                                    <p className="text-xs text-muted-foreground font-medium ml-11">Essential details used across the COMS platform.</p>
+                                                </div>
                                                 <div className="flex items-center gap-2">
                                                     {isEditingProfile ? (
-                                                        <>
+                                                        <div className="flex gap-2 animate-in fade-in zoom-in duration-300">
                                                             <Button
                                                                 variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+                                                                size="sm"
+                                                                className="rounded-xl font-bold h-9 px-4 text-muted-foreground"
                                                                 onClick={() => {
                                                                     setIsEditingProfile(false);
                                                                     setEditProfileData({
@@ -2354,206 +2452,237 @@ const UserDashboard = () => {
                                                                     });
                                                                 }}
                                                             >
-                                                                <X className="w-4 h-4" />
+                                                                Cancel
                                                             </Button>
                                                             <Button
                                                                 size="sm"
-                                                                className="rounded-xl font-bold h-8 px-4"
+                                                                className="rounded-xl font-black h-9 px-6 shadow-lg shadow-primary/20"
                                                                 onClick={async () => {
                                                                     await handleUpdateProfileInfo();
                                                                     setIsEditingProfile(false);
                                                                 }}
                                                                 disabled={isUpdatingProfile}
                                                             >
-                                                                {isUpdatingProfile ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Changes"}
+                                                                {isUpdatingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Profile"}
                                                             </Button>
-                                                        </>
+                                                        </div>
                                                     ) : (
                                                         <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 rounded-xl text-primary hover:bg-primary/5 hover:text-primary"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="rounded-xl font-bold h-9 px-4 border-primary/20 bg-primary/5 text-primary hover:bg-primary/10"
                                                             onClick={() => setIsEditingProfile(true)}
                                                         >
-                                                            <Pencil className="w-4 h-4" />
+                                                            <Pencil className="w-3.5 h-3.5 mr-2" /> Edit Profile
                                                         </Button>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="grid sm:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Legal Name</Label>
+
+                                            <div className="grid sm:grid-cols-2 gap-x-12 gap-y-8">
+                                                <div className="space-y-3 group text-left">
+                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1 group-hover:text-primary transition-colors">Legal Identity</Label>
                                                     {isEditingProfile ? (
                                                         <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
+                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold focus:ring-primary/20 transition-all h-12"
                                                             value={editProfileData.name || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, name: e.target.value })}
                                                         />
                                                     ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo.name}</p>
+                                                        <div className="h-12 flex items-center px-4 rounded-xl bg-muted/20 border border-transparent font-bold text-foreground italic group-hover:border-primary/10 transition-all">
+                                                            {userInfo.name}
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Email Identity</Label>
+                                                <div className="space-y-3 group text-left">
+                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1 group-hover:text-primary transition-colors">Primary Email</Label>
                                                     {isEditingProfile ? (
                                                         <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
+                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold focus:ring-primary/20 transition-all h-12"
                                                             value={editProfileData.email || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, email: e.target.value })}
                                                         />
                                                     ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo.email}</p>
+                                                        <div className="h-12 flex items-center px-4 rounded-xl bg-muted/20 border border-transparent font-bold text-foreground italic group-hover:border-primary/10 transition-all">
+                                                            {userInfo.email}
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Affiliation</Label>
+                                                <div className="space-y-3 group text-left">
+                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1 group-hover:text-primary transition-colors">Entity Affiliation</Label>
                                                     {isEditingProfile ? (
                                                         <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
+                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold focus:ring-primary/20 transition-all h-12"
                                                             value={editProfileData.organization || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, organization: e.target.value })}
                                                         />
                                                     ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo.organization || "Independent Professional"}</p>
+                                                        <div className="h-12 flex items-center px-4 rounded-xl bg-muted/20 border border-transparent font-bold text-foreground italic group-hover:border-primary/10 transition-all">
+                                                            {userInfo.organization || "Independent Specialist"}
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Mobile Reach</Label>
+                                                <div className="space-y-3 group text-left">
+                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1 group-hover:text-primary transition-colors">Mobile Endpoint</Label>
                                                     {isEditingProfile ? (
                                                         <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
+                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold focus:ring-primary/20 transition-all h-12"
                                                             value={editProfileData.mobile || ""}
                                                             onChange={(e) => setEditProfileData({ ...editProfileData, mobile: e.target.value })}
                                                         />
                                                     ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo.mobile || "Not Provided"}</p>
+                                                        <div className="h-12 flex items-center px-4 rounded-xl bg-muted/20 border border-transparent font-bold text-foreground italic group-hover:border-primary/10 transition-all">
+                                                            {userInfo.mobile || "N/A"}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="pt-8 border-t border-border/50">
-                                            <div className="flex items-center justify-between mb-6">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                                    <KeyRound className="w-3 h-3" /> Security & Access
-                                                </h4>
+                                        <div className="pt-12 border-t border-border/50">
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
+                                                <div className="space-y-1">
+                                                    <h3 className="text-xl font-black flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                                                            <KeyRound className="w-4 h-4 text-amber-600" />
+                                                        </div>
+                                                        Security Infrastructure
+                                                    </h3>
+                                                    <p className="text-xs text-muted-foreground font-medium ml-11 text-left">Manage your encryption keys and access protocols.</p>
+                                                </div>
 
                                                 <Dialog open={isSecurityModalOpen} onOpenChange={setIsSecurityModalOpen}>
                                                     <DialogTrigger asChild>
-                                                        <Button variant="outline" size="sm" className="rounded-xl font-bold bg-primary/5 border-primary/20 text-primary hover:bg-primary/10">
-                                                            Update Credentials
+                                                        <Button variant="outline" size="sm" className="rounded-xl font-black h-10 px-6 bg-amber-500/5 border-amber-500/20 text-amber-700 hover:bg-amber-500/10 shadow-sm transition-all hover:scale-[1.02]">
+                                                            Rotate Credentials
                                                         </Button>
                                                     </DialogTrigger>
-                                                    <DialogContent className="rounded-3xl border-border/50 glass max-w-md">
-                                                        <DialogHeader>
-                                                            <DialogTitle className="text-xl font-black">Security Credentials</DialogTitle>
-                                                            <DialogDescription className="text-sm font-medium text-muted-foreground">
-                                                                Protect your COMS account by updating your authentication keys periodically.
-                                                            </DialogDescription>
-                                                        </DialogHeader>
-
-                                                        <form className="space-y-4 pt-4" onSubmit={(e) => {
-                                                            e.preventDefault();
-                                                            handlePasswordChange();
-                                                        }} noValidate>
-                                                            <div className="space-y-4">
-                                                                <div className="space-y-2">
-                                                                    <Label htmlFor="oldPassword" title="Current Password" className="text-xs font-bold uppercase tracking-wider">Current Password</Label>
-                                                                    <Input
-                                                                        id="oldPassword"
-                                                                        type="password"
-                                                                        placeholder="••••••••"
-                                                                        className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.oldPassword || ""}
-                                                                        onChange={(e) => {
-                                                                            setPasswordData({ ...passwordData, oldPassword: e.target.value });
-                                                                            if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
-                                                                        }}
-                                                                    />
-                                                                    {securityErrors.oldPassword && (
-                                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                            <AlertCircle className="w-3 h-3" /> {securityErrors.oldPassword}
-                                                                        </p>
-                                                                    )}
+                                                    <DialogContent className="rounded-3xl border-border/50 glass max-w-md shadow-2xl p-0 overflow-hidden">
+                                                        <div className="bg-gradient-to-tr from-amber-500/10 via-background to-background p-8 space-y-6">
+                                                            <div className="flex items-center gap-4">
+                                                                <div className="w-12 h-12 rounded-2xl bg-amber-500 flex items-center justify-center text-white shadow-lg shadow-amber-500/20">
+                                                                    <LockIcon className="w-6 h-6" />
                                                                 </div>
-                                                                <div className="space-y-2">
-                                                                    <Label htmlFor="newPassword" title="New Secure Password" className="text-xs font-bold uppercase tracking-wider">New Password</Label>
-                                                                    <Input
-                                                                        id="newPassword"
-                                                                        type="password"
-                                                                        placeholder="••••••••"
-                                                                        className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.newPassword || ""}
-                                                                        onChange={(e) => {
-                                                                            setPasswordData({ ...passwordData, newPassword: e.target.value });
-                                                                            if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
-                                                                        }}
-                                                                    />
-                                                                    {securityErrors.newPassword && (
-                                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                            <AlertCircle className="w-3 h-3" /> {securityErrors.newPassword}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                                <div className="space-y-2">
-                                                                    <Label htmlFor="confirmPassword" title="Confirm New Password" className="text-xs font-bold uppercase tracking-wider">Confirm New Password</Label>
-                                                                    <Input
-                                                                        id="confirmPassword"
-                                                                        type="password"
-                                                                        placeholder="••••••••"
-                                                                        className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.confirmPassword || ""}
-                                                                        onChange={(e) => {
-                                                                            setPasswordData({ ...passwordData, confirmPassword: e.target.value });
-                                                                            if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
-                                                                        }}
-                                                                    />
-                                                                    {securityErrors.confirmPassword && (
-                                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                            <AlertCircle className="w-3 h-3" /> {securityErrors.confirmPassword}
-                                                                        </p>
-                                                                    )}
+                                                                <div className="space-y-0.5">
+                                                                    <DialogTitle className="text-2xl font-black">Security Protocol</DialogTitle>
+                                                                    <DialogDescription className="text-xs font-bold uppercase tracking-wider text-amber-600/60">Authentication Update</DialogDescription>
                                                                 </div>
                                                             </div>
+                                                            
+                                                            <p className="text-sm font-medium text-muted-foreground leading-relaxed text-left">
+                                                                Enhance your account security by updating your master credentials. COMS recommends rotating keys every 90 days.
+                                                            </p>
 
-                                                            <DialogFooter className="pt-4">
-                                                                <Button
-                                                                    type="submit"
-                                                                    disabled={isChangingPassword}
-                                                                    className="w-full rounded-xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                                                >
-                                                                    {isChangingPassword ? (
-                                                                        <><Loader2 className="w-4 h-4 animate-spin mr-2" />Verifying...</>
-                                                                    ) : "Apply Security Protocol"}
-                                                                </Button>
-                                                            </DialogFooter>
-                                                        </form>
+                                                            <form className="space-y-5" onSubmit={(e) => {
+                                                                e.preventDefault();
+                                                                handlePasswordChange();
+                                                            }} noValidate>
+                                                                <div className="space-y-4">
+                                                                    <div className="space-y-2 group text-left">
+                                                                        <Label htmlFor="oldPassword" title="Current Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">Current Key</Label>
+                                                                        <Input
+                                                                            id="oldPassword"
+                                                                            type="password"
+                                                                            placeholder="Enter current password"
+                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                                                            value={passwordData.oldPassword || ""}
+                                                                            onChange={(e) => {
+                                                                                setPasswordData({ ...passwordData, oldPassword: e.target.value });
+                                                                                if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
+                                                                            }}
+                                                                        />
+                                                                        {securityErrors.oldPassword && (
+                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.oldPassword}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="space-y-2 group text-left">
+                                                                        <Label htmlFor="newPassword" title="New Secure Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">New Security Key</Label>
+                                                                        <Input
+                                                                            id="newPassword"
+                                                                            type="password"
+                                                                            placeholder="Enter new strong password"
+                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                                                            value={passwordData.newPassword || ""}
+                                                                            onChange={(e) => {
+                                                                                setPasswordData({ ...passwordData, newPassword: e.target.value });
+                                                                                if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
+                                                                            }}
+                                                                        />
+                                                                        {securityErrors.newPassword && (
+                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.newPassword}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="space-y-2 group text-left">
+                                                                        <Label htmlFor="confirmPassword" title="Confirm New Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">Verify New Key</Label>
+                                                                        <Input
+                                                                            id="confirmPassword"
+                                                                            type="password"
+                                                                            placeholder="Confirm new password"
+                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                                                            value={passwordData.confirmPassword || ""}
+                                                                            onChange={(e) => {
+                                                                                setPasswordData({ ...passwordData, confirmPassword: e.target.value });
+                                                                                if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
+                                                                            }}
+                                                                        />
+                                                                        {securityErrors.confirmPassword && (
+                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.confirmPassword}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                <DialogFooter className="pt-4">
+                                                                    <Button
+                                                                        type="submit"
+                                                                        disabled={isChangingPassword}
+                                                                        className="w-full h-14 rounded-2xl font-black bg-amber-500 hover:bg-amber-600 text-white shadow-xl shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                                    >
+                                                                        {isChangingPassword ? (
+                                                                            <><Loader2 className="w-5 h-5 animate-spin mr-3" />Verifying Protocol...</>
+                                                                        ) : "Apply Security Protocol"}
+                                                                    </Button>
+                                                                </DialogFooter>
+                                                            </form>
+                                                        </div>
                                                     </DialogContent>
                                                 </Dialog>
                                             </div>
                                         </div>
 
-                                        <div className="pt-8 border-t border-border/50">
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-6 flex items-center gap-2">
-                                                <Clock className="w-3 h-3" /> Member Analytics
-                                            </h4>
-                                            <div className="grid sm:grid-cols-2 gap-6">
-                                                <div className="flex items-center gap-4 group">
-                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center transition-colors group-hover:bg-primary/10">
-                                                        <Calendar className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
+                                        <div className="pt-12 border-t border-border/50">
+                                            <div className="flex items-center justify-between mb-8">
+                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+                                                    <Clock className="w-3 h-3" /> Member Analytics
+                                                </h4>
+                                                <div className="h-px flex-1 bg-gradient-to-r from-border/50 to-transparent ml-6" />
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                                <div className="flex items-center gap-5 p-5 rounded-3xl bg-muted/20 border border-transparent hover:border-violet-500/20 transition-all group text-left">
+                                                    <div className="w-14 h-14 rounded-2xl bg-white/50 flex items-center justify-center transition-colors group-hover:bg-violet-500/10">
+                                                        <Building2 className="w-7 h-7 text-violet-600" />
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">Joined Ecosystem</span>
-                                                        <span className="text-sm font-bold">{userInfo.joinedDate || "Feb 10, 2026"}</span>
+                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-2">Active Assets</span>
+                                                        <span className="text-lg font-black text-violet-600 italic">
+                                                            {myWorkspaces.length} Space{myWorkspaces.length !== 1 ? 's' : ''}
+                                                        </span>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-4 group">
-                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center transition-colors group-hover:bg-primary/10">
-                                                        <TrendingUp className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
+                                                <div className="flex items-center gap-5 p-5 rounded-3xl bg-muted/20 border border-transparent hover:border-primary/10 transition-all group text-left">
+                                                    <div className="w-14 h-14 rounded-2xl bg-white/50 flex items-center justify-center transition-colors group-hover:bg-primary/10">
+                                                        <Zap className="w-7 h-7 text-primary" />
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">Session Status</span>
-                                                        <span className="text-sm font-bold">Active Now</span>
+                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-2">Total Investment</span>
+                                                        <span className="text-lg font-black text-primary italic">
+                                                            ₹{invoices.filter(i => i.status === 'Paid').reduce((acc, i) => acc + i.amount, 0).toLocaleString()}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -2698,6 +2827,24 @@ const UserDashboard = () => {
                                             Pay Later
                                         </div>
                                     </SelectItem>
+                                    <SelectItem 
+                                        value="Pay Monthly" 
+                                        disabled={(() => {
+                                            const parts = bookingParams.duration.split(" ");
+                                            const num = parseFloat(parts[0]) || 0;
+                                            const unit = parts[1]?.toLowerCase() || '';
+                                            if (unit.startsWith('month')) return num < 1;
+                                            if (unit.startsWith('year')) return num < (1/12);
+                                            return true; // Not eligible for days/weeks/hours
+                                        })()}
+                                    >
+                                        <div className="flex items-center gap-2 font-bold">
+                                            <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                                <Layers className="w-3.5 h-3.5 text-blue-600" />
+                                            </div>
+                                            Pay Monthly
+                                        </div>
+                                    </SelectItem>
 
                                 </SelectContent>
                             </Select>
@@ -2718,11 +2865,21 @@ const UserDashboard = () => {
 
                         <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
                             <div className="space-y-0.5">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Estimated Total</p>
-                                <p className="text-sm font-medium text-muted-foreground leading-none">Pro-rated for {bookingParams.duration}</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">
+                                    {bookingParams.paymentMethod === "Pay Monthly" ? "Monthly Commitment" : "Estimated Total"}
+                                </p>
+                                <p className="text-sm font-medium text-muted-foreground leading-none">
+                                    {bookingParams.paymentMethod === "Pay Monthly" 
+                                        ? "Billed every month start" 
+                                        : `Pro-rated for ${bookingParams.duration}`}
+                                </p>
                             </div>
                             <div className="text-right">
-                                <p className="text-2xl font-black text-primary italic">₹{estimatedTotal.toLocaleString()}</p>
+                                <p className="text-2xl font-black text-primary italic">
+                                    ₹{bookingParams.paymentMethod === "Pay Monthly" 
+                                        ? (Number(selectedWorkspaceToBook?.price || 0) * (selectedWorkspaceToBook?.type === "Open WorkStation" ? bookingParams.seatCount : 1)).toLocaleString()
+                                        : estimatedTotal.toLocaleString()}
+                                </p>
                             </div>
                         </div>
 
@@ -2745,7 +2902,8 @@ const UserDashboard = () => {
                                         <span>Processing...</span>
                                     </div>
                                 ) : (
-                                    bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" : "Confirm Request"
+                                    bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" : 
+                                    bookingParams.paymentMethod === "Pay Monthly" ? "Confirm Monthly Plan" : "Confirm Request"
                                 )}
                             </Button>
                         </div>

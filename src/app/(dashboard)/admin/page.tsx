@@ -42,7 +42,9 @@ import {
     Pencil,
     CreditCard,
     FileText,
-    CheckCircle2
+    CheckCircle2,
+    RotateCcw,
+    Zap
 } from "lucide-react";
 import {
     Table,
@@ -223,6 +225,12 @@ const AdminDashboard = () => {
     const [workspaceTypeFilter, setWorkspaceTypeFilter] = useState<string>("all");
     const [workspaceStatusFilter, setWorkspaceStatusFilter] = useState<string>("all");
     const [workspaceLocationFilter, setWorkspaceLocationFilter] = useState<string>("all");
+    const [quoteStatusFilter, setQuoteStatusFilter] = useState<string>("all");
+    const [bookingStatusFilter, setBookingStatusFilter] = useState<string>("all");
+    const [visitStatusFilter, setVisitStatusFilter] = useState<string>("all");
+    const [contactStatusFilter, setContactStatusFilter] = useState<string>("all");
+    const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>("all");
+    const [dayPassStatusFilter, setDayPassStatusFilter] = useState<string>("all");
     const [users, setUsers] = useState<User[]>([]);
     const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
     const [quotes, setQuotes] = useState<QuoteRequest[]>([]);
@@ -295,8 +303,9 @@ const AdminDashboard = () => {
     const [isLoadingAllotment, setIsLoadingAllotment] = useState(false);
     const [viewedNotifications, setViewedNotifications] = useState<string[]>(() => {
         try {
-            const saved = localStorage.getItem("viewedNotifications");
-            return saved ? JSON.parse(saved) : [];
+            const userInfo = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem("userInfo") || "{}") : {};
+            const saved = typeof window !== 'undefined' ? localStorage.getItem("viewedNotifications") : null;
+            return userInfo.viewedNotifications || (saved ? JSON.parse(saved) : []);
         } catch {
             return [];
         }
@@ -304,13 +313,6 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         localStorage.setItem("viewedNotifications", JSON.stringify(viewedNotifications));
-    }, [viewedNotifications]);
-
-    const markAsRead = useCallback((notifId: string, type: string) => {
-        const uniqueId = `${type}-${notifId}`;
-        if (!viewedNotifications.includes(uniqueId)) {
-            setViewedNotifications(prev => [...prev, uniqueId]);
-        }
     }, [viewedNotifications]);
 
     const notifications = useMemo(() => {
@@ -368,6 +370,33 @@ const AdminDashboard = () => {
 
     const unreadCount = notifications.filter(n => !n.isRead).length;
     const pendingCount = notifications.filter(n => n.status === 'Pending').length;
+
+    const markAsRead = useCallback(async (notifId: string, type: string) => {
+        const uniqueId = `${type}-${notifId}`;
+        if (!viewedNotifications.includes(uniqueId)) {
+            const updated = [...viewedNotifications, uniqueId];
+            setViewedNotifications(updated);
+            try {
+                await updateProfile({ viewedNotifications: updated });
+            } catch (error) {
+                console.error("Failed to sync notification status:", error);
+            }
+        }
+    }, [viewedNotifications]);
+
+    const markAllAsRead = useCallback(async () => {
+        const unreadIds = notifications.filter(n => !n.isRead).map(n => `${n.type}-${n.id}`);
+        if (unreadIds.length === 0) return;
+
+        const updated = [...new Set([...viewedNotifications, ...unreadIds])];
+        setViewedNotifications(updated);
+        try {
+            await updateProfile({ viewedNotifications: updated });
+            toast.success("All notifications marked as read");
+        } catch (error) {
+            console.error("Failed to mark all as read:", error);
+        }
+    }, [notifications, viewedNotifications]);
 
     const handlePasswordChange = async () => {
         const newErrors: { [key: string]: string } = {};
@@ -509,6 +538,10 @@ const AdminDashboard = () => {
             setVisitRequests(visitsData);
             setDayPasses(dayPassesData);
             setInvoices(invoicesData);
+
+            if (freshProfile?.viewedNotifications) {
+                setViewedNotifications(freshProfile.viewedNotifications);
+            }
 
         } catch (error: any) {
             console.error("Failed to fetch dashboard data:", error);
@@ -697,15 +730,23 @@ const AdminDashboard = () => {
                 const currentAllotteeId = typeof currentWS.allottedTo === 'string' ? currentWS.allottedTo : (currentWS.allottedTo as any)?._id;
 
                 if (currentAllotteeId && currentAllotteeId !== allotValue) {
-                    const existingStart = currentWS.allotmentStart ? new Date(currentWS.allotmentStart) : null;
-                    const existingEnd = currentWS.unavailableUntil ? new Date(currentWS.unavailableUntil) : null;
-                    const newStart = allotmentStartDate ? new Date(allotmentStartDate) : new Date();
-                    const newEnd = unavailableUntilDate ? new Date(unavailableUntilDate) : null;
+                    // Check if the current allottee is an Admin (placeholder for guest bookings).
+                    // If so, skip the conflict check — Admin was only a temporary placeholder
+                    // and should be freely reassigned to the actual user.
+                    const currentAllotteeUser = users.find(u => u._id === currentAllotteeId || (u as any).id === currentAllotteeId);
+                    const isAdminPlaceholder = (currentAllotteeUser as any)?.role === 'Admin';
 
-                    if (existingStart && (newEnd === null || newEnd >= existingStart) && (existingEnd === null || newStart <= existingEnd)) {
-                        toast.error("Schedule Conflict: This workspace is already allocated to another user during an overlapping period. Please clear the existing allotment first if you wish to overwrite it.");
-                        setIsLoadingAllotment(false);
-                        return;
+                    if (!isAdminPlaceholder) {
+                        const existingStart = currentWS.allotmentStart ? new Date(currentWS.allotmentStart) : null;
+                        const existingEnd = currentWS.unavailableUntil ? new Date(currentWS.unavailableUntil) : null;
+                        const newStart = allotmentStartDate ? new Date(allotmentStartDate) : new Date();
+                        const newEnd = unavailableUntilDate ? new Date(unavailableUntilDate) : null;
+
+                        if (existingStart && (newEnd === null || newEnd >= existingStart) && (existingEnd === null || newStart <= existingEnd)) {
+                            toast.error("Schedule Conflict: This workspace is already allocated to another user during an overlapping period. Please clear the existing allotment first if you wish to overwrite it.");
+                            setIsLoadingAllotment(false);
+                            return;
+                        }
                     }
                 }
             }
@@ -933,7 +974,7 @@ const AdminDashboard = () => {
                 const oldTotal = payload.totalSeats || 0;
                 const newTotal = Number(payload.features?.workstationSeats) || 0;
                 const difference = newTotal - oldTotal;
-                
+
                 payload.totalSeats = newTotal;
                 payload.availableSeats = (payload.availableSeats || 0) + difference;
             }
@@ -1001,27 +1042,92 @@ const AdminDashboard = () => {
         }
     };
 
-    const filteredUsers = users.filter((user) => {
-        const matchesSearch = (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (user.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-        const matchesStatus = userStatusFilter === "all" || user.status === userStatusFilter;
-        return matchesSearch && matchesStatus;
-    });
+    const filteredUsers = useMemo(() => {
+        return users.filter((user) => {
+            const matchesSearch = (user.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (user.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = userStatusFilter === "all" || user.status === userStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [users, searchTerm, userStatusFilter]);
 
-    const filteredWorkspaces = workspaces.filter((ws) => {
-        const matchesSearch = (ws.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-            (ws.location?.toLowerCase() || "").includes(searchTerm.toLowerCase());
-        const matchesType = workspaceTypeFilter === "all" || ws.type === workspaceTypeFilter;
-        const matchesLocation = workspaceLocationFilter === "all" || ws.location === workspaceLocationFilter;
-        
-        const now = new Date();
-        const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-        const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
-        const status = isUnavailable ? "unavailable" : "available";
-        const matchesStatus = workspaceStatusFilter === "all" || status === workspaceStatusFilter;
+    const filteredWorkspaces = useMemo(() => {
+        return workspaces.filter((ws) => {
+            const matchesSearch = (ws.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (ws.location?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesType = workspaceTypeFilter === "all" || ws.type === workspaceTypeFilter;
+            const matchesLocation = workspaceLocationFilter === "all" || ws.location === workspaceLocationFilter;
 
-        return matchesSearch && matchesType && matchesStatus && matchesLocation;
-    });
+            const now = new Date();
+            const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+            const isUnavailable = !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+            const status = isUnavailable ? "unavailable" : "available";
+            const matchesStatus = workspaceStatusFilter === "all" || status === workspaceStatusFilter;
+
+            return matchesSearch && matchesType && matchesStatus && matchesLocation;
+        });
+    }, [workspaces, searchTerm, workspaceTypeFilter, workspaceLocationFilter, workspaceStatusFilter]);
+
+    const filteredQuotes = useMemo(() => {
+        return (Array.isArray(quotes) ? quotes : []).filter(q => {
+            const matchesSearch = (q.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (q.requiredWorkspace?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (q.workEmail?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = quoteStatusFilter === "all" || q.status === quoteStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [quotes, searchTerm, quoteStatusFilter]);
+
+    const filteredBookings = useMemo(() => {
+        return (Array.isArray(bookings) ? bookings : []).filter(b => {
+            const matchesSearch = (b.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (b.workspaceName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (b.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = bookingStatusFilter === "all" || b.status === bookingStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [bookings, searchTerm, bookingStatusFilter]);
+
+    const filteredVisits = useMemo(() => {
+        return (Array.isArray(visitRequests) ? visitRequests : []).filter(v => {
+            const matchesSearch = (v.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (v.workspaceName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (v.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = visitStatusFilter === "all" || v.status === visitStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [visitRequests, searchTerm, visitStatusFilter]);
+
+    const filteredContacts = useMemo(() => {
+        return (Array.isArray(contactRequests) ? contactRequests : []).filter(c => {
+            const matchesSearch = (c.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (c.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (c.subject?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = contactStatusFilter === "all" || c.status === contactStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [contactRequests, searchTerm, contactStatusFilter]);
+
+    const filteredInvoices = useMemo(() => {
+        return (Array.isArray(invoices) ? invoices : []).filter(inv => {
+            const matchesSearch = (inv.customerName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (inv.customerEmail?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (inv.invoiceNumber?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (inv.workspaceName?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = invoiceStatusFilter === "all" || inv.status === invoiceStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [invoices, searchTerm, invoiceStatusFilter]);
+
+    const filteredDayPasses = useMemo(() => {
+        return (Array.isArray(dayPasses) ? dayPasses : []).filter(p => {
+            const matchesSearch = (p.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (p.passCode?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                (p.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
+            const matchesStatus = dayPassStatusFilter === "all" || p.status === dayPassStatusFilter;
+            return matchesSearch && matchesStatus;
+        });
+    }, [dayPasses, searchTerm, dayPassStatusFilter]);
 
     const stats = [
         { label: "Total Users", value: (dashboardStats.totalUsers ?? 0).toString(), icon: UsersIcon, color: "text-blue-500", bg: "bg-blue-500/10" },
@@ -1046,7 +1152,7 @@ const AdminDashboard = () => {
 
     const handleResetInvoices = async () => {
         if (!confirm("Are you sure you want to clear all recurring invoices for the current month? This will allow you to generate them again.")) return;
-        
+
         setIsResettingInvoices(true);
         try {
             const data = await resetMonthlyInvoices();
@@ -1065,7 +1171,7 @@ const AdminDashboard = () => {
             <div className="h-screen w-full flex items-center justify-center bg-background">
                 <div className="flex flex-col items-center gap-4 text-center">
                     <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-                    <p className="text-muted-foreground animate-pulse font-medium">Loading admin console...</p>
+                    <p className="text-muted-foreground animate-pulse font-medium">Loading console...</p>
                 </div>
             </div>
         );
@@ -1089,23 +1195,23 @@ const AdminDashboard = () => {
                                     <SidebarMenuButton
                                         isActive={currentView === "dashboard"}
                                         onClick={() => setCurrentView("dashboard")}
-                                        tooltip="Dashboard"
+                                        tooltip="Overview"
                                         className="group-data-[collapsible=icon]:justify-center"
                                     >
                                         <LayoutDashboard className="w-5 h-5" />
-                                        <span className="group-data-[collapsible=icon]:hidden">Dashboard Overview</span>
+                                        <span className="group-data-[collapsible=icon]:hidden">Overview</span>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
                                     <SidebarMenuButton
                                         isActive={currentView === "users"}
                                         onClick={() => setCurrentView("users")}
-                                        tooltip="User Management"
+                                        tooltip="Users"
                                         className="group-data-[collapsible=icon]:justify-center"
                                     >
-                                        <UsersIcon className="w-5 h-5" />
-                                        <span className="group-data-[collapsible=icon]:hidden">User Management</span>
-                                    </SidebarMenuButton>
+                                         <UsersIcon className="w-5 h-5" />
+                                         <span className="group-data-[collapsible=icon]:hidden">Users</span>
+                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
                                     <SidebarMenuButton
@@ -1136,9 +1242,9 @@ const AdminDashboard = () => {
                                         tooltip="Contacts"
                                         className="group-data-[collapsible=icon]:justify-center"
                                     >
-                                        <MessageSquare className="w-5 h-5" />
-                                        <span className="group-data-[collapsible=icon]:hidden">Contact Inquiries</span>
-                                    </SidebarMenuButton>
+                                         <MessageSquare className="w-5 h-5" />
+                                         <span className="group-data-[collapsible=icon]:hidden">Messages</span>
+                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
                                     <SidebarMenuButton
@@ -1148,7 +1254,7 @@ const AdminDashboard = () => {
                                         className="group-data-[collapsible=icon]:justify-center"
                                     >
                                         <CreditCard className="w-5 h-5" />
-                                        <span className="group-data-[collapsible=icon]:hidden">Financial Statements</span>
+                                        <span className="group-data-[collapsible=icon]:hidden">Invoices</span>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
@@ -1158,9 +1264,9 @@ const AdminDashboard = () => {
                                         tooltip="Day Passes"
                                         className="group-data-[collapsible=icon]:justify-center"
                                     >
-                                        <QrCode className="w-5 h-5" />
-                                        <span className="group-data-[collapsible=icon]:hidden">Issued Day Passes</span>
-                                    </SidebarMenuButton>
+                                         <QrCode className="w-5 h-5" />
+                                         <span className="group-data-[collapsible=icon]:hidden">Passes</span>
+                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
                                     <SidebarMenuButton
@@ -1199,9 +1305,9 @@ const AdminDashboard = () => {
                                         onClick={handleLogout}
                                         className="w-full justify-start text-destructive hover:bg-destructive/10 rounded-xl transition-all font-semibold h-11 px-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2"
                                     >
-                                        <LogOut className="w-5 h-5 mr-3 group-data-[collapsible=icon]:mr-0" />
-                                        <span className="group-data-[collapsible=icon]:hidden">Sign Out</span>
-                                    </SidebarMenuButton>
+                                         <LogOut className="w-5 h-5 mr-3 group-data-[collapsible=icon]:mr-0" />
+                                         <span className="group-data-[collapsible=icon]:hidden">Logout</span>
+                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             </SidebarMenu>
                         </SidebarGroupContent>
@@ -1221,7 +1327,12 @@ const AdminDashboard = () => {
                         <ThemeSwitcher />
                         <Popover>
                             <PopoverTrigger asChild>
-                                <Button variant="ghost" size="icon" className="relative w-9 h-9 transition-all active:scale-95 group">
+                                <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="relative w-9 h-9 transition-all active:scale-95 group"
+                                    onClick={markAllAsRead}
+                                >
                                     <Bell className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
                                     {unreadCount > 0 && (
                                         <span className="absolute top-2 right-2 flex h-2 w-2 rounded-full bg-primary ring-2 ring-background pointer-events-none" />
@@ -1231,7 +1342,15 @@ const AdminDashboard = () => {
                             <PopoverContent className="w-80 p-0 rounded-2xl overflow-hidden glass border-border/50 shadow-2xl" align="end">
                                 <div className="p-4 border-b border-border/50 bg-muted/30">
                                     <div className="flex items-center justify-between">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Notifications Center</h4>
+                                        <div className="flex flex-col">
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary">Notifications</h4>
+                                            <button 
+                                                onClick={markAllAsRead}
+                                                className="text-[9px] font-bold text-muted-foreground hover:text-primary transition-colors text-left mt-1 underline underline-offset-2"
+                                            >
+                                                Mark all as read
+                                            </button>
+                                        </div>
                                         <Badge variant="outline" className="rounded-full px-2 py-0 text-[10px] uppercase font-black bg-primary/10 border-primary/20 text-primary">
                                             {pendingCount} Pending
                                         </Badge>
@@ -1294,9 +1413,8 @@ const AdminDashboard = () => {
                                         size="sm"
                                         className="w-full text-[10px] font-black uppercase tracking-widest text-primary hover:bg-primary/5 hover:text-primary transition-all h-10 rounded-xl"
                                         onClick={() => setCurrentView('requests')}
-                                    >
-                                        View Active Requests Center
-                                    </Button>
+                                    >                                         View Active Requests
+                                     </Button>
                                 </div>
                             </PopoverContent>
                         </Popover>
@@ -1306,77 +1424,124 @@ const AdminDashboard = () => {
 
                 <main className="flex-1 overflow-auto p-6 md:p-8 space-y-8">
                     {currentView === "dashboard" && (
-                        <>
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            {/* Dashboard Header */}
+                            <div className="flex flex-col gap-1">                                 <h2 className="text-3xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                                     Overview
+                                 </h2>
+                                 <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">System overview and stats</p>
+                            </div>
+
                             {/* Stats Grid */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                                {stats.map((stat) => (
-                                    <div key={stat.label} className="card-elevated p-6 space-y-4 glass">
-                                        <div className="flex items-center justify-between">
-                                            <div className={`p-3 rounded-xl ${stat.bg} ${stat.color}`}>
+                                {[
+                                    { label: "Total Users", value: dashboardStats.totalUsers ?? 0, icon: UsersIcon, color: "blue", trend: "+12.5%", description: "Registered users in the system" },
+                                    { label: "Active Members", value: dashboardStats.activeMembers ?? 0, icon: ShieldCheck, color: "emerald", trend: "+5.2%", description: "Members with active status" },
+                                    { label: "Quote Requests", value: dashboardStats.newQuoteRequests ?? 0, icon: UserPlus, color: "amber", trend: "Pending", description: "New requests for workspace quotes" },
+                                    { label: "Bookings", value: dashboardStats.newBookingRequests ?? 0, icon: Calendar, color: "violet", trend: "Active", description: "Confirmed space bookings" }
+                                ].map((stat) => (
+                                    <div key={stat.label} className="group/stat card-elevated p-6 glass relative overflow-hidden transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]">
+                                        <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-${stat.color}-500/5 rounded-full blur-2xl group-hover/stat:bg-${stat.color}-500/10 transition-all duration-700`} />
+
+                                        <div className="flex items-start justify-between relative z-10">
+                                            <div className={`p-3 rounded-2xl bg-${stat.color}-500/10 text-${stat.color}-500 group-hover/stat:rotate-6 transition-transform duration-500`}>
                                                 <stat.icon className="w-6 h-6" />
                                             </div>
+                                            <div className="text-right">
+                                                <span className={`text-[10px] font-black uppercase tracking-wider text-${stat.color}-500 bg-${stat.color}-500/10 px-2 py-0.5 rounded-full`}>
+                                                    {stat.trend}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">{stat.label}</p>
-                                            <p className="text-2xl font-bold">{stat.value}</p>
+
+                                        <div className="mt-8 space-y-1 relative z-10">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</p>
+                                            <div className="flex items-baseline gap-2">
+                                                <p className="text-3xl font-black italic tracking-tighter">{stat.value.toLocaleString()}</p>
+                                                <span className="text-[10px] font-bold text-muted-foreground/40">units</span>
+                                            </div>
+                                            <p className="text-[9px] font-medium text-muted-foreground italic pt-2 opacity-0 group-hover/stat:opacity-100 transition-opacity duration-300">
+                                                {stat.description}
+                                            </p>
                                         </div>
                                     </div>
                                 ))}
                             </div>
 
-                            <div className="grid lg:grid-cols-2 gap-8">
-                                <RecentUsersTable
-                                    users={(Array.isArray(users) ? users : [])}
-                                    currentPage={tablePages.recentUsers}
-                                    onPageChange={(page) => setTablePages({ ...tablePages, recentUsers: page })}
-                                    itemsPerPage={5}
-                                />
-                                <div className="card-elevated p-6 glass space-y-4">
-                                    <h3 className="text-lg font-bold">Quick Actions</h3>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <Button variant="outline" className="h-24 flex-col gap-2 rounded-2xl border-dashed hover:border-primary hover:bg-primary/5 hover:text-primary transition-all" onClick={() => setCurrentView("workspaces")}>
-                                            <Plus className="w-6 h-6" />
-                                            Create Workspace
-                                        </Button>
-                                        <Button variant="outline" className="h-24 flex-col gap-2 rounded-2xl border-dashed hover:border-primary hover:bg-primary/5 hover:text-primary transition-all" onClick={() => {
-                                            setCurrentView("users");
-                                            setIsUserDialogOpen(true);
-                                        }}>
-                                            <UserPlus className="w-6 h-6" />
-                                            Add Member
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            className="h-24 flex-col gap-2 rounded-2xl border-dashed hover:border-primary hover:bg-primary/5 hover:text-primary transition-all relative overflow-hidden group"
-                                            onClick={handleGenerateInvoices}
-                                            disabled={isGeneratingInvoices}
-                                        >
-                                            {isGeneratingInvoices ? (
-                                                <Loader2 className="w-6 h-6 animate-spin" />
-                                            ) : (
-                                                <FileText className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                            )}
-                                            <span className="text-center">Generate Invoices</span>
-                                            {isGeneratingInvoices && (
-                                                <div className="absolute inset-0 bg-primary/5 animate-pulse" />
-                                            )}
-                                        </Button>
+                            <div className="grid lg:grid-cols-12 gap-8">
+                                <div className="lg:col-span-8">
+                                    <RecentUsersTable
+                                        users={(Array.isArray(users) ? users : [])}
+                                        currentPage={tablePages.recentUsers}
+                                        onPageChange={(page) => setTablePages({ ...tablePages, recentUsers: page })}
+                                        itemsPerPage={5}
+                                    />
+                                </div>
+
+                                <div className="lg:col-span-4 space-y-6">
+                                    <div className="card-elevated p-8 glass relative overflow-hidden group/actions">
+                                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/20 via-primary to-primary/20" />
+
+                                        <div className="flex items-center justify-between mb-8">                                             <div>
+                                                 <h3 className="text-lg font-black italic tracking-tight">Quick Operations</h3>
+                                                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Common Actions</p>
+                                             </div>
+                                            <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center">
+                                                <Zap className="w-5 h-5 text-primary animate-pulse" />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {[
+                                                { label: "Add Workspace", sub: "Create a new workspace entry", icon: Plus, action: () => setCurrentView("workspaces"), color: "bg-slate-900", text: "text-white" },
+                                                { label: "Add User", sub: "Register a new user account", icon: UserPlus, action: () => { setCurrentView("users"); setIsUserDialogOpen(true); }, color: "bg-primary/5 shadow-sm", text: "text-foreground" },
+                                                { label: "Generate Invoices", sub: "Create monthly invoices for members", icon: FileText, action: handleGenerateInvoices, loading: isGeneratingInvoices, color: "bg-primary/5 shadow-sm", text: "text-foreground" }
+                                            ].map((action, idx) => (
+                                                <Button
+                                                    key={idx}
+                                                    variant="ghost"
+                                                    className={`h-auto p-4 flex items-center gap-4 ${action.color} border border-transparent hover:border-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 group/btn rounded-2xl relative overflow-hidden`}
+                                                    onClick={action.action}
+                                                    disabled={action.loading}
+                                                >
+                                                    <div className={`w-12 h-12 rounded-xl ${action.text === 'text-white' ? 'bg-white/10' : 'bg-primary/10'} flex items-center justify-center shrink-0 shadow-inner group-hover/btn:scale-110 transition-transform`}>
+                                                        {action.loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <action.icon className={`w-5 h-5 ${action.text === 'text-white' ? 'text-white' : 'text-primary'}`} />}
+                                                    </div>
+                                                    <div className="flex flex-col items-start overflow-hidden">
+                                                        <span className={`text-sm font-black italic tracking-tight ${action.text}`}>{action.label}</span>
+                                                        <span className={`text-[10px] font-medium opacity-60 truncate ${action.text}`}>{action.sub}</span>
+                                                    </div>
+                                                    <ChevronDown className={`w-4 h-4 ml-auto -rotate-90 opacity-0 group-hover/btn:opacity-100 group-hover/btn:translate-x-1 transition-all ${action.text}`} />
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* System Health Card */}
+                                    <div className="card-elevated p-6 glass border-emerald-500/10 bg-emerald-500/[0.02]">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600">System Status: 99.9%</span>
+                                        </div>
+                                        <div className="mt-4 h-1.5 w-full bg-emerald-500/10 rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-500 w-[99.9%] rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </>
+                        </div>
                     )}
-
                     {currentView === "invoices" && (
                         <div className="space-y-6 animate-in fade-in duration-500">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                                 <div>
                                     <h2 className="text-3xl font-black tracking-tight flex items-center gap-3 italic">
                                         <CreditCard className="w-8 h-8 text-primary" />
-                                        Financial Statements
+                                        Invoices
                                     </h2>
                                     <p className="text-muted-foreground font-medium text-sm mt-1">Audit and track ecosystem revenue streams.</p>
-                                </div>                                <div className="flex items-center gap-3">
+                                </div>
+                                <div className="flex items-center gap-3">
                                     <Button
                                         variant="outline"
                                         onClick={handleResetInvoices}
@@ -1409,120 +1574,167 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
 
+                            <div className="flex flex-wrap items-center gap-3 bg-muted/20 p-4 rounded-2xl border border-border/50">
+                                <div className="relative flex-1 min-w-[300px]">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                    <Input
+                                        placeholder="Search by invoice #, client or workspace..."
+                                        className="h-12 pl-12 rounded-xl bg-background border-border/50 focus:border-primary/20 transition-all font-bold"
+                                        value={searchTerm || ""}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
+                                    <SelectTrigger className="w-[160px] h-12 rounded-xl bg-background border-border/50 font-bold">
+                                        <div className="flex items-center gap-2">
+                                            <Filter className="w-4 h-4 text-muted-foreground" />
+                                            <SelectValue placeholder="All Status" />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                                        <SelectItem value="all">All Status</SelectItem>
+                                        <SelectItem value="Paid">Paid</SelectItem>
+                                        <SelectItem value="Pending">Pending</SelectItem>
+                                        <SelectItem value="Overdue">Overdue</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
                             <InvoicesTable
-                                invoices={invoices}
+                                invoices={filteredInvoices}
                                 currentPage={tablePages.invoices}
                                 onPageChange={(page) => setTablePages({ ...tablePages, invoices: page })}
                                 itemsPerPage={ITEMS_PER_PAGE}
                             />
                         </div>
                     )}
-
                     {currentView === "users" && (
-                        <div className="space-y-4">
-                            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <h2 className="text-2xl font-bold">User Management</h2>
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                    <div className="relative flex-1 sm:w-64">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                                <div>                                     <h2 className="text-3xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 flex items-center gap-4">
+                                         <UsersIcon className="w-8 h-8 text-primary" />
+                                         Users
+                                     </h2>
+                                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60 mt-1">Member Directory</p>
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                                    <div className="relative flex-1 min-w-[280px]">
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
                                         <Input
-                                            placeholder="Search users..."
-                                            className="pl-9 h-10 rounded-xl"
+                                            placeholder="Search by name or email..."
+                                            className="h-14 pl-12 pr-4 rounded-2xl bg-muted/20 border-primary/5 focus:border-primary/20 focus:bg-background transition-all font-bold placeholder:font-medium placeholder:text-muted-foreground/40 shadow-inner"
                                             value={searchTerm || ""}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
                                     </div>
 
-                                    <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
-                                        <DialogTrigger asChild>
-                                            <Button className="rounded-xl gap-2 font-bold shadow-lg shadow-primary/20">
-                                                <UserPlus className="w-4 h-4" />
-                                                Add User
-                                            </Button>
-                                        </DialogTrigger>
-                                        <DialogContent className="sm:max-w-[500px] rounded-2xl max-h-[90vh] overflow-y-auto">
-                                            <form onSubmit={handleCreateUser} noValidate>
-                                                <DialogHeader>
-                                                    <DialogTitle className="text-2xl">Register New User</DialogTitle>
-                                                    <DialogDescription>
-                                                        Create a new account manually. Default role is Member.
-                                                    </DialogDescription>
-                                                </DialogHeader>
-                                                <div className="grid gap-5 py-6">
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="user-name">Full Name</Label>
-                                                        <div className="relative">
-                                                            <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                            <Input
-                                                                id="user-name"
-                                                                placeholder="Pranav Raj"
-                                                                className={`pl-9 ${userErrors.name ? "border-destructive ring-destructive/20" : ""}`}
-                                                                value={newUserData.name || ""}
-                                                                onChange={(e) => {
-                                                                    setNewUserData({ ...newUserData, name: e.target.value });
-                                                                    if (userErrors.name) setUserErrors({ ...userErrors, name: "" });
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        {userErrors.name && (
-                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                <AlertCircle className="w-3 h-3" /> {userErrors.name}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="user-email">Email Address</Label>
-                                                        <div className="relative">
-                                                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                            <Input
-                                                                id="user-email"
-                                                                type="email"
-                                                                placeholder="pranav@example.com"
-                                                                className={`pl-9 ${userErrors.email ? "border-destructive ring-destructive/20" : ""}`}
-                                                                value={newUserData.email || ""}
-                                                                onChange={(e) => {
-                                                                    setNewUserData({ ...newUserData, email: e.target.value });
-                                                                    if (userErrors.email) setUserErrors({ ...userErrors, email: "" });
-                                                                }}
-                                                            />
-                                                        </div>
-                                                        {userErrors.email && (
-                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                <AlertCircle className="w-3 h-3" /> {userErrors.email}
-                                                            </p>
-                                                        )}
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div className="space-y-2">
-                                                            <Label htmlFor="user-password">Password</Label>
+                                    <Select value={userStatusFilter} onValueChange={setUserStatusFilter}>
+                                        <SelectTrigger className="w-[160px] h-14 rounded-2xl bg-muted/20 border-primary/5 font-bold">
+                                            <div className="flex items-center gap-2">
+                                                <Filter className="w-4 h-4 text-muted-foreground" />
+                                                <SelectValue placeholder="All Status" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="Active">Active</SelectItem>
+                                            <SelectItem value="Inactive">Inactive</SelectItem>
+                                            <SelectItem value="Pending">Pending</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+
+                                    <div className="flex items-center gap-3">
+                                        <Dialog open={isUserDialogOpen} onOpenChange={setIsUserDialogOpen}>
+                                            <DialogTrigger asChild>
+                                                <Button className="h-14 px-8 rounded-2xl gap-3 font-black bg-slate-900 text-white shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all group">
+                                                    <UserPlus className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+                                                    Add User
+                                                </Button>
+                                            </DialogTrigger>
+                                            <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-border/40 p-0 overflow-hidden glass shadow-2xl">
+                                                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-indigo-500 to-violet-600" />
+                                                <form onSubmit={handleCreateUser} noValidate className="p-8 sm:p-10 space-y-8">
+                                                    <DialogHeader>                                                         <DialogTitle className="text-3xl font-black italic tracking-tight">Add Member</DialogTitle>
+                                                         <DialogDescription className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                                                             Enter details to create a new account.
+                                                         </DialogDescription>
+                                                    </DialogHeader>
+                                                    <div className="grid gap-6">
+                                                        <div className="space-y-2 group">
+                                                            <Label htmlFor="user-name" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-primary transition-colors">Full Name</Label>
                                                             <div className="relative">
-                                                                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                                <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                                                 <Input
-                                                                    id="user-password"
-                                                                    type="password"
-                                                                    placeholder="••••••••"
-                                                                    className={`pl-9 ${userErrors.password ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newUserData.password || ""}
+                                                                    id="user-name"
+                                                                    placeholder="Pranav Raj"
+                                                                    className={`h-12 pl-11 rounded-xl bg-muted/50 border-primary/5 focus:border-primary/20 transition-all font-bold ${userErrors.name ? "border-destructive ring-destructive/20" : ""}`}
+                                                                    value={newUserData.name || ""}
                                                                     onChange={(e) => {
-                                                                        setNewUserData({ ...newUserData, password: e.target.value });
-                                                                        if (userErrors.password) setUserErrors({ ...userErrors, password: "" });
+                                                                        setNewUserData({ ...newUserData, name: e.target.value });
+                                                                        if (userErrors.name) setUserErrors({ ...userErrors, name: "" });
                                                                     }}
                                                                 />
                                                             </div>
-                                                            {userErrors.password && (
+                                                            {userErrors.name && (
                                                                 <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                    <AlertCircle className="w-3 h-3" /> {userErrors.password}
+                                                                    <AlertCircle className="w-3 h-3" /> {userErrors.name}
                                                                 </p>
                                                             )}
                                                         </div>
-                                                        <div className="space-y-2">
-                                                            <Label htmlFor="user-mobile">Mobile Number</Label>
+                                                        <div className="space-y-2 group">
+                                                            <Label htmlFor="user-email" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-primary transition-colors">Email Address</Label>
                                                             <div className="relative">
-                                                                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                                <Input
+                                                                    id="user-email"
+                                                                    type="email"
+                                                                    placeholder="pranav@example.com"
+                                                                    className={`h-12 pl-11 rounded-xl bg-muted/50 border-primary/5 focus:border-primary/20 transition-all font-bold ${userErrors.email ? "border-destructive ring-destructive/20" : ""}`}
+                                                                    value={newUserData.email || ""}
+                                                                    onChange={(e) => {
+                                                                        setNewUserData({ ...newUserData, email: e.target.value });
+                                                                        if (userErrors.email) setUserErrors({ ...userErrors, email: "" });
+                                                                    }}
+                                                                />
+                                                            </div>
+                                                            {userErrors.email && (
+                                                                <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                    <AlertCircle className="w-3 h-3" /> {userErrors.email}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div className="space-y-2 group">
+                                                                <Label htmlFor="user-password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-primary transition-colors">Password</Label>
+                                                                <div className="relative">
+                                                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                                    <Input
+                                                                        id="user-password"
+                                                                        type="password"
+                                                                        placeholder="••••••••"
+                                                                        className={`h-12 pl-11 rounded-xl bg-muted/50 border-primary/5 focus:border-primary/20 transition-all font-bold ${userErrors.password ? "border-destructive ring-destructive/20" : ""}`}
+                                                                        value={newUserData.password || ""}
+                                                                        onChange={(e) => {
+                                                                            setNewUserData({ ...newUserData, password: e.target.value });
+                                                                            if (userErrors.password) setUserErrors({ ...userErrors, password: "" });
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                {userErrors.password && (
+                                                                    <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                        <AlertCircle className="w-3 h-3" /> {userErrors.password}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                        <div className="space-y-2 group">
+                                                            <Label htmlFor="user-mobile" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-primary transition-colors">Mobile Number</Label>
+                                                            <div className="relative">
+                                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                                                 <Input
                                                                     id="user-mobile"
                                                                     placeholder="+91 98765 43210"
-                                                                    className="pl-9"
+                                                                    className="h-12 pl-11 rounded-xl bg-muted/50 border-primary/5 focus:border-primary/20 transition-all font-bold"
                                                                     value={newUserData.mobile || ""}
                                                                     onChange={(e) => setNewUserData({ ...newUserData, mobile: e.target.value })}
                                                                 />
@@ -1530,88 +1742,53 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
 
-                                                    <div className="space-y-2">
-                                                        <Label htmlFor="user-org">Organization / Company</Label>
-                                                        <div className="relative">
-                                                            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                                            <Input
-                                                                id="user-org"
-                                                                placeholder="e.g. Cohort Creative"
-                                                                className="pl-9"
-                                                                value={newUserData.organization || ""}
-                                                                onChange={(e) => setNewUserData({ ...newUserData, organization: e.target.value })}
-                                                            />
+                                                        <div className="space-y-2 group">
+                                                            <Label htmlFor="user-org" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-primary transition-colors">Organization</Label>
+                                                            <div className="relative">
+                                                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                                                <Input
+                                                                    id="user-org"
+                                                                    placeholder="e.g. Cohort Creative"
+                                                                    className="h-12 pl-11 rounded-xl bg-muted/50 border-primary/5 focus:border-primary/20 transition-all font-bold"
+                                                                    value={newUserData.organization || ""}
+                                                                    onChange={(e) => setNewUserData({ ...newUserData, organization: e.target.value })}
+                                                                />
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-between p-6 rounded-2xl bg-primary/5 border border-primary/10">
+                                                            <div className="space-y-1">
+                                                                 <Label className="text-xs font-black italic tracking-tight">Role</Label>
+                                                                 <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-widest">Select access level</p>
+                                                            </div>
+                                                            <Select
+                                                                value={newUserData.role}
+                                                                onValueChange={(val: any) => setNewUserData({ ...newUserData, role: val })}
+                                                            >
+                                                                <SelectTrigger className="w-[140px] h-10 rounded-xl bg-background shadow-sm border-primary/5">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="rounded-xl border-border/40">
+                                                                    <SelectItem value="Member">Member</SelectItem>
+                                                                    <SelectItem value="Admin">Admin</SelectItem>
+                                                                    <SelectItem value="Authenticator">Authenticator</SelectItem>
+                                                                </SelectContent>
+                                                            </Select>
                                                         </div>
                                                     </div>
-
-                                                    <div className="flex items-center justify-between p-4 rounded-xl border border-border bg-muted/30 mt-2">
-                                                        <div className="space-y-0.5">
-                                                            <Label className="text-sm font-semibold">Admin Access</Label>
-                                                            <p className="text-xs text-muted-foreground">Grant administrative privileges to this user</p>
-                                                        </div>
-                                                        <Select
-                                                            value={newUserData.role}
-                                                            onValueChange={(val: any) => setNewUserData({ ...newUserData, role: val })}
-                                                        >
-                                                            <SelectTrigger className="w-[120px]">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="Member">Member</SelectItem>
-                                                                <SelectItem value="Admin">Admin</SelectItem>
-                                                                <SelectItem value="Authenticator">Authenticator</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </div>
-                                                <DialogFooter>
-                                                    <Button type="button" variant="outline" onClick={() => setIsUserDialogOpen(false)} disabled={isLoadingUser}>Cancel</Button>
-                                                    <Button type="submit" disabled={isLoadingUser}>
-                                                        {isLoadingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Account"}
-                                                    </Button>
-                                                </DialogFooter>
-                                            </form>
-                                        </DialogContent>
-                                    </Dialog>
-
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="outline" size="icon" className={`rounded-xl h-10 w-10 ${userStatusFilter !== 'all' ? 'border-primary bg-primary/5 text-primary' : ''}`}>
-                                                <Filter className="w-4 h-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="rounded-xl w-48 border-border/50 glass">
-                                            <div className="p-2">
-                                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 px-2">Filter by Status</p>
-                                                <DropdownMenuItem
-                                                    onClick={() => setUserStatusFilter("all")}
-                                                    className={`rounded-lg cursor-pointer ${userStatusFilter === 'all' ? 'bg-primary/10 text-primary font-bold' : ''}`}
-                                                >
-                                                    All Members
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => setUserStatusFilter("Active")}
-                                                    className={`rounded-lg cursor-pointer ${userStatusFilter === 'Active' ? 'bg-emerald-500/10 text-emerald-600 font-bold' : ''}`}
-                                                >
-                                                    Active
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => setUserStatusFilter("Inactive")}
-                                                    className={`rounded-lg cursor-pointer ${userStatusFilter === 'Inactive' ? 'bg-destructive/10 text-destructive font-bold' : ''}`}
-                                                >
-                                                    Inactive
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => setUserStatusFilter("Pending")}
-                                                    className={`rounded-lg cursor-pointer ${userStatusFilter === 'Pending' ? 'bg-amber-500/10 text-amber-600 font-bold' : ''}`}
-                                                >
-                                                    Pending
-                                                </DropdownMenuItem>
-                                            </div>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
+                                                    <DialogFooter className="gap-3">
+                                                        <Button type="button" variant="ghost" className="h-12 rounded-xl font-bold" onClick={() => setIsUserDialogOpen(false)} disabled={isLoadingUser}>Cancel</Button>
+                                                        <Button type="submit" className="h-12 px-8 rounded-xl font-black bg-primary shadow-lg shadow-primary/20" disabled={isLoadingUser}>
+                                                            {isLoadingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Working...</> : "Add User"}
+                                                        </Button>
+                                                    </DialogFooter>
+                                                </form>
+                                            </DialogContent>
+                                        </Dialog>
+                                    </div>
                                 </div>
                             </div>
+
                             <UsersTable
                                 users={filteredUsers}
                                 onEdit={(user) => {
@@ -1626,22 +1803,21 @@ const AdminDashboard = () => {
 
                             {/* Edit User Profile Modal */}
                             <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
-                                <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 border-none shadow-2xl max-h-[90vh] overflow-y-auto">
-                                    <div className="bg-gradient-to-br from-primary/10 via-background to-background p-8">
+                                <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-border/40 p-0 overflow-hidden glass shadow-2xl">
+                                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-indigo-500 to-violet-600" />
+                                    <div className="p-8 sm:p-10">
                                         <form onSubmit={handleUpdateUser} className="space-y-6" noValidate>
                                             <DialogHeader>
                                                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
                                                     <UserIcon className="w-6 h-6 text-primary" />
                                                 </div>
-                                                <DialogTitle className="text-3xl font-black tracking-tight">Edit Member</DialogTitle>
-                                                <DialogDescription className="text-base font-medium text-muted-foreground/80">
-                                                    Refine profile details for <span className="text-foreground font-bold">{editingUser?.name}</span>
-                                                </DialogDescription>
+                                                 <DialogTitle className="text-3xl font-black italic tracking-tight">Update Member</DialogTitle>
+                                                 <DialogDescription className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Edit details for: <span className="text-primary font-black italic">{editingUser?.name}</span></DialogDescription>
                                             </DialogHeader>
 
                                             <div className="grid gap-5 py-2">
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Full Identity</Label>
+                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Full Name</Label>
                                                     <Input
                                                         className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editUserErrors.name ? "border-destructive ring-destructive/20" : ""}`}
                                                         value={editingUser?.name || ""}
@@ -1657,7 +1833,7 @@ const AdminDashboard = () => {
                                                     )}
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Digital Mail</Label>
+                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Email Address</Label>
                                                     <Input
                                                         type="email"
                                                         className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editUserErrors.email ? "border-destructive ring-destructive/20" : ""}`}
@@ -1674,7 +1850,7 @@ const AdminDashboard = () => {
                                                     )}
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Contact Number</Label>
+                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Mobile Number</Label>
                                                     <Input
                                                         placeholder="+91 98765 43210"
                                                         className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
@@ -1683,7 +1859,7 @@ const AdminDashboard = () => {
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Affiliation / Startup</Label>
+                                                     <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Organization</Label>
                                                     <Input
                                                         className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
                                                         value={editingUser?.organization || ""}
@@ -1692,7 +1868,7 @@ const AdminDashboard = () => {
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Access Level</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">User Role</Label>
                                                         <div className="mt-1.5">
                                                             <Select
                                                                 value={editingUser?.role || "Member"}
@@ -1708,7 +1884,7 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Account Sync</Label>
+                                                         <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Status</Label>
                                                         <div className="mt-1.5">
                                                             <Select
                                                                 value={editingUser?.status || "Active"}
@@ -1729,7 +1905,7 @@ const AdminDashboard = () => {
                                             <DialogFooter className="pt-4 gap-3">
                                                 <Button type="button" variant="ghost" onClick={() => setIsEditUserDialogOpen(false)} className="rounded-2xl h-12 font-bold px-6" disabled={isLoadingUser}>Discard</Button>
                                                 <Button type="submit" className="rounded-2xl h-12 px-10 font-black shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]" disabled={isLoadingUser}>
-                                                    {isLoadingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Profile"}
+                                                    {isLoadingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
                                                 </Button>
                                             </DialogFooter>
                                         </form>
@@ -1744,12 +1920,12 @@ const AdminDashboard = () => {
                                         <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto ring-8 ring-destructive/5">
                                             <CircleX className="w-10 h-10 text-destructive" />
                                         </div>
-                                        <DialogHeader>
-                                            <DialogTitle className="text-2xl font-black tracking-tight text-center">Revoke Access?</DialogTitle>
-                                            <DialogDescription className="text-muted-foreground font-medium text-center">
-                                                This action will permanently remove this member from the network. This cannot be undone.
-                                            </DialogDescription>
-                                        </DialogHeader>
+                                        <DialogHeader className="space-y-2">
+                                             <DialogTitle className="text-2xl font-black tracking-tight text-center">Delete Member?</DialogTitle>
+                                             <DialogDescription className="text-muted-foreground font-medium text-center">
+                                                 This action will permanently remove this user from the system.
+                                             </DialogDescription>
+                                         </DialogHeader>
                                         <div className="flex flex-col gap-3">
                                             <Button
                                                 variant="destructive"
@@ -1757,7 +1933,7 @@ const AdminDashboard = () => {
                                                 className="w-full h-14 rounded-2xl font-black shadow-lg shadow-destructive/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                                 disabled={isLoadingDelete}
                                             >
-                                                {isLoadingDelete ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : "Confirm Deletion"}
+                                                {isLoadingDelete ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...</> : "Delete Account"}
                                             </Button>
                                             <Button
                                                 variant="ghost"
@@ -1765,7 +1941,7 @@ const AdminDashboard = () => {
                                                 className="w-full h-14 rounded-2xl font-bold"
                                                 disabled={isLoadingDelete}
                                             >
-                                                Keep Member
+                                                Cancel
                                             </Button>
                                         </div>
                                     </div>
@@ -1940,7 +2116,7 @@ const AdminDashboard = () => {
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label htmlFor="type">Workspace Classification</Label>
+                                                        <Label htmlFor="type">Workspace Type</Label>
                                                         <Input
                                                             id="type"
                                                             list="existing-types"
@@ -1958,9 +2134,6 @@ const AdminDashboard = () => {
                                                             </p>
                                                         )}
                                                         <datalist id="existing-types">
-                                                            {Array.from(new Set(workspaces.map(ws => ws.location))).map(loc => (
-                                                                <option key={loc} value={loc} />
-                                                            ))}
                                                             {Array.from(new Set(workspaces.map(ws => ws.type))).map(type => (
                                                                 <option key={type} value={type} />
                                                             ))}
@@ -2323,7 +2496,7 @@ const AdminDashboard = () => {
                                                     <div className="space-y-2">
                                                         <Label className="text-destructive font-bold flex items-center gap-2">
                                                             <Clock className="w-4 h-4" />
-                                                            Unavailable Until
+                                                            End Date
                                                         </Label>
                                                         <DateTimePicker
                                                             date={unavailableUntilDate ? new Date(unavailableUntilDate) : undefined}
@@ -2377,7 +2550,7 @@ const AdminDashboard = () => {
 
                                             <div className="grid gap-5 py-2">
                                                 <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Full Name</Label>
+                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Workspace Name</Label>
                                                     <Input
                                                         className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editWorkspaceErrors.name ? "border-destructive ring-destructive/20" : ""}`}
                                                         value={editingWorkspace?.name || ""}
@@ -2394,7 +2567,7 @@ const AdminDashboard = () => {
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Geography</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Location</Label>
                                                         <Input
                                                             className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold pl-3 ${editWorkspaceErrors.location ? "border-destructive ring-destructive/20" : ""}`}
                                                             list="edit-existing-locations"
@@ -2416,7 +2589,7 @@ const AdminDashboard = () => {
                                                         </datalist>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Elevation</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Floor Level</Label>
                                                         <Input
                                                             className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
                                                             value={editingWorkspace?.floor || ""}
@@ -2426,7 +2599,7 @@ const AdminDashboard = () => {
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Architecture / Type</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Workspace Type</Label>
                                                         <Input
                                                             className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold pl-3 mt-1.5 ${editWorkspaceErrors.type ? "border-destructive ring-destructive/20" : ""}`}
                                                             list="edit-existing-types"
@@ -2449,7 +2622,7 @@ const AdminDashboard = () => {
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Price Configuration (₹/mo)</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Monthly Price (₹)</Label>
                                                         <div className="relative">
                                                             <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">₹</span>
                                                             <Input
@@ -2470,7 +2643,7 @@ const AdminDashboard = () => {
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Crowd Limit</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Seating Capacity</Label>
                                                         <Input
                                                             className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
                                                             value={editingWorkspace?.capacity || ""}
@@ -2569,7 +2742,7 @@ const AdminDashboard = () => {
                                             </div>
 
                                             <div className="space-y-4">
-                                                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Curated Amenities</Label>
+                                                <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Amenities</Label>
                                                 <div className="flex gap-2">
                                                     <div className="relative flex-1">
                                                         <Plus className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -2592,7 +2765,7 @@ const AdminDashboard = () => {
                                                         variant="secondary"
                                                         onClick={() => addAmenity(true)}
                                                     >
-                                                        Push
+                                                        Add
                                                     </Button>
                                                 </div>
                                                 <div className="flex flex-wrap gap-2 p-4 rounded-2xl bg-muted/20 border border-border/30 min-h-[60px]">
@@ -2733,8 +2906,8 @@ const AdminDashboard = () => {
                                             <Building2 className="w-10 h-10 text-destructive" />
                                         </div>
                                         <div className="space-y-2">
-                                            <h3 className="text-2xl font-black tracking-tight">Remove Space?</h3>
-                                            <p className="text-muted-foreground font-medium">You are about to delete this workspace from your portfolio. All current allotments will be lost.</p>
+                                            <DialogTitle className="text-2xl font-black tracking-tight">Remove Space?</DialogTitle>
+                                            <DialogDescription className="text-muted-foreground font-medium">You are about to delete this workspace from your portfolio. All current allotments will be lost.</DialogDescription>
                                         </div>
                                         <div className="flex flex-col gap-3">
                                             <Button
@@ -2801,25 +2974,49 @@ const AdminDashboard = () => {
                                         )}
                                     </Button>
                                 </div>
-                                <div className="relative flex-1 sm:w-64">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder={`Search ${requestSubView}...`}
-                                        className="pl-9 h-10 rounded-xl"
-                                        value={searchTerm || ""}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                                <div className="flex items-center gap-3 flex-1 sm:justify-end">
+                                    <div className="relative w-full sm:max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder={`Search ${requestSubView}...`}
+                                            className="pl-9 h-12 rounded-xl bg-background border-border/50"
+                                            value={searchTerm || ""}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <Select
+                                        value={requestSubView === "quotes" ? quoteStatusFilter : requestSubView === "bookings" ? bookingStatusFilter : visitStatusFilter}
+                                        onValueChange={requestSubView === "quotes" ? setQuoteStatusFilter : requestSubView === "bookings" ? setBookingStatusFilter : setVisitStatusFilter}
+                                    >
+                                        <SelectTrigger className="w-[140px] h-12 rounded-xl bg-background border-border/50 font-bold">
+                                            <div className="flex items-center gap-2">
+                                                <Filter className="w-4 h-4" />
+                                                <SelectValue placeholder="Status" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="Pending">Pending</SelectItem>
+                                            {requestSubView === "quotes" ? (
+                                                <>
+                                                    <SelectItem value="Approved">Approved</SelectItem>
+                                                    <SelectItem value="Rejected">Rejected</SelectItem>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <SelectItem value="Confirmed">Confirmed</SelectItem>
+                                                    <SelectItem value="Cancelled">Cancelled</SelectItem>
+                                                </>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
 
                             {requestSubView === "quotes" && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                                     <QuotesTable
-                                        quotes={quotes.filter(q =>
-                                            (q.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                            (q.requiredWorkspace?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                            (q.workEmail?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-                                        )}
+                                        quotes={filteredQuotes}
                                         onUpdateStatus={async (id, status) => {
                                             setUpdatingRequestId(id);
                                             try {
@@ -2845,11 +3042,7 @@ const AdminDashboard = () => {
                             {requestSubView === "bookings" && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                                     <BookingsTable
-                                        bookings={bookings.filter(b =>
-                                            (b.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                            (b.workspaceName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                            (b.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-                                        )}
+                                        bookings={filteredBookings}
                                         onUpdateStatus={async (id, status) => {
                                             setUpdatingRequestId(id);
                                             try {
@@ -2875,11 +3068,7 @@ const AdminDashboard = () => {
                             {requestSubView === "visits" && (
                                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                                     <VisitsTable
-                                        visits={(Array.isArray(visitRequests) ? visitRequests : []).filter(v =>
-                                            (v.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                            (v.workspaceName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                            (v.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-                                        )}
+                                        visits={filteredVisits}
                                         onUpdateStatus={async (id, status) => {
                                             setUpdatingRequestId(id);
                                             try {
@@ -2908,22 +3097,34 @@ const AdminDashboard = () => {
                         <div className="space-y-4">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                                 <h2 className="text-2xl font-bold">Contact Inquiries</h2>
-                                <div className="relative flex-1 sm:w-64">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                                    <Input
-                                        placeholder="Search messages..."
-                                        className="pl-9 h-10 rounded-xl"
-                                        value={searchTerm || ""}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                                <div className="flex items-center gap-3 flex-1 sm:justify-end">
+                                    <div className="relative w-full sm:max-w-xs">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                        <Input
+                                            placeholder="Search messages..."
+                                            className="pl-9 h-12 rounded-xl bg-background border-border/50"
+                                            value={searchTerm || ""}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <Select value={contactStatusFilter} onValueChange={setContactStatusFilter}>
+                                        <SelectTrigger className="w-[140px] h-12 rounded-xl bg-background border-border/50 font-bold">
+                                            <div className="flex items-center gap-2">
+                                                <Filter className="w-4 h-4" />
+                                                <SelectValue placeholder="Status" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="Pending">Pending</SelectItem>
+                                            <SelectItem value="Reviewed">Reviewed</SelectItem>
+                                            <SelectItem value="Completed">Completed</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                             <ContactsTable
-                                contacts={contactRequests.filter(c =>
-                                    (c.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                    (c.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-                                    (c.subject?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-                                )}
+                                contacts={filteredContacts}
                                 onUpdateStatus={async (id, status) => {
                                     setUpdatingRequestId(id);
                                     try {
@@ -2951,24 +3152,34 @@ const AdminDashboard = () => {
                         <div className="space-y-4">
                             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                                 <h2 className="text-2xl font-bold">Issued Day Passes</h2>
-                                <div className="flex items-center gap-2 w-full sm:w-auto">
-                                    <div className="relative flex-1 sm:w-64">
+                                <div className="flex items-center gap-3 flex-1 sm:justify-end">
+                                    <div className="relative w-full sm:max-w-xs">
                                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                         <Input
                                             placeholder="Search visitors or codes..."
-                                            className="pl-9 h-10 rounded-xl"
+                                            className="pl-9 h-12 rounded-xl bg-background border-border/50"
                                             value={searchTerm || ""}
                                             onChange={(e) => setSearchTerm(e.target.value)}
                                         />
                                     </div>
+                                    <Select value={dayPassStatusFilter} onValueChange={setDayPassStatusFilter}>
+                                        <SelectTrigger className="w-[140px] h-12 rounded-xl bg-background border-border/50 font-bold">
+                                            <div className="flex items-center gap-2">
+                                                <Filter className="w-4 h-4" />
+                                                <SelectValue placeholder="Status" />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent className="rounded-xl border-border/50 shadow-xl">
+                                            <SelectItem value="all">All Status</SelectItem>
+                                            <SelectItem value="Active">Active</SelectItem>
+                                            <SelectItem value="Used">Used</SelectItem>
+                                            <SelectItem value="Expired">Expired</SelectItem>
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             </div>
                             <DayPassesTable
-                                passes={dayPasses.filter(p =>
-                                    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    p.passCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                                    (p.email || "").toLowerCase().includes(searchTerm.toLowerCase())
-                                )}
+                                passes={filteredDayPasses}
                                 currentPage={tablePages.dayPasses}
                                 onPageChange={(page) => setTablePages({ ...tablePages, dayPasses: page })}
                                 itemsPerPage={ITEMS_PER_PAGE}
@@ -2977,71 +3188,113 @@ const AdminDashboard = () => {
                     )}
 
                     {currentView === "profile" && userInfo && (
-                        <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="flex flex-col gap-2">
-                                <h2 className="text-3xl font-black tracking-tight">Account Profile</h2>
-                                <p className="text-muted-foreground font-medium">Manage your administrative identity and security settings.</p>
+                        <div className="max-w-5xl mx-auto space-y-8 sm:space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 relative overflow-hidden pb-10">
+                            {/* Decorative Background Elements */}
+                            <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl opacity-50" />
+                            <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-50" />
+
+                            <div className="flex flex-col gap-3 relative z-10 text-center sm:text-left">
+                                 <h1 className="text-4xl sm:text-5xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-500 to-violet-600">My Profile</h1>
+                                 <div className="flex items-center justify-center sm:justify-start gap-3">
+                                     <div className="h-px w-8 bg-primary/40 hidden sm:block" />
+                                     <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-[10px] sm:text-xs">Account Settings</p>
+                                </div>
                             </div>
 
-                            <div className="grid lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-1 space-y-6">
-                                    <div className="card-elevated glass p-8 flex flex-col items-center text-center space-y-6 relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl" />
-                                        <div className="w-32 h-32 rounded-[2.5rem] bg-gradient-to-tr from-primary to-indigo-600 flex items-center justify-center font-black text-white text-4xl shadow-2xl relative z-10">
-                                            {userInfo.name.split(" ").map((n: string) => n[0]).join("")}
-                                        </div>
-                                        <div className="space-y-2 relative z-10">
-                                            <h3 className="text-2xl font-black italic">{userInfo.name}</h3>
-                                            <Badge className="bg-primary/10 text-primary border-none px-4 py-1 rounded-full uppercase tracking-widest text-[10px] font-black">
-                                                {userInfo.role}
-                                            </Badge>
-                                        </div>
-                                        <div className="w-full pt-6 border-t border-border/50 space-y-4">
-                                            <div className="flex justify-between items-center text-xs">
-                                                <span className="text-muted-foreground font-bold uppercase tracking-tighter">Profile Completion</span>
-                                                <span className="font-black text-primary">85%</span>
+                            <div className="grid lg:grid-cols-12 gap-8 relative z-10">
+                                {/* Left Column: Identity Card */}
+                                <div className="lg:col-span-4 space-y-6">
+                                    <div className="card-elevated glass p-8 flex flex-col items-center text-center space-y-8 relative overflow-hidden group/card shadow-2xl border-primary/5">
+                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover/card:bg-primary/10 transition-colors duration-700" />
+                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-500/5 rounded-full -ml-12 -mb-12 blur-2xl opacity-50" />
+
+                                        <div className="relative">
+                                            <div className="w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-primary via-indigo-600 to-violet-600 flex items-center justify-center font-black text-white text-5xl shadow-[0_20px_50px_rgba(var(--primary),0.3)] relative z-10 group-hover/card:rotate-3 group-hover/card:scale-105 transition-all duration-700">
+                                                {userInfo.name.split(" ").map((n: string) => n[0]).join("")}
                                             </div>
-                                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                                                <div className="h-full bg-primary w-[85%] rounded-full shadow-[0_0_10px_rgba(var(--primary),0.5)]" />
+                                            <div className="absolute -bottom-1 -right-1 w-12 h-12 bg-emerald-500 border-[6px] border-card rounded-2xl shadow-xl flex items-center justify-center z-20 animate-in zoom-in duration-500 delay-300">
+                                                <ShieldCheck className="w-6 h-6 text-white" />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3 relative z-10 w-full">
+                                            <h3 className="text-3xl font-black italic tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">{userInfo.name}</h3>
+                                            <div className="flex flex-col items-center gap-3">
+                                                <Badge className="bg-primary/10 text-primary border-primary/20 px-5 py-1.5 rounded-xl uppercase tracking-[0.2em] text-[10px] font-black shadow-sm">
+                                                    {userInfo.role}
+                                                </Badge>
+                                                <div className="flex items-center gap-2">
+                                                     <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                                     <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Account Active</span>
+                                                 </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full pt-8 border-t border-primary/10 space-y-5 relative z-10">
+                                            <div className="flex justify-between items-center px-1">
+                                                 <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Status</span>
+                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded-md">Admin Access</span>
+                                            </div>
+                                            <div className="space-y-3">
+                                                <div className="flex justify-between items-center text-[10px] px-1">
+                                                    <span className="text-muted-foreground font-black uppercase tracking-[0.2em] opacity-80">System Health</span>
+                                                    <span className="font-black text-primary italic">94.8%</span>
+                                                </div>
+                                                <div className="h-2.5 w-full bg-primary/5 rounded-full overflow-hidden p-0.5 border border-primary/10">
+                                                    <div className="h-full bg-gradient-to-r from-primary via-indigo-500 to-violet-500 w-[94.8%] rounded-full shadow-[0_0_15px_rgba(var(--primary),0.4)]" />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="card-elevated glass p-6 space-y-4">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">System Access</h4>
+                                    <div className="card-elevated glass p-6 space-y-6 border-primary/5 shadow-xl">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80">Permissions</h4>
+                                            <div className="w-2 h-2 rounded-full bg-primary/20 animate-ping" />
+                                        </div>
                                         <div className="space-y-3">
-                                            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
-                                                <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-black text-emerald-600 uppercase">Status</span>
-                                                    <span className="text-xs font-bold">Verified Admin</span>
+                                            {[
+                                                { icon: ShieldCheck, label: "Access Level", value: "Level 4 Active", color: "text-emerald-500", bg: "bg-emerald-500/10" },
+                                                { icon: Lock, label: "Security Status", value: "Protected", color: "text-amber-500", bg: "bg-amber-500/10" },
+                                                { icon: Briefcase, label: "Workspace Control", value: "Full Access", color: "text-blue-500", bg: "bg-blue-500/10" }
+                                            ].map((item, idx) => (
+                                                <div key={idx} className="flex items-center gap-4 p-3.5 rounded-2xl bg-muted/20 border border-transparent hover:border-primary/20 hover:bg-muted/30 transition-all duration-300 group/item cursor-default">
+                                                    <div className={`w-11 h-11 rounded-2xl ${item.bg} flex items-center justify-center transition-all group-hover/item:rotate-6 group-hover/item:shadow-lg shadow-inner`}>
+                                                        <item.icon className={`w-5 h-5 ${item.color}`} />
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mb-1.5">{item.label}</span>
+                                                        <span className="text-xs font-black tracking-tight">{item.value}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/50">
-                                                <Lock className="w-4 h-4 text-amber-500" />
-                                                <div className="flex flex-col">
-                                                    <span className="text-[10px] font-black text-amber-600 uppercase">Security</span>
-                                                    <span className="text-xs font-bold">2FA Enabled</span>
-                                                </div>
-                                            </div>
+                                            ))}
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="lg:col-span-2 space-y-6">
-                                    <div className="card-elevated glass p-8 space-y-8">
-                                        <div>
-                                            <div className="flex items-center justify-between mb-6">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                                    <Building2 className="w-3 h-3" /> Core Information
-                                                </h4>
+                                {/* Right Column: Details & Security */}
+                                <div className="lg:col-span-8 space-y-8">
+                                    <div className="card-elevated glass p-8 sm:p-10 space-y-12">
+                                        {/* Core Information Section */}
+                                        <div className="space-y-8">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                                        <Building2 className="w-5 h-5 text-primary" />
+                                                    </div>
+                                                    <div>
+                                                         <h4 className="text-base font-black italic tracking-tight">Account Information</h4>
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Your account information</p>
+                                                    </div>
+                                                </div>
+
                                                 <div className="flex items-center gap-2">
                                                     {isEditingProfile ? (
-                                                        <>
+                                                        <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-2xl animate-in fade-in slide-in-from-right-4 duration-300">
                                                             <Button
                                                                 variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted"
+                                                                size="sm"
+                                                                className="h-9 px-4 rounded-xl font-bold text-muted-foreground hover:text-foreground transition-all"
                                                                 onClick={() => {
                                                                     setIsEditingProfile(false);
                                                                     setEditProfileData({
@@ -3052,204 +3305,203 @@ const AdminDashboard = () => {
                                                                     });
                                                                 }}
                                                             >
-                                                                <X className="w-4 h-4" />
+                                                                Cancel
                                                             </Button>
                                                             <Button
                                                                 size="sm"
-                                                                className="rounded-xl font-bold h-8 px-4"
+                                                                className="h-9 px-6 rounded-xl font-black bg-primary shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
                                                                 onClick={async () => {
                                                                     await handleUpdateProfileInfo();
                                                                     setIsEditingProfile(false);
                                                                 }}
                                                                 disabled={isUpdatingProfile}
                                                             >
-                                                                {isUpdatingProfile ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save Changes"}
+                                                                {isUpdatingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Changes"}
                                                             </Button>
-                                                        </>
+                                                        </div>
                                                     ) : (
                                                         <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 rounded-xl text-primary hover:bg-primary/5 hover:text-primary"
+                                                            size="sm"
+                                                            className="h-10 px-6 rounded-2xl font-black bg-background border-2 border-primary/20 text-primary hover:bg-primary hover:text-white transition-all duration-300 group/edit"
                                                             onClick={() => setIsEditingProfile(true)}
                                                         >
-                                                            <Pencil className="w-4 h-4" />
-                                                        </Button>
+                                                            <Pencil className="w-3.5 h-3.5 mr-2 group-hover:rotate-12 transition-transform" />
+                                                             Update Profile
+                                                         </Button>
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="grid sm:grid-cols-2 gap-6">
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Full Name</Label>
-                                                    {isEditingProfile ? (
-                                                        <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.name || ""}
-                                                            onChange={(e) => setEditProfileData({ ...editProfileData, name: e.target.value })}
-                                                        />
-                                                    ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo?.name || "N/A"}</p>
-                                                    )}
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Email Address</Label>
-                                                    {isEditingProfile ? (
-                                                        <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.email || ""}
-                                                            onChange={(e) => setEditProfileData({ ...editProfileData, email: e.target.value })}
-                                                        />
-                                                    ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo?.email || "N/A"}</p>
-                                                    )}
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Organization</Label>
-                                                    {isEditingProfile ? (
-                                                        <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.organization || ""}
-                                                            onChange={(e) => setEditProfileData({ ...editProfileData, organization: e.target.value })}
-                                                        />
-                                                    ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo?.organization || "COMS HQ"}</p>
-                                                    )}
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-[10px] uppercase font-black text-muted-foreground tracking-widest ml-1">Mobile Number</Label>
-                                                    {isEditingProfile ? (
-                                                        <Input
-                                                            className="rounded-xl bg-muted/30 border-border/50 font-bold"
-                                                            value={editProfileData.mobile || ""}
-                                                            onChange={(e) => setEditProfileData({ ...editProfileData, mobile: e.target.value })}
-                                                        />
-                                                    ) : (
-                                                        <p className="font-bold text-foreground italic px-1 h-9 flex items-center">{userInfo?.mobile || "Not Provided"}</p>
-                                                    )}
-                                                </div>
+
+                                            <div className="grid sm:grid-cols-2 gap-8">
+                                                {[
+                                                    { label: "Full Name", key: "name", value: userInfo?.name, icon: UserIcon },
+                                                    { label: "Email Address", key: "email", value: userInfo?.email, icon: Mail },
+                                                    { label: "Organization", key: "organization", value: userInfo?.organization || "COMS HQ", icon: Building2 },
+                                                    { label: "Mobile Number", key: "mobile", value: userInfo?.mobile || "Not Provided", icon: Phone }
+                                                ].map((field) => (
+                                                    <div key={field.key} className="space-y-3 group/field">
+                                                        <Label className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-[0.2em] ml-1 flex items-center gap-2 group-focus-within/field:text-primary transition-all duration-300">
+                                                            <field.icon className="w-3 h-3 transition-transform group-focus-within/field:scale-110" /> {field.label}
+                                                        </Label>
+                                                        {isEditingProfile ? (
+                                                            <Input
+                                                                className="h-12 rounded-2xl bg-muted/20 border-primary/10 focus:border-primary/40 focus:bg-background transition-all font-bold px-4 hover:bg-muted/30 shadow-inner"
+                                                                value={editProfileData[field.key as keyof typeof editProfileData] || ""}
+                                                                onChange={(e) => setEditProfileData({ ...editProfileData, [field.key]: e.target.value })}
+                                                            />
+                                                        ) : (
+                                                            <div className="h-12 flex items-center px-4 rounded-2xl bg-muted/10 border border-transparent font-black italic text-foreground tracking-tight group-hover/field:bg-muted/20 transition-all duration-300">
+                                                                {field.value || "N/A"}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
 
-                                        <div className="pt-8 border-t border-border/50">
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary mb-6 flex items-center gap-2">
-                                                <Clock className="w-3 h-3" /> History & Persistence
-                                            </h4>
-                                            <div className="grid sm:grid-cols-2 gap-6">
-                                                <div className="flex items-center gap-4 group">
-                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center transition-colors group-hover:bg-primary/10">
-                                                        <Calendar className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
+                                        {/* History & Persistence */}
+                                        <div className="pt-12 border-t border-primary/10">
+                                            <div className="flex items-center justify-between mb-8">
+                                                 <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
+                                                     <Clock className="w-3.5 h-3.5" /> Activity Overview
+                                                 </h4>
+                                                <div className="h-px flex-1 bg-gradient-to-r from-primary/10 to-transparent ml-6" />
+                                            </div>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                                <div className="flex items-center gap-6 p-6 rounded-[2rem] bg-muted/20 border border-transparent hover:border-primary/20 transition-all duration-500 group/stat shadow-soft">
+                                                    <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg group-hover/stat:-rotate-6 transition-transform duration-500">
+                                                        <Calendar className="w-8 h-8 text-primary" />
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">Joined Date</span>
-                                                        <span className="text-sm font-bold">{userInfo.joinedDate || "Feb 10, 2026"}</span>
+                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mb-2.5">Member Since</span>
+                                                        <span className="text-xl font-black italic tracking-tighter text-foreground/90">{userInfo.joinedDate || "Feb 10, 2026"}</span>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-4 group">
-                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center transition-colors group-hover:bg-primary/10">
-                                                        <TrendingUp className="w-5 h-5 text-muted-foreground group-hover:text-primary" />
+                                                <div className="flex items-center gap-6 p-6 rounded-[2rem] bg-muted/20 border border-emerald-500/20 transition-all duration-500 group/stat shadow-soft">
+                                                    <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg group-hover/stat:rotate-6 transition-transform duration-500">
+                                                        <TrendingUp className="w-8 h-8 text-emerald-500" />
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none mb-1">Last Activity</span>
-                                                        <span className="text-sm font-bold">Just Now</span>
+                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mb-2.5">Last Active</span>
+                                                        <span className="text-xl font-black text-emerald-600 italic tracking-tighter">
+                                                            {userInfo?.lastActive
+                                                                ? (!isNaN(new Date(userInfo.lastActive).getTime())
+                                                                    ? formatDistanceToNow(new Date(userInfo.lastActive), { addSuffix: true })
+                                                                    : userInfo.lastActive)
+                                                                : "Online Now"}
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="pt-8 border-t border-border/50">
-                                            <div className="flex items-center justify-between mb-6">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                                                    <KeyRound className="w-3 h-3" /> Security & Access
-                                                </h4>
+                                        {/* Security & Authentication */}
+                                        <div className="pt-12 border-t border-primary/10">
+                                            <div className="flex items-center justify-between p-6 rounded-[2rem] bg-slate-900 shadow-2xl relative overflow-hidden group/security">
+                                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover/security:bg-primary/20 transition-colors duration-700" />
+                                                <div className="flex items-center gap-6 relative z-10">
+                                                    <div className="w-16 h-16 rounded-[1.5rem] bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/10 shadow-inner group-hover/security:scale-110 transition-transform duration-500">
+                                                        <KeyRound className="w-8 h-8 text-amber-400" />
+                                                    </div>
+                                                     <div>
+                                                         <h4 className="text-xl font-black italic tracking-tight text-white">Security</h4>
+                                                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Update your password</p>
+                                                     </div>
+                                                </div>
 
                                                 <Dialog open={isSecurityModalOpen} onOpenChange={setIsSecurityModalOpen}>
                                                     <DialogTrigger asChild>
-                                                        <Button variant="outline" size="sm" className="rounded-xl font-bold bg-primary/5 border-primary/20 text-primary hover:bg-primary/10">
-                                                            Update Credentials
-                                                        </Button>
+                                                        <Button className="h-14 px-10 rounded-2xl font-black bg-white text-slate-900 hover:bg-slate-100 shadow-xl transition-all hover:scale-[1.05] active:scale-[0.98] group/btn relative z-10">
+                                                            <RotateCcw className="w-4 h-4 mr-3 group-hover/btn:rotate-180 transition-transform duration-700" />
+                                                             Update Password
+                                                         </Button>
                                                     </DialogTrigger>
-                                                    <DialogContent className="rounded-3xl border-border/50 glass max-w-md">
-                                                        <DialogHeader>
-                                                            <DialogTitle className="text-xl font-black">Security Credentials</DialogTitle>
-                                                            <DialogDescription className="text-sm font-medium text-muted-foreground">
-                                                                Update your administrative authentication keys for enhanced ecosystem security.
-                                                            </DialogDescription>
-                                                        </DialogHeader>
-
-                                                        <form className="space-y-4 pt-4" onSubmit={(e) => {
-                                                            e.preventDefault();
-                                                            handlePasswordChange();
-                                                        }} noValidate>
-                                                            <div className="space-y-4">
-                                                                <div className="space-y-2">
-                                                                    <Label htmlFor="oldPassword" title="Current Password" className="text-xs font-bold uppercase tracking-wider">Current Password</Label>
-                                                                    <Input
-                                                                        id="oldPassword"
-                                                                        type="password"
-                                                                        placeholder="••••••••"
-                                                                        className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.oldPassword || ""}
-                                                                        onChange={(e) => {
-                                                                            setPasswordData({ ...passwordData, oldPassword: e.target.value });
-                                                                            if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
-                                                                        }}
-                                                                    />
-                                                                    {securityErrors.oldPassword && (
-                                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                            <AlertCircle className="w-3 h-3" /> {securityErrors.oldPassword}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                                <div className="space-y-2">
-                                                                    <Label htmlFor="newPassword" title="New Secure Password" className="text-xs font-bold uppercase tracking-wider">New Password</Label>
-                                                                    <Input
-                                                                        id="newPassword"
-                                                                        type="password"
-                                                                        placeholder="••••••••"
-                                                                        className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.newPassword || ""}
-                                                                        onChange={(e) => {
-                                                                            setPasswordData({ ...passwordData, newPassword: e.target.value });
-                                                                            if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
-                                                                        }}
-                                                                    />
-                                                                    {securityErrors.newPassword && (
-                                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                            <AlertCircle className="w-3 h-3" /> {securityErrors.newPassword}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                                <div className="space-y-2">
-                                                                    <Label htmlFor="confirmPassword" title="Confirm New Password" className="text-xs font-bold uppercase tracking-wider">Confirm New Password</Label>
-                                                                    <Input
-                                                                        id="confirmPassword"
-                                                                        type="password"
-                                                                        placeholder="••••••••"
-                                                                        className={`rounded-xl bg-muted/50 border-border/50 focus:border-primary transition-all ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                        value={passwordData.confirmPassword || ""}
-                                                                        onChange={(e) => {
-                                                                            setPasswordData({ ...passwordData, confirmPassword: e.target.value });
-                                                                            if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
-                                                                        }}
-                                                                    />
-                                                                    {securityErrors.confirmPassword && (
-                                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                                            <AlertCircle className="w-3 h-3" /> {securityErrors.confirmPassword}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
+                                                    <DialogContent className="rounded-[2.5rem] border-border/50 overflow-hidden max-w-lg p-0 bg-background shadow-2xl">
+                                                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-500 via-primary to-violet-600" />
+                                                        <div className="p-10 space-y-8">
+                                                            <div className="space-y-2">
+                                                                 <DialogTitle className="text-3xl font-black italic tracking-tight">Update Password</DialogTitle>
+                                                                 <DialogDescription className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Change your account password</DialogDescription>
                                                             </div>
 
-                                                            <DialogFooter className="pt-4">
-                                                                <Button
-                                                                    type="submit"
-                                                                    disabled={isChangingPassword}
-                                                                    className="w-full rounded-xl font-black shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                                                >
-                                                                    {isChangingPassword ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Verifying...</> : "Apply Security Protocol"}
-                                                                </Button>
-                                                            </DialogFooter>
-                                                        </form>
+                                                            <form className="space-y-6" onSubmit={(e) => {
+                                                                e.preventDefault();
+                                                                handlePasswordChange();
+                                                            }} noValidate>
+                                                                <div className="space-y-5">
+                                                                    <div className="space-y-2 group">
+                                                                        <Label htmlFor="oldPassword" title="Current Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">Current Password</Label>
+                                                                        <Input
+                                                                            id="oldPassword"
+                                                                            type="password"
+                                                                            placeholder="Enter current password"
+                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                                                            value={passwordData.oldPassword || ""}
+                                                                            onChange={(e) => {
+                                                                                setPasswordData({ ...passwordData, oldPassword: e.target.value });
+                                                                                if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
+                                                                            }}
+                                                                        />
+                                                                        {securityErrors.oldPassword && (
+                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.oldPassword}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="h-px bg-border/50 w-full my-2" />
+                                                                    <div className="space-y-2 group">
+                                                                        <Label htmlFor="newPassword" title="New Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">New Password</Label>
+                                                                        <Input
+                                                                            id="newPassword"
+                                                                            type="password"
+                                                                            placeholder="Enter new secure password"
+                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                                                            value={passwordData.newPassword || ""}
+                                                                            onChange={(e) => {
+                                                                                setPasswordData({ ...passwordData, newPassword: e.target.value });
+                                                                                if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
+                                                                            }}
+                                                                        />
+                                                                        {securityErrors.newPassword && (
+                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.newPassword}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                    <div className="space-y-2 group">
+                                                                        <Label htmlFor="confirmPassword" title="Confirm New Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">Confirm New Password</Label>
+                                                                        <Input
+                                                                            id="confirmPassword"
+                                                                            type="password"
+                                                                            placeholder="Confirm new password"
+                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
+                                                                            value={passwordData.confirmPassword || ""}
+                                                                            onChange={(e) => {
+                                                                                setPasswordData({ ...passwordData, confirmPassword: e.target.value });
+                                                                                if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
+                                                                            }}
+                                                                        />
+                                                                        {securityErrors.confirmPassword && (
+                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
+                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.confirmPassword}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+
+                                                                <DialogFooter className="pt-4">
+                                                                    <Button
+                                                                        type="submit"
+                                                                        disabled={isChangingPassword}
+                                                                        className="w-full h-14 rounded-2xl font-black bg-amber-500 hover:bg-amber-600 text-white shadow-xl shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                                    >
+                                                                        {isChangingPassword ? (
+                                                                            <><Loader2 className="w-5 h-5 animate-spin mr-3" />Updating...</>
+                                                                        ) : "Update Password"}
+                                                                    </Button>
+                                                                </DialogFooter>
+                                                            </form>
+                                                        </div>
                                                     </DialogContent>
                                                 </Dialog>
                                             </div>
@@ -3437,19 +3689,19 @@ function UsersTable({
                             </TableCell>
                             <TableCell>
                                 <span className="text-xs font-medium">
-                                    {user.joinedDate 
-                                        ? (!isNaN(new Date(user.joinedDate).getTime()) 
-                                            ? new Date(user.joinedDate).toLocaleDateString() 
-                                            : user.joinedDate) 
+                                    {user.joinedDate
+                                        ? (!isNaN(new Date(user.joinedDate).getTime())
+                                            ? new Date(user.joinedDate).toLocaleDateString()
+                                            : user.joinedDate)
                                         : "N/A"}
                                 </span>
                             </TableCell>
                             <TableCell>
                                 <span className="text-xs font-medium italic text-muted-foreground">
-                                    {user.lastActive 
-                                        ? (!isNaN(new Date(user.lastActive).getTime()) 
-                                            ? new Date(user.lastActive).toLocaleDateString() 
-                                            : user.lastActive) 
+                                    {user.lastActive
+                                        ? (!isNaN(new Date(user.lastActive).getTime())
+                                            ? formatDistanceToNow(new Date(user.lastActive), { addSuffix: true })
+                                            : user.lastActive)
                                         : "Never"}
                                 </span>
                             </TableCell>
@@ -3527,13 +3779,13 @@ function WorkspacesTable({
                 </TableHeader>
                 <TableBody>
                     {paginatedWorkspaces.map((ws, i) => (
-                        <WorkspaceRow 
-                            key={ws._id || ws.id || i} 
-                            ws={ws} 
-                            bookings={bookings} 
-                            onAllot={onAllot} 
-                            onEdit={onEdit} 
-                            onDelete={onDelete} 
+                        <WorkspaceRow
+                            key={ws._id || ws.id || i}
+                            ws={ws}
+                            bookings={bookings}
+                            onAllot={onAllot}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
                             onUnallotBooking={onUnallotBooking}
                             updatingBookingId={updatingRequestId}
                         />
@@ -3550,17 +3802,17 @@ function WorkspacesTable({
     );
 }
 
-const WorkspaceRow = ({ 
-    ws, 
-    bookings, 
-    onAllot, 
-    onEdit, 
+const WorkspaceRow = ({
+    ws,
+    bookings,
+    onAllot,
+    onEdit,
     onDelete,
     onUnallotBooking,
     updatingBookingId
-}: { 
-    ws: Workspace, 
-    bookings: BookingRequest[], 
+}: {
+    ws: Workspace,
+    bookings: BookingRequest[],
     onAllot: (wsId: string, userId: string | null) => void,
     onEdit: (ws: Workspace) => void,
     onDelete: (id: string) => void,
@@ -3571,8 +3823,8 @@ const WorkspaceRow = ({
     if (!ws) return null;
     const allottedUser = typeof ws.allottedTo === 'object' ? ws.allottedTo : null;
 
-    const confirmedBookings = bookings.filter(b => 
-        String(b.workspaceId) === String(ws._id || ws.id) && 
+    const confirmedBookings = bookings.filter(b =>
+        String(b.workspaceId) === String(ws._id || ws.id) &&
         (b.status === "Confirmed" || b.status === "Awaiting Payment")
     );
 
@@ -3581,7 +3833,7 @@ const WorkspaceRow = ({
 
     return (
         <>
-            <TableRow 
+            <TableRow
                 className={`hover:bg-muted/20 transition-colors cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
@@ -3614,8 +3866,8 @@ const WorkspaceRow = ({
                                 </span>
                             </div>
                             <div className="w-full bg-muted/50 rounded-full h-1 overflow-hidden">
-                                <div 
-                                    className="h-full bg-primary transition-all duration-500 ease-out" 
+                                <div
+                                    className="h-full bg-primary transition-all duration-500 ease-out"
                                     style={{ width: `${Math.min(100, Math.max(0, (((ws.totalSeats || 0) - availableSeats) / (ws.totalSeats || 1)) * 100))}%` }}
                                 />
                             </div>
@@ -3655,7 +3907,7 @@ const WorkspaceRow = ({
                         <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                             <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
                                 <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                
+
                                 {ws.type === "Open WorkStation" ? (
                                     <div className="space-y-4">
                                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
@@ -3675,11 +3927,11 @@ const WorkspaceRow = ({
                                                 </div>
                                                 <div className="flex flex-col items-end px-3 py-1.5 rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.02]">
                                                     <span className="text-[9px] font-black text-emerald-600/40 uppercase tracking-tighter">Vacancy Status</span>
-                                                    <span className="text-xs font-black text-emerald-600">{availableSeats} { availableSeats === 1 ? "Seat" : "Seats" } Ready</span>
+                                                    <span className="text-xs font-black text-emerald-600">{availableSeats} {availableSeats === 1 ? "Seat" : "Seats"} Ready</span>
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         <div className="h-px w-full bg-gradient-to-r from-transparent via-border/50 to-transparent my-4" />
 
                                         {confirmedBookings.length > 0 ? (
@@ -3689,7 +3941,7 @@ const WorkspaceRow = ({
                                                         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                                                             <UserIcon className="w-5 h-5" />
                                                         </div>
-                                                         <div className="flex flex-col flex-1 min-w-0">
+                                                        <div className="flex flex-col flex-1 min-w-0">
                                                             <span className="text-sm font-bold truncate tracking-tight">{booking.fullName}</span>
                                                             <div className="flex items-center gap-2 mt-0.5">
                                                                 <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
@@ -3751,7 +4003,7 @@ const WorkspaceRow = ({
                                                 </div>
                                             </div>
                                         </div>
-                                        
+
                                         {allottedUser ? (
                                             <div className="space-y-4">
                                                 <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Allotment Details</h4>

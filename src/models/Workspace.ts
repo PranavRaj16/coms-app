@@ -24,6 +24,7 @@ export interface IWorkspace extends Document {
     unavailableUntil?: Date;
     totalSeats?: number;
     availableSeats?: number;
+    paymentMethod?: string;
 }
 
 const workspaceSchema: Schema = new Schema({
@@ -112,6 +113,10 @@ const workspaceSchema: Schema = new Schema({
     availableSeats: {
         type: Number,
         default: 0
+    },
+    paymentMethod: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: true,

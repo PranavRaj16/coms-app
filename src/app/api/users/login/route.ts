@@ -18,9 +18,12 @@ export async function POST(req: NextRequest) {
 
             let finalStatus = user.status;
             if (user.status === 'Pending') {
-                await user.constructor.updateOne({ _id: user._id }, { status: 'Active' });
+                user.status = 'Active';
                 finalStatus = 'Active';
             }
+
+            user.lastActive = new Date();
+            await user.save();
 
             return NextResponse.json({
                 _id: user._id,
