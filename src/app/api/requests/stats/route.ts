@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
 
         const totalUsers = await User.countDocuments();
         const totalWorkspaces = await Workspace.countDocuments();
+        const activeMembers = await User.countDocuments({ status: { $ne: 'Inactive' } });
         const pendingQuotes = await QuoteRequest.countDocuments({ status: 'Pending' });
         const pendingBookings = await BookingRequest.countDocuments({ status: 'Pending' });
         const pendingContacts = await ContactRequest.countDocuments({ status: 'Pending' });
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
             totalUsers,
-            activeMembers: 0, // Need logic if active members means something specific, otherwise 0
+            activeMembers,
             newQuoteRequests: pendingQuotes,
             newBookingRequests: pendingBookings,
             newVisitRequests: pendingVisits,

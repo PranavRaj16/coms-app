@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
             email,
             password: userPassword,
             role: role || 'Member',
+            status: body.status || 'Active',
             mobile,
             organization
         });

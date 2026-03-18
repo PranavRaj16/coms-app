@@ -1,5 +1,16 @@
 const API_BASE_URL = '/api';
 
+const originalFetch = typeof window !== 'undefined' ? window.fetch : global.fetch;
+
+const fetch = async (url: RequestInfo | URL | string, options?: RequestInit) => {
+    try {
+        const response = await originalFetch(url, options);
+        return response;
+    } catch (error: any) {
+        throw new Error(`NetworkError: ${error.message || 'Failed to connect'}`);
+    }
+};
+
 const getAuthHeaders = () => {
     const userInfo = localStorage.getItem('userInfo');
     const token = userInfo ? JSON.parse(userInfo).token : null;

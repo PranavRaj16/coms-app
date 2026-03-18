@@ -772,7 +772,7 @@ const UserDashboard = () => {
                 startDate: new Date(bookingParams.startDate),
                 endDate: new Date(bookingParams.endDate),
                 paymentMethod: (bookingParams as any).paymentMethod || "Pay Now",
-                status: 'Pending',
+                status: 'Awaiting Payment',
                 seatCount: selectedWorkspaceToBook.type === "Open WorkStation" ? bookingParams.seatCount : 1
             };
 

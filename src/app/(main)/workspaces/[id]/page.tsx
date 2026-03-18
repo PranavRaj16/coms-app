@@ -154,6 +154,7 @@ const WorkspaceDetails = () => {
                     const d = bookingData.startDate;
                     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
                 })() : undefined,
+                status: 'Awaiting Payment',
                 seatCount: workspace?.type === "Open WorkStation" ? bookingData.seatCount : 1
             };
 
