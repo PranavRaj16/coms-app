@@ -96,10 +96,22 @@ export function UsersTable({
                             </TableCell>
                             <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-primary hover:bg-primary/5" onClick={() => onEdit(user)}>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 rounded-lg text-primary hover:bg-primary hover:text-white transition-all duration-200" 
+                                        onClick={() => onEdit(user)}
+                                        title="Edit User"
+                                    >
                                         <Pencil className="w-3.5 h-3.5" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/5" onClick={() => onDelete(user._id || user.id!)}>
+                                    <Button 
+                                        variant="ghost" 
+                                        size="icon" 
+                                        className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive hover:text-destructive-foreground transition-all duration-200" 
+                                        onClick={() => onDelete(user._id || user.id!)}
+                                        title="Delete User"
+                                    >
                                         <Trash2 className="w-3.5 h-3.5" />
                                     </Button>
                                 </div>

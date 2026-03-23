@@ -12,6 +12,9 @@ const WorkspacePreview = dynamic(() => import("@/components/landing/WorkspacePre
 const CustomizedWorkspace = dynamic(() => import("@/components/landing/CustomizedWorkspace"), {
   loading: () => <div className="h-96 animate-pulse bg-muted" />,
 });
+const VirtualOffice = dynamic(() => import("@/components/landing/VirtualOffice"), {
+  loading: () => <div className="h-96 animate-pulse bg-muted" />,
+});
 const CTA = dynamic(() => import("@/components/landing/CTA"), {
   loading: () => <div className="h-64 animate-pulse bg-muted" />,
 });
@@ -22,6 +25,7 @@ export default function Home() {
       <Hero />
       <Features />
       <WorkspacePreview />
+      <VirtualOffice />
       <CustomizedWorkspace />
       <CTA />
     </main>
