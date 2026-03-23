@@ -48,16 +48,16 @@ export function DayPassesTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        paginatedDayPasses.map((pass) => (
-                            <TableRow key={pass._id} className="hover:bg-muted/40 transition-colors">
+                        paginatedDayPasses.map((pass, index) => (
+                            <TableRow key={pass._id || (pass as any).id || index} className="hover:bg-muted/40 transition-colors">
                                 <TableCell>
                                     <div className="flex flex-col">
-                                        <span className="font-bold text-sm text-foreground">{pass.fullName}</span>
+                                        <span className="font-bold text-sm text-foreground">{pass.name || pass.fullName || "Guest"}</span>
                                         <span className="text-[10px] text-muted-foreground font-medium">{pass.email}</span>
                                     </div>
                                 </TableCell>
                                 <TableCell>
-                                    <span className="text-xs font-semibold">{pass.contactNumber}</span>
+                                    <span className="text-xs font-semibold">{pass.contact || pass.contactNumber || "N/A"}</span>
                                 </TableCell>
                                 <TableCell>
                                     <span className="text-xs font-bold text-foreground">

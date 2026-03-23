@@ -63,9 +63,11 @@ export interface VisitRequest {
 
 export interface DayPassRequest {
     _id?: string;
-    fullName: string;
+    name?: string;
+    fullName?: string;
     email: string;
-    contactNumber: string;
+    contact?: string;
+    contactNumber?: string;
     purpose: string;
     visitDate: string;
     passCode: string;
@@ -85,12 +87,19 @@ export interface ContactRequest {
 }
 
 export interface Invoice {
+    _id?: string;
     id: string;
     invoiceNumber: string;
     customerName: string;
     customerEmail: string;
     workspaceName: string;
-    amount: string;
-    status: "Paid" | "Pending" | "Overdue" | "Draft";
+    amount: string | number;
+    status: "Paid" | "Pending" | "Overdue" | "Draft" | "Cancelled";
     date: string;
+    createdAt?: string;
+    dueDate?: string;
+    paymentMethod?: string;
+    billingMonth?: string;
+    type?: string;
+    location?: string;
 }

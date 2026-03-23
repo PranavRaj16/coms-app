@@ -65,8 +65,8 @@ export function QuotesTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        paginatedQuotes.map((quote) => (
-                            <QuoteRow key={quote._id} quote={quote} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === quote._id} />
+                        paginatedQuotes.map((quote, index) => (
+                            <QuoteRow key={quote._id || (quote as any).id || index} quote={quote} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === quote._id} />
                         ))
                     )}
                 </TableBody>

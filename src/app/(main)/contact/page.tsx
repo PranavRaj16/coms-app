@@ -96,6 +96,16 @@ const Contact = () => {
                             <div className="glass p-6 rounded-2xl flex gap-4 border border-primary/10 hover:shadow-soft transition-all">
                                 <MapPin className="w-10 h-10 text-primary shrink-0" />
                                 <div>
+                                    <h3 className="font-bold text-lg mb-1">Raidurgam Office</h3>
+                                    <p className="text-muted-foreground">
+                                        Techno-1, Khajaguda X Road, Rai Durg, Hyderabad, Telangana-500104
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="glass p-6 rounded-2xl flex gap-4 border border-primary/10 hover:shadow-soft transition-all">
+                                <MapPin className="w-10 h-10 text-primary shrink-0" />
+                                <div>
                                     <h3 className="font-bold text-lg mb-1">Secunderabad Office</h3>
                                     <p className="text-muted-foreground">
                                         Gandhi Nagar, Nehru Nagar Colony, West Marredpally, Secunderabad, Telangana-500003

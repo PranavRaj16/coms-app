@@ -1,11 +1,14 @@
 "use client";
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { TablePagination } from "@/components/ui/table-pagination-custom";
-import { FileText, MoreHorizontal } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { FileText, MoreHorizontal, Printer, Building, CreditCard, Calendar, ChevronDown, ChevronUp, Clock } from "lucide-react";
 
 import { Invoice } from "@/types/admin";
+import { PrintableInvoice } from "./PrintableInvoice";
 
 interface InvoicesTableProps {
     invoices: Invoice[];
@@ -22,46 +25,62 @@ export function InvoicesTable({
 }: InvoicesTableProps) {
     const paginatedInvoices = invoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
     return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
+        <div className="card-elevated overflow-hidden glass shadow-soft border-none">
+            <style jsx global>{`
+                @media print {
+                    @page {
+                        size: A4;
+                        margin: 0;
+                    }
+                    html, body {
+                        width: 210mm;
+                        height: 297mm;
+                        margin: 0 !important;
+                        padding: 0 !important;
+                        overflow: hidden;
+                    }
+                    body * {
+                        visibility: hidden;
+                    }
+                    #printable-invoice-container, #printable-invoice-container * {
+                        visibility: visible;
+                    }
+                    #printable-invoice-container {
+                        position: absolute;
+                        left: 0;
+                        top: 0;
+                        width: 210mm;
+                        height: 297mm;
+                        margin: 0;
+                        padding: 0;
+                        background: white;
+                        display: flex;
+                        justify-content: center;
+                    }
+                }
+            `}</style>
             <Table>
                 <TableHeader className="bg-muted/30">
-                    <TableRow>
-                        <TableHead>Invoice ID</TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Amount</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                    <TableRow className="hover:bg-transparent border-border/50">
+                        <TableHead className="w-[40px]"></TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Invoice Info</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Customer</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Amount</TableHead>
+                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
+                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {paginatedInvoices.map((invoice) => (
-                        <TableRow key={invoice.id} className="hover:bg-muted/20 border-none transition-colors">
-                            <TableCell className="font-mono text-xs font-bold text-primary">{invoice.id}</TableCell>
-                            <TableCell className="font-semibold text-sm">{invoice.customerName}</TableCell>
-                            <TableCell className="font-black text-sm">{invoice.amount}</TableCell>
-                            <TableCell>
-                                <Badge
-                                    className={`rounded-full px-3 py-0.5 text-[10px] font-bold uppercase ${invoice.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600' :
-                                        invoice.status === 'Pending' ? 'bg-amber-500/10 text-amber-600' :
-                                            'bg-destructive/10 text-destructive'
-                                        }`}
-                                >
-                                    {invoice.status}
-                                </Badge>
-                            </TableCell>
-                            <TableCell className="text-xs font-medium text-muted-foreground">{invoice.date}</TableCell>
-                            <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-primary/5 transition-colors">
-                                    <FileText className="w-4 h-4 text-primary" />
-                                </Button>
-                            </TableCell>
-                        </TableRow>
+                    {paginatedInvoices.map((invoice, index) => (
+                        <InvoiceRow key={invoice._id || invoice.id || index} invoice={invoice} />
                     ))}
                     {paginatedInvoices.length === 0 && (
                         <TableRow>
-                            <TableCell colSpan={6} className="h-24 text-center text-muted-foreground italic font-medium">
-                                No invoices found matching the current criteria.
+                            <TableCell colSpan={6} className="h-64 text-center py-12 text-muted-foreground">
+                                <div className="flex flex-col items-center gap-2">
+                                    <FileText className="w-8 h-8 opacity-20" />
+                                    <p className="font-medium">No invoices found matching the current criteria.</p>
+                                </div>
                             </TableCell>
                         </TableRow>
                     )}
@@ -74,5 +93,163 @@ export function InvoicesTable({
                 onPageChange={onPageChange}
             />
         </div>
+    );
+}
+
+function InvoiceRow({ invoice }: { invoice: Invoice }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
+
+    const handlePrint = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsPrinting(true);
+        setTimeout(() => {
+            window.print();
+            setIsPrinting(false);
+        }, 100);
+    };
+
+    return (
+        <>
+            <TableRow 
+                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'} border-border/50`}
+                onClick={() => setIsExpanded(!isExpanded)}
+            >
+                <TableCell>
+                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <div className="flex flex-col">
+                        <span className="font-black text-xs text-primary tracking-tighter uppercase">{invoice.invoiceNumber || "INV-NEW"}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono truncate max-w-[100px]">{invoice._id || invoice.id}</span>
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-sm text-foreground">{invoice.customerName}</span>
+                        <span className="text-[10px] text-muted-foreground font-medium">{invoice.customerEmail}</span>
+                    </div>
+                </TableCell>
+                <TableCell>
+                    <span className="font-black text-sm text-foreground">₹{invoice.amount}</span>
+                </TableCell>
+                <TableCell>
+                    <Badge
+                        variant="secondary"
+                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${invoice.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 shadow-emerald-200/50' :
+                            invoice.status === 'Pending' ? 'bg-amber-100 text-amber-700 shadow-amber-200/50' :
+                                'bg-rose-100 text-rose-700 shadow-rose-200/50'
+                            }`}
+                    >
+                        {invoice.status}
+                    </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                    <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-9 w-9 rounded-xl hover:bg-primary/10 text-primary transition-all duration-300 group/print" 
+                        onClick={handlePrint}
+                        title="Print Invoice"
+                    >
+                        <Printer className="w-4 h-4 group-hover/print:scale-110 transition-transform" />
+                    </Button>
+                </TableCell>
+            </TableRow>
+            {isExpanded && (
+                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none shadow-inner">
+                    <TableCell colSpan={6} className="p-0">
+                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                                
+                                <div className="grid md:grid-cols-3 gap-8">
+                                    {/* Workspace Details */}
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
+                                            <Building className="w-3 h-3" /> Space Details
+                                        </h4>
+                                        <div className="space-y-3 bg-white/50 p-4 rounded-2xl border border-primary/5">
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Workspace</span>
+                                                <span className="text-sm font-black text-primary italic uppercase">{invoice.workspaceName}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Billing Cycle</span>
+                                                <span className="text-xs font-bold text-foreground">{invoice.billingMonth || "N/A"}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Plan Type</span>
+                                                <Badge variant="outline" className="w-fit text-[9px] font-black bg-primary/5 text-primary border-primary/10 rounded-md">
+                                                    {invoice.type?.toUpperCase() || "BOOKING"}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Payment Info */}
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
+                                            <CreditCard className="w-3 h-3" /> Financial Meta
+                                        </h4>
+                                        <div className="space-y-3 bg-white/50 p-4 rounded-2xl border border-primary/5">
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Payment Method</span>
+                                                <span className="text-sm font-bold text-foreground">{invoice.paymentMethod || "Direct Payment"}</span>
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Invoice Summary</span>
+                                                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
+                                                    Charged ₹{invoice.amount} for {invoice.workspaceName} service access.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Timeline */}
+                                    <div className="space-y-4">
+                                        <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
+                                            <Clock className="w-3 h-3" /> Timeline
+                                        </h4>
+                                        <div className="space-y-3 bg-white/50 p-4 rounded-2xl border border-primary/5">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                    <Calendar className="w-4 h-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Issued On</span>
+                                                    <span className="text-xs font-black italic">{invoice.date || (invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString() : 'N/A')}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
+                                                    <Calendar className="w-4 h-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">Due By</span>
+                                                    <span className="text-xs font-black italic text-amber-600">{invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString() : 'N/A'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </TableCell>
+                </TableRow>
+            )}
+            {/* Hidden printable container that only shows during print */}
+            {isPrinting && (
+                <TableRow className="pointer-events-none border-none">
+                    <TableCell colSpan={6} className="p-0 border-none">
+                        <div id="printable-invoice-container" className="fixed inset-0 z-[9999] bg-white">
+                            <PrintableInvoice invoice={invoice} />
+                        </div>
+                    </TableCell>
+                </TableRow>
+            )}
+        </>
     );
 }

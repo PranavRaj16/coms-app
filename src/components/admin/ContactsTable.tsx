@@ -46,8 +46,8 @@ export function ContactsTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        paginatedContacts.map((contact) => (
-                            <TableRow key={contact._id} className="hover:bg-muted/40 transition-colors">
+                        paginatedContacts.map((contact, index) => (
+                            <TableRow key={contact._id || (contact as any).id || index} className="hover:bg-muted/40 transition-colors">
                                 <TableCell>
                                     <div className="flex flex-col gap-1">
                                         <span className="font-bold text-sm text-foreground">{contact.fullName}</span>

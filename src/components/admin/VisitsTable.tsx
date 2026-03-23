@@ -61,8 +61,8 @@ export function VisitsTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        paginatedVisits.map((visit) => (
-                            <VisitRow key={visit._id} visit={visit} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === visit._id} />
+                        paginatedVisits.map((visit, index) => (
+                            <VisitRow key={visit._id || (visit as any).id || index} visit={visit} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === visit._id} />
                         ))
                     )}
                 </TableBody>

@@ -65,8 +65,8 @@ export function BookingsTable({
                             </TableCell>
                         </TableRow>
                     ) : (
-                        paginatedBookings.map((booking) => (
-                            <BookingRow key={booking._id} booking={booking} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === booking._id} />
+                        paginatedBookings.map((booking, index) => (
+                            <BookingRow key={booking._id || (booking as any).id || index} booking={booking} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === booking._id} />
                         ))
                     )}
                 </TableBody>

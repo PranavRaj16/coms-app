@@ -152,6 +152,7 @@ export async function POST(req: NextRequest) {
         const invoiceData: any = {
             invoiceNumber: invoiceId,
             bookingId: createdBooking._id,
+            workspaceId: body.workspaceId,
             userId: user?._id || null,
             customerName: body.fullName,
             customerEmail: body.email,

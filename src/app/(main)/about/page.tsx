@@ -2,6 +2,7 @@
 import { MapPin, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import heroImage from "@/assets/hero-office.jpg";
+import raidurgamOffice from "@/assets/raidurgam-office.jpg";
 
 const About = () => {
     return (
@@ -97,35 +98,35 @@ const About = () => {
                         </h2>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-12">
+                    <div className="grid md:grid-cols-3 gap-8">
                         {/* Location Card 1: Kondapur */}
-                        <div className="flex flex-col justify-between bg-white p-8 rounded-lg shadow-sm space-y-8 animate-fade-in border border-gray-100">
+                        <div className="flex flex-col justify-between bg-white p-6 rounded-2xl shadow-sm space-y-6 animate-fade-in border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="space-y-4">
-                                <h3 className="text-2xl font-bold text-foreground">
+                                <h3 className="text-xl font-bold text-foreground">
                                     Whitefields, Kondapur
                                 </h3>
-                                <div className="space-y-4 text-muted-foreground leading-relaxed">
+                                <div className="space-y-3 text-muted-foreground text-sm leading-relaxed">
                                     <p>
-                                        Strategically located in one of Hyderabad's most bustling IT corridors, our Kondapur center caters to tech startups, IT professionals and freelancers.
+                                        Strategically located in Hyderabad's bustling IT corridor, our Kondapur center caters to tech startups, IT professionals and freelancers.
                                     </p>
                                     <p>
-                                        This location offers easy access to major corporate offices, educational institutions and transport hubs, making it the perfect spot for companies looking to connect with like-minded professionals.
+                                        Perfect for companies looking to connect with like-minded professionals in a rapidly growing commercial hub.
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                <div className="relative h-[250px] rounded-lg overflow-hidden shadow-soft">
+                            <div className="space-y-4">
+                                <div className="relative h-[200px] rounded-xl overflow-hidden shadow-sm">
                                     <img
                                         src="https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2069&auto=format&fit=crop"
                                         alt="Kondapur Office Interior"
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
-                                <div className="rounded-lg overflow-hidden shadow-soft border border-gray-200">
+                                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-200">
                                     <iframe
                                         width="100%"
-                                        height="250"
+                                        height="200"
                                         style={{ border: 0 }}
                                         loading="lazy"
                                         allowFullScreen
@@ -136,34 +137,75 @@ const About = () => {
                             </div>
                         </div>
 
-                        {/* Location Card 2: Secunderabad */}
-                        <div className="flex flex-col justify-between bg-white p-8 rounded-lg shadow-sm space-y-8 animate-fade-in border border-gray-100">
+                        {/* Location Card 2: Raidurgam */}
+                        <div className="flex flex-col justify-between bg-white p-6 rounded-2xl shadow-sm space-y-6 animate-fade-in border border-gray-100 hover:shadow-md transition-shadow">
                             <div className="space-y-4">
-                                <h3 className="text-2xl font-bold text-foreground">
-                                    JBS Parade Ground
-                                </h3>
-                                <div className="space-y-4 text-muted-foreground leading-relaxed">
+                                <div className="flex items-center justify-between">
+                                    <h3 className="text-xl font-bold text-foreground">
+                                        Techno 1, Raidurgam
+                                    </h3>
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary uppercase tracking-wider">New</span>
+                                </div>
+                                <div className="space-y-3 text-muted-foreground text-sm leading-relaxed">
                                     <p>
-                                        Located in the JBS metro station, this center provides unparalleled connectivity and convenience. With state-of-the-art facilities, it is perfect for businesses that prioritize accessibility and mobility.
+                                        Located in the Techno 1 building at the Khajaguda X Road, this center offers premium workspace solutions in the rapidly developing Raidurgam tech zone.
                                     </p>
                                     <p>
-                                        The proximity to the metro line ensures easy commute for professionals across Hyderabad, making it a popular choice for teams of all sizes.
+                                        Techno-1, X Road, Radhe Nagar, Khajaguda, Rai Durg, Hyderabad, Telangana 500104.
                                     </p>
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                <div className="relative h-[250px] rounded-lg overflow-hidden shadow-soft">
+                            <div className="space-y-4">
+                                <div className="relative h-[200px] rounded-xl overflow-hidden shadow-sm">
+                                    <img
+                                        src={raidurgamOffice.src}
+                                        alt="Raidurgam Office Interior"
+                                        className="w-full h-full object-cover"
+                                    />
+                                </div>
+                                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-200">
+                                    <iframe
+                                        width="100%"
+                                        height="200"
+                                        style={{ border: 0 }}
+                                        loading="lazy"
+                                        allowFullScreen
+                                        referrerPolicy="no-referrer-when-downgrade"
+                                        src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3806.774913504381!2d78.38037761744384!3d17.422586388147!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bcb93d2071d6675%3A0x3c93cee6d59e731d!2sCOHORT%20Coworking%20%40%20Techno%201%20Raidurgam!5e0!3m2!1sen!2sin!4v1711189044952!5m2!1sen!2sin"
+                                    ></iframe>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Location Card 3: Secunderabad */}
+                        <div className="flex flex-col justify-between bg-white p-6 rounded-2xl shadow-sm space-y-6 animate-fade-in border border-gray-100 hover:shadow-md transition-shadow">
+                            <div className="space-y-4">
+                                <h3 className="text-xl font-bold text-foreground">
+                                    JBS Parade Ground
+                                </h3>
+                                <div className="space-y-3 text-muted-foreground text-sm leading-relaxed">
+                                    <p>
+                                        Situated at the JBS metro station, this center offers unparalleled connectivity for teams crossing the twin cities.
+                                    </p>
+                                    <p>
+                                        State-of-the-art facilities with the convenience of being directly integrated into the Hyderabad Metro network.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-4">
+                                <div className="relative h-[200px] rounded-xl overflow-hidden shadow-sm">
                                     <img
                                         src="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?q=80&w=2070&auto=format&fit=crop"
                                         alt="Secunderabad Office Interior"
                                         className="w-full h-full object-cover"
                                     />
                                 </div>
-                                <div className="rounded-lg overflow-hidden shadow-soft border border-gray-200">
+                                <div className="rounded-xl overflow-hidden shadow-sm border border-gray-200">
                                     <iframe
                                         width="100%"
-                                        height="250"
+                                        height="200"
                                         style={{ border: 0 }}
                                         loading="lazy"
                                         allowFullScreen
