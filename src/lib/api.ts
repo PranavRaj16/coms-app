@@ -7,7 +7,15 @@ const fetch = async (url: RequestInfo | URL | string, options?: RequestInit) => 
         const response = await originalFetch(url, options);
         return response;
     } catch (error: any) {
-        throw new Error(`NetworkError: ${error.message || 'Failed to connect'}`);
+        // Return a mock response that behaves like a 503 Service Unavailable
+        // This prevents the Unhandled Runtime Error overlay in Next.js from NetworkError
+        return new Response(
+            JSON.stringify({ message: `Network Error: ${error.message || 'Failed to connect to server'}` }),
+            {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' }
+            }
+        );
     }
 };
 

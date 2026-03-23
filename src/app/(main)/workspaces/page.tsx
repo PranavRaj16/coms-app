@@ -51,12 +51,12 @@ const Workspaces = () => {
 
     const locations = useMemo(() => {
         const uniqueLocations = Array.from(new Set(workspaces.map(ws => ws.location)));
-        return ["All Locations", ...uniqueLocations.filter(Boolean)];
+        return ["All Locations", ...uniqueLocations.filter(loc => loc && loc !== "Gachibowli")];
     }, [workspaces]);
 
     const types = useMemo(() => {
         const uniqueTypes = Array.from(new Set(workspaces.map(ws => ws.type)));
-        return ["All Types", ...uniqueTypes.filter(Boolean)];
+        return ["All Types", ...uniqueTypes.filter(type => type && type !== "Open Workspace")];
     }, [workspaces]);
 
     const filteredWorkspaces = useMemo(() => {

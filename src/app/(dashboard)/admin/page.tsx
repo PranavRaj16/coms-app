@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link"; import { useRouter } from "next/navigation";
 import {
     Users as UsersIcon,
@@ -44,16 +45,9 @@ import {
     FileText,
     CheckCircle2,
     RotateCcw,
-    Zap
+    Zap,
+    Ticket
 } from "lucide-react";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow
-} from "@/components/ui/table";
 import {
     Sidebar,
     SidebarContent,
@@ -103,13 +97,12 @@ import {
     PopoverTrigger
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format } from "date-fns";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { users as initialUsers, User } from "@/data/users";
 import { workspaces as initialWorkspaces, Workspace } from "@/data/workspaces";
 import cohortimage from "@/assets/cohort-logo.png";
 import { TablePagination } from "@/components/ui/table-pagination-custom";
-import { format } from "date-fns";
 import { toast } from "sonner";
 
 import {
@@ -142,76 +135,51 @@ import {
 
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
+import { 
+    DashboardStats, 
+    QuoteRequest, 
+    BookingRequest, 
+    VisitRequest, 
+    DayPassRequest, 
+    ContactRequest, 
+    Invoice 
+} from "@/types/admin";
+
+// Lazy-loaded Components
+const UsersTable = dynamic(() => import("@/components/admin/UsersTable").then(mod => mod.UsersTable), {
+    loading: () => <div className="w-full h-96 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const RecentUsersTable = dynamic(() => import("@/components/admin/RecentUsersTable").then(mod => mod.RecentUsersTable), {
+    loading: () => <div className="w-full h-96 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const WorkspacesTable = dynamic(() => import("@/components/admin/WorkspacesTable").then(mod => mod.WorkspacesTable), {
+    loading: () => <div className="w-full h-96 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const QuotesTable = dynamic(() => import("@/components/admin/QuotesTable").then(mod => mod.QuotesTable), {
+    loading: () => <div className="w-full h-64 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const BookingsTable = dynamic(() => import("@/components/admin/BookingsTable").then(mod => mod.BookingsTable), {
+    loading: () => <div className="w-full h-64 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const VisitsTable = dynamic(() => import("@/components/admin/VisitsTable").then(mod => mod.VisitsTable), {
+    loading: () => <div className="w-full h-64 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const DayPassesTable = dynamic(() => import("@/components/admin/DayPassesTable").then(mod => mod.DayPassesTable), {
+    loading: () => <div className="w-full h-64 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const ContactsTable = dynamic(() => import("@/components/admin/ContactsTable").then(mod => mod.ContactsTable), {
+    loading: () => <div className="w-full h-64 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const InvoicesTable = dynamic(() => import("@/components/admin/InvoicesTable").then(mod => mod.InvoicesTable), {
+    loading: () => <div className="w-full h-64 bg-muted/20 animate-pulse rounded-3xl" />
+});
+const AdminProfile = dynamic(() => import("@/components/admin/AdminProfile").then(mod => mod.AdminProfile), {
+    loading: () => <div className="w-full h-screen bg-muted/20 animate-pulse rounded-3xl" />
+});
 
 type View = "dashboard" | "users" | "workspaces" | "requests" | "contacts" | "daypasses" | "profile" | "invoices";
 
-
-interface ContactRequest {
-    _id?: string;
-    name: string;
-    email: string;
-    phone?: string;
-    subject: string;
-    message: string;
-    status?: string;
-    createdAt: string;
-}
-
-interface QuoteRequest {
-    _id?: string;
-    fullName: string;
-    workEmail: string;
-    requiredWorkspace: string;
-    additionalRequirements?: string;
-    status: string;
-    createdAt: string;
-    contactNumber: string;
-    firmName: string;
-    firmType: string;
-    capacity: number;
-    startDate: string;
-    duration: string;
-}
-
-interface BookingRequest {
-    _id?: string;
-    workspaceId: string;
-    workspaceName: string;
-    fullName: string;
-    email: string;
-    contactNumber: string;
-    firmName?: string;
-    duration: string;
-    startDate: string;
-    status: string;
-    createdAt: string;
-    seatCount?: number;
-    endDate?: string;
-}
-
-interface VisitRequest {
-    _id?: string;
-    workspaceId: string;
-    workspaceName: string;
-    fullName: string;
-    email: string;
-    contactNumber: string;
-    visitDate: string;
-    status: string;
-    createdAt: string;
-}
-
-interface DayPassRequest {
-    _id?: string;
-    name: string;
-    email: string;
-    contact: string;
-    purpose: string;
-    visitDate: string;
-    passCode: string;
-    status: string;
-    createdAt: string;
-}
+// Using interfaces imported from @/types/admin
 
 
 
@@ -238,7 +206,7 @@ const AdminDashboard = () => {
     const [bookings, setBookings] = useState<BookingRequest[]>([]);
     const [visitRequests, setVisitRequests] = useState<VisitRequest[]>([]);
     const [dayPasses, setDayPasses] = useState<DayPassRequest[]>([]);
-    const [invoices, setInvoices] = useState<any[]>([]);
+    const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
     const [isResettingInvoices, setIsResettingInvoices] = useState(false);
     const [isAdminLoading, setIsAdminLoading] = useState(true);
@@ -354,7 +322,7 @@ const AdminDashboard = () => {
                 id: c._id || "",
                 type: 'Contact',
                 title: 'New Contact Inquiry',
-                subtitle: c.name,
+                subtitle: c.fullName,
                 date: c.createdAt,
                 status: c.status,
                 icon: MessageSquare,
@@ -398,35 +366,16 @@ const AdminDashboard = () => {
         }
     }, [notifications, viewedNotifications]);
 
-    const handlePasswordChange = async () => {
-        const newErrors: { [key: string]: string } = {};
-        if (!passwordData.oldPassword) newErrors.oldPassword = "Current password is required";
-        if (!passwordData.newPassword) {
-            newErrors.newPassword = "New password is required";
-        } else if (passwordData.newPassword.length < 6) {
-            newErrors.newPassword = "Password must be at least 6 characters";
-        }
-        if (passwordData.newPassword !== passwordData.confirmPassword) {
-            newErrors.confirmPassword = "Passwords do not match";
-        }
-
-        if (Object.keys(newErrors).length > 0) {
-            setSecurityErrors(newErrors);
-            return;
-        }
-
+    const handlePasswordSubmit = async (passwords: any) => {
         setIsChangingPassword(true);
         try {
             await updateProfile({
-                password: passwordData.newPassword,
-                oldPassword: passwordData.oldPassword
+                oldPassword: passwords.current,
+                password: passwords.new
             });
             toast.success("Security credentials updated successfully");
-            setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" });
-            setSecurityErrors({});
-            setIsSecurityModalOpen(false);
         } catch (error: any) {
-            toast.error(error.message || "Failed to update password");
+             throw error;
         } finally {
             setIsChangingPassword(false);
         }
@@ -1100,7 +1049,7 @@ const AdminDashboard = () => {
 
     const filteredContacts = useMemo(() => {
         return (Array.isArray(contactRequests) ? contactRequests : []).filter(c => {
-            const matchesSearch = (c.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            const matchesSearch = (c.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                 (c.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                 (c.subject?.toLowerCase() || "").includes(searchTerm.toLowerCase());
             const matchesStatus = contactStatusFilter === "all" || c.status === contactStatusFilter;
@@ -1121,7 +1070,7 @@ const AdminDashboard = () => {
 
     const filteredDayPasses = useMemo(() => {
         return (Array.isArray(dayPasses) ? dayPasses : []).filter(p => {
-            const matchesSearch = (p.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+            const matchesSearch = (p.fullName?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                 (p.passCode?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
                 (p.email?.toLowerCase() || "").includes(searchTerm.toLowerCase());
             const matchesStatus = dayPassStatusFilter === "all" || p.status === dayPassStatusFilter;
@@ -1973,9 +1922,11 @@ const AdminDashboard = () => {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">All Locations</SelectItem>
-                                                {Array.from(new Set(workspaces.map(ws => ws.location))).filter(Boolean).map(loc => (
-                                                    <SelectItem key={loc} value={loc || ""}>{loc}</SelectItem>
-                                                ))}
+                                                {Array.from(new Set(workspaces.map(ws => ws.location)))
+                                                    .filter(loc => loc && loc !== "Gachibowli")
+                                                    .map(loc => (
+                                                        <SelectItem key={loc} value={loc || ""}>{loc}</SelectItem>
+                                                    ))}
                                             </SelectContent>
                                         </Select>
 
@@ -1985,9 +1936,11 @@ const AdminDashboard = () => {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="all">All Types</SelectItem>
-                                                {Array.from(new Set(workspaces.map(ws => ws.type))).filter(Boolean).map(type => (
-                                                    <SelectItem key={type} value={type || ""}>{type}</SelectItem>
-                                                ))}
+                                                {Array.from(new Set(workspaces.map(ws => ws.type)))
+                                                    .filter(type => type && type !== "Open Workspace")
+                                                    .map(type => (
+                                                        <SelectItem key={type} value={type || ""}>{type}</SelectItem>
+                                                    ))}
                                             </SelectContent>
                                         </Select>
 
@@ -2048,7 +2001,7 @@ const AdminDashboard = () => {
                                                                 <Input
                                                                     id="location"
                                                                     list="existing-locations"
-                                                                    placeholder="e.g. Gachibowli"
+                                                                    placeholder="e.g. Kondapur"
                                                                     className={`pl-9 ${workspaceErrors.location ? "border-destructive ring-destructive/20" : ""}`}
                                                                     value={newWorkspace.location || ""}
                                                                     onChange={(e) => {
@@ -2063,9 +2016,11 @@ const AdminDashboard = () => {
                                                                 </p>
                                                             )}
                                                             <datalist id="existing-locations">
-                                                                {Array.from(new Set(workspaces.map(ws => ws.location))).map(loc => (
-                                                                    <option key={loc} value={loc} />
-                                                                ))}
+                                                                {Array.from(new Set(workspaces.map(ws => ws.location)))
+                                                                    .filter(loc => loc && loc !== "Gachibowli")
+                                                                    .map(loc => (
+                                                                        <option key={loc} value={loc} />
+                                                                    ))}
                                                             </datalist>
                                                         </div>
                                                     </div>
@@ -2134,9 +2089,11 @@ const AdminDashboard = () => {
                                                             </p>
                                                         )}
                                                         <datalist id="existing-types">
-                                                            {Array.from(new Set(workspaces.map(ws => ws.type))).map(type => (
-                                                                <option key={type} value={type} />
-                                                            ))}
+                                                            {Array.from(new Set(workspaces.map(ws => ws.type)))
+                                                                .filter(type => type && type !== "Open Workspace")
+                                                                .map(type => (
+                                                                    <option key={type} value={type} />
+                                                                ))}
                                                         </datalist>
                                                     </div>
 
@@ -2583,9 +2540,11 @@ const AdminDashboard = () => {
                                                             </p>
                                                         )}
                                                         <datalist id="edit-existing-locations">
-                                                            {Array.from(new Set(workspaces.map(ws => ws.location))).map(loc => (
-                                                                <option key={loc} value={loc} />
-                                                            ))}
+                                                            {Array.from(new Set(workspaces.map(ws => ws.location)))
+                                                                .filter(loc => loc && loc !== "Gachibowli")
+                                                                .map(loc => (
+                                                                    <option key={loc} value={loc} />
+                                                                ))}
                                                         </datalist>
                                                     </div>
                                                     <div className="space-y-2">
@@ -2615,9 +2574,11 @@ const AdminDashboard = () => {
                                                             </p>
                                                         )}
                                                         <datalist id="edit-existing-types">
-                                                            {Array.from(new Set(workspaces.map(ws => ws.type))).map(type => (
-                                                                <option key={type} value={type} />
-                                                            ))}
+                                                            {Array.from(new Set(workspaces.map(ws => ws.type)))
+                                                                .filter(type => type && type !== "Open Workspace")
+                                                                .map(type => (
+                                                                    <option key={type} value={type} />
+                                                                ))}
                                                         </datalist>
                                                     </div>
 
@@ -3189,7 +3150,21 @@ const AdminDashboard = () => {
                                 </div>
                             </div>
                             <DayPassesTable
-                                passes={filteredDayPasses}
+                                dayPasses={filteredDayPasses}
+                                onUpdateStatus={async (id, status) => {
+                                    setUpdatingRequestId(id);
+                                    try {
+                                        // No specific API for updating day passes provided in lib/api.ts
+                                        // For now, update local state or use updateProfile if it's the only way
+                                        setDayPasses(prev => prev.map(p => p._id === id ? { ...p, status } : p));
+                                        toast.success("Day pass status updated locally");
+                                    } catch (err: any) {
+                                        toast.error(`Failed to update: ${err.message}`);
+                                    } finally {
+                                        setUpdatingRequestId(null);
+                                    }
+                                }}
+                                updatingRequestId={updatingRequestId}
                                 currentPage={tablePages.dayPasses}
                                 onPageChange={(page) => setTablePages({ ...tablePages, dayPasses: page })}
                                 itemsPerPage={ITEMS_PER_PAGE}
@@ -3197,330 +3172,19 @@ const AdminDashboard = () => {
                         </div>
                     )}
 
-                    {currentView === "profile" && userInfo && (
-                        <div className="max-w-5xl mx-auto space-y-8 sm:space-y-12 animate-in fade-in slide-in-from-bottom-6 duration-700 relative overflow-hidden pb-10">
-                            {/* Decorative Background Elements */}
-                            <div className="absolute -top-24 -left-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl opacity-50" />
-                            <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-accent/10 rounded-full blur-3xl opacity-50" />
-
-                            <div className="flex flex-col gap-3 relative z-10 text-center sm:text-left">
-                                <h1 className="text-4xl sm:text-5xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-500 to-violet-600">My Profile</h1>
-                                <div className="flex items-center justify-center sm:justify-start gap-3">
-                                    <div className="h-px w-8 bg-primary/40 hidden sm:block" />
-                                    <p className="text-muted-foreground font-black uppercase tracking-[0.3em] text-[10px] sm:text-xs">Account Settings</p>
-                                </div>
-                            </div>
-
-                            <div className="grid lg:grid-cols-12 gap-8 relative z-10">
-                                {/* Left Column: Identity Card */}
-                                <div className="lg:col-span-4 space-y-6">
-                                    <div className="card-elevated glass p-8 flex flex-col items-center text-center space-y-8 relative overflow-hidden group/card shadow-2xl border-primary/5">
-                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover/card:bg-primary/10 transition-colors duration-700" />
-                                        <div className="absolute bottom-0 left-0 w-24 h-24 bg-indigo-500/5 rounded-full -ml-12 -mb-12 blur-2xl opacity-50" />
-
-                                        <div className="relative">
-                                            <div className="w-36 h-36 rounded-[2.5rem] bg-gradient-to-br from-primary via-indigo-600 to-violet-600 flex items-center justify-center font-black text-white text-5xl shadow-[0_20px_50px_rgba(var(--primary),0.3)] relative z-10 group-hover/card:rotate-3 group-hover/card:scale-105 transition-all duration-700">
-                                                {userInfo.name.split(" ").map((n: string) => n[0]).join("")}
-                                            </div>
-                                            <div className="absolute -bottom-1 -right-1 w-12 h-12 bg-emerald-500 border-[6px] border-card rounded-2xl shadow-xl flex items-center justify-center z-20 animate-in zoom-in duration-500 delay-300">
-                                                <ShieldCheck className="w-6 h-6 text-white" />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3 relative z-10 w-full">
-                                            <h3 className="text-3xl font-black italic tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-foreground to-foreground/70">{userInfo.name}</h3>
-                                            <div className="flex flex-col items-center gap-3">
-                                                <Badge className="bg-primary/10 text-primary border-primary/20 px-5 py-1.5 rounded-xl uppercase tracking-[0.2em] text-[10px] font-black shadow-sm">
-                                                    {userInfo.role}
-                                                </Badge>
-                                                <div className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Account Active</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="w-full pt-8 border-t border-primary/10 space-y-5 relative z-10">
-                                            <div className="flex justify-between items-center px-1">
-                                                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em]">Status</span>
-                                                <span className="text-[10px] font-black text-primary uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded-md">Admin Access</span>
-                                            </div>
-                                            <div className="space-y-3">
-                                                <div className="flex justify-between items-center text-[10px] px-1">
-                                                    <span className="text-muted-foreground font-black uppercase tracking-[0.2em] opacity-80">System Health</span>
-                                                    <span className="font-black text-primary italic">94.8%</span>
-                                                </div>
-                                                <div className="h-2.5 w-full bg-primary/5 rounded-full overflow-hidden p-0.5 border border-primary/10">
-                                                    <div className="h-full bg-gradient-to-r from-primary via-indigo-500 to-violet-500 w-[94.8%] rounded-full shadow-[0_0_15px_rgba(var(--primary),0.4)]" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="card-elevated glass p-6 space-y-6 border-primary/5 shadow-xl">
-                                        <div className="flex items-center justify-between">
-                                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/80">Permissions</h4>
-                                            <div className="w-2 h-2 rounded-full bg-primary/20 animate-ping" />
-                                        </div>
-                                        <div className="space-y-3">
-                                            {[
-                                                { icon: ShieldCheck, label: "Access Level", value: "Level 4 Active", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                                                { icon: Lock, label: "Security Status", value: "Protected", color: "text-amber-500", bg: "bg-amber-500/10" },
-                                                { icon: Briefcase, label: "Workspace Control", value: "Full Access", color: "text-blue-500", bg: "bg-blue-500/10" }
-                                            ].map((item, idx) => (
-                                                <div key={idx} className="flex items-center gap-4 p-3.5 rounded-2xl bg-muted/20 border border-transparent hover:border-primary/20 hover:bg-muted/30 transition-all duration-300 group/item cursor-default">
-                                                    <div className={`w-11 h-11 rounded-2xl ${item.bg} flex items-center justify-center transition-all group-hover/item:rotate-6 group-hover/item:shadow-lg shadow-inner`}>
-                                                        <item.icon className={`w-5 h-5 ${item.color}`} />
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mb-1.5">{item.label}</span>
-                                                        <span className="text-xs font-black tracking-tight">{item.value}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Right Column: Details & Security */}
-                                <div className="lg:col-span-8 space-y-8">
-                                    <div className="card-elevated glass p-8 sm:p-10 space-y-12">
-                                        {/* Core Information Section */}
-                                        <div className="space-y-8">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                                                        <Building2 className="w-5 h-5 text-primary" />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="text-base font-black italic tracking-tight">Account Information</h4>
-                                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Your account information</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center gap-2">
-                                                    {isEditingProfile ? (
-                                                        <div className="flex items-center gap-2 bg-muted/50 p-1.5 rounded-2xl animate-in fade-in slide-in-from-right-4 duration-300">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-9 px-4 rounded-xl font-bold text-muted-foreground hover:text-foreground transition-all"
-                                                                onClick={() => {
-                                                                    setIsEditingProfile(false);
-                                                                    setEditProfileData({
-                                                                        name: userInfo.name || "",
-                                                                        email: userInfo.email || "",
-                                                                        organization: userInfo.organization || "",
-                                                                        mobile: userInfo.mobile || ""
-                                                                    });
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                className="h-9 px-6 rounded-xl font-black bg-primary shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-                                                                onClick={async () => {
-                                                                    await handleUpdateProfileInfo();
-                                                                    setIsEditingProfile(false);
-                                                                }}
-                                                                disabled={isUpdatingProfile}
-                                                            >
-                                                                {isUpdatingProfile ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save Changes"}
-                                                            </Button>
-                                                        </div>
-                                                    ) : (
-                                                        <Button
-                                                            size="sm"
-                                                            className="h-10 px-6 rounded-2xl font-black bg-background border-2 border-primary/20 text-primary hover:bg-primary hover:text-white transition-all duration-300 group/edit"
-                                                            onClick={() => setIsEditingProfile(true)}
-                                                        >
-                                                            <Pencil className="w-3.5 h-3.5 mr-2 group-hover:rotate-12 transition-transform" />
-                                                            Update Profile
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="grid sm:grid-cols-2 gap-8">
-                                                {[
-                                                    { label: "Full Name", key: "name", value: userInfo?.name, icon: UserIcon },
-                                                    { label: "Email Address", key: "email", value: userInfo?.email, icon: Mail },
-                                                    { label: "Organization", key: "organization", value: userInfo?.organization || "COMS HQ", icon: Building2 },
-                                                    { label: "Mobile Number", key: "mobile", value: userInfo?.mobile || "Not Provided", icon: Phone }
-                                                ].map((field) => (
-                                                    <div key={field.key} className="space-y-3 group/field">
-                                                        <Label className="text-[10px] uppercase font-black text-muted-foreground/60 tracking-[0.2em] ml-1 flex items-center gap-2 group-focus-within/field:text-primary transition-all duration-300">
-                                                            <field.icon className="w-3 h-3 transition-transform group-focus-within/field:scale-110" /> {field.label}
-                                                        </Label>
-                                                        {isEditingProfile ? (
-                                                            <Input
-                                                                className="h-12 rounded-2xl bg-muted/20 border-primary/10 focus:border-primary/40 focus:bg-background transition-all font-bold px-4 hover:bg-muted/30 shadow-inner"
-                                                                value={editProfileData[field.key as keyof typeof editProfileData] || ""}
-                                                                onChange={(e) => setEditProfileData({ ...editProfileData, [field.key]: e.target.value })}
-                                                            />
-                                                        ) : (
-                                                            <div className="h-12 flex items-center px-4 rounded-2xl bg-muted/10 border border-transparent font-black italic text-foreground tracking-tight group-hover/field:bg-muted/20 transition-all duration-300">
-                                                                {field.value || "N/A"}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* History & Persistence */}
-                                        <div className="pt-12 border-t border-primary/10">
-                                            <div className="flex items-center justify-between mb-8">
-                                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
-                                                    <Clock className="w-3.5 h-3.5" /> Activity Overview
-                                                </h4>
-                                                <div className="h-px flex-1 bg-gradient-to-r from-primary/10 to-transparent ml-6" />
-                                            </div>
-                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                                <div className="flex items-center gap-6 p-6 rounded-[2rem] bg-muted/20 border border-transparent hover:border-primary/20 transition-all duration-500 group/stat shadow-soft">
-                                                    <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg group-hover/stat:-rotate-6 transition-transform duration-500">
-                                                        <Calendar className="w-8 h-8 text-primary" />
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mb-2.5">Member Since</span>
-                                                        <span className="text-xl font-black italic tracking-tighter text-foreground/90">{userInfo.joinedDate || "Feb 10, 2026"}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-6 p-6 rounded-[2rem] bg-muted/20 border border-emerald-500/20 transition-all duration-500 group/stat shadow-soft">
-                                                    <div className="w-16 h-16 rounded-2xl bg-white flex items-center justify-center shadow-lg group-hover/stat:rotate-6 transition-transform duration-500">
-                                                        <TrendingUp className="w-8 h-8 text-emerald-500" />
-                                                    </div>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] leading-none mb-2.5">Last Active</span>
-                                                        <span className="text-xl font-black text-emerald-600 italic tracking-tighter">
-                                                            {userInfo?.lastActive
-                                                                ? (!isNaN(new Date(userInfo.lastActive).getTime())
-                                                                    ? formatDistanceToNow(new Date(userInfo.lastActive), { addSuffix: true })
-                                                                    : userInfo.lastActive)
-                                                                : "Online Now"}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Security & Authentication */}
-                                        <div className="pt-12 border-t border-primary/10">
-                                            <div className="flex items-center justify-between p-6 rounded-[2rem] bg-slate-900 shadow-2xl relative overflow-hidden group/security">
-                                                <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl -mr-32 -mt-32 group-hover/security:bg-primary/20 transition-colors duration-700" />
-                                                <div className="flex items-center gap-6 relative z-10">
-                                                    <div className="w-16 h-16 rounded-[1.5rem] bg-white/10 flex items-center justify-center backdrop-blur-md border border-white/10 shadow-inner group-hover/security:scale-110 transition-transform duration-500">
-                                                        <KeyRound className="w-8 h-8 text-amber-400" />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="text-xl font-black italic tracking-tight text-white">Security</h4>
-                                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Update your password</p>
-                                                    </div>
-                                                </div>
-
-                                                <Dialog open={isSecurityModalOpen} onOpenChange={setIsSecurityModalOpen}>
-                                                    <DialogTrigger asChild>
-                                                        <Button className="h-14 px-10 rounded-2xl font-black bg-white text-slate-900 hover:bg-slate-100 shadow-xl transition-all hover:scale-[1.05] active:scale-[0.98] group/btn relative z-10">
-                                                            <RotateCcw className="w-4 h-4 mr-3 group-hover/btn:rotate-180 transition-transform duration-700" />
-                                                            Update Password
-                                                        </Button>
-                                                    </DialogTrigger>
-                                                    <DialogContent className="rounded-[2.5rem] border-border/50 overflow-hidden max-w-lg p-0 bg-background shadow-2xl">
-                                                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-amber-500 via-primary to-violet-600" />
-                                                        <div className="p-10 space-y-8">
-                                                            <div className="space-y-2">
-                                                                <DialogTitle className="text-3xl font-black italic tracking-tight">Update Password</DialogTitle>
-                                                                <DialogDescription className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">Change your account password</DialogDescription>
-                                                            </div>
-
-                                                            <form className="space-y-6" onSubmit={(e) => {
-                                                                e.preventDefault();
-                                                                handlePasswordChange();
-                                                            }} noValidate>
-                                                                <div className="space-y-5">
-                                                                    <div className="space-y-2 group">
-                                                                        <Label htmlFor="oldPassword" title="Current Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">Current Password</Label>
-                                                                        <Input
-                                                                            id="oldPassword"
-                                                                            type="password"
-                                                                            placeholder="Enter current password"
-                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.oldPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                            value={passwordData.oldPassword || ""}
-                                                                            onChange={(e) => {
-                                                                                setPasswordData({ ...passwordData, oldPassword: e.target.value });
-                                                                                if (securityErrors.oldPassword) setSecurityErrors({ ...securityErrors, oldPassword: "" });
-                                                                            }}
-                                                                        />
-                                                                        {securityErrors.oldPassword && (
-                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.oldPassword}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="h-px bg-border/50 w-full my-2" />
-                                                                    <div className="space-y-2 group">
-                                                                        <Label htmlFor="newPassword" title="New Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">New Password</Label>
-                                                                        <Input
-                                                                            id="newPassword"
-                                                                            type="password"
-                                                                            placeholder="Enter new secure password"
-                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.newPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                            value={passwordData.newPassword || ""}
-                                                                            onChange={(e) => {
-                                                                                setPasswordData({ ...passwordData, newPassword: e.target.value });
-                                                                                if (securityErrors.newPassword) setSecurityErrors({ ...securityErrors, newPassword: "" });
-                                                                            }}
-                                                                        />
-                                                                        {securityErrors.newPassword && (
-                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.newPassword}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                    <div className="space-y-2 group">
-                                                                        <Label htmlFor="confirmPassword" title="Confirm New Password" className="text-[10px] font-black uppercase tracking-widest text-muted-foreground group-focus-within:text-amber-600 transition-colors">Confirm New Password</Label>
-                                                                        <Input
-                                                                            id="confirmPassword"
-                                                                            type="password"
-                                                                            placeholder="Confirm new password"
-                                                                            className={`rounded-xl bg-muted/50 border-border/50 focus:border-amber-500 transition-all h-12 ${securityErrors.confirmPassword ? "border-destructive ring-destructive/20" : ""}`}
-                                                                            value={passwordData.confirmPassword || ""}
-                                                                            onChange={(e) => {
-                                                                                setPasswordData({ ...passwordData, confirmPassword: e.target.value });
-                                                                                if (securityErrors.confirmPassword) setSecurityErrors({ ...securityErrors, confirmPassword: "" });
-                                                                            }}
-                                                                        />
-                                                                        {securityErrors.confirmPassword && (
-                                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1">
-                                                                                <AlertCircle className="w-3 h-3" /> {securityErrors.confirmPassword}
-                                                                            </p>
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                <DialogFooter className="pt-4">
-                                                                    <Button
-                                                                        type="submit"
-                                                                        disabled={isChangingPassword}
-                                                                        className="w-full h-14 rounded-2xl font-black bg-amber-500 hover:bg-amber-600 text-white shadow-xl shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                                                    >
-                                                                        {isChangingPassword ? (
-                                                                            <><Loader2 className="w-5 h-5 animate-spin mr-3" />Updating...</>
-                                                                        ) : "Update Password"}
-                                                                    </Button>
-                                                                </DialogFooter>
-                                                            </form>
-                                                        </div>
-                                                    </DialogContent>
-                                                </Dialog>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                     {currentView === "profile" && userInfo && (
+                        <AdminProfile
+                            userInfo={userInfo}
+                            isEditingProfile={isEditingProfile}
+                            setIsEditingProfile={setIsEditingProfile}
+                            editProfileData={editProfileData}
+                            setEditProfileData={setEditProfileData}
+                            isUpdatingProfile={isUpdatingProfile}
+                            handleUpdateProfileInfo={handleUpdateProfileInfo}
+                            onUpdatePassword={handlePasswordSubmit}
+                        />
                     )}
+
                 </main>
 
                 {/* Unallot Seat Confirmation Modal */}
@@ -3580,1545 +3244,9 @@ const AdminDashboard = () => {
                         </div>
                     </DialogContent>
                 </Dialog>
-            </SidebarInset >
-        </SidebarProvider >
+            </SidebarInset>
+        </SidebarProvider>
     );
 };
-
-function RecentUsersTable({ users, currentPage, onPageChange, itemsPerPage }: {
-    users: User[],
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
-            <div className="p-4 border-b flex justify-between items-center bg-muted/20">
-                <h3 className="font-bold">Recent Users</h3>
-                <Button variant="link" size="sm" className="text-xs">View All</Button>
-            </div>
-            <Table>
-                <TableBody>
-                    {paginatedUsers.map((user) => (
-                        <TableRow key={user._id || user.id} className="hover:bg-muted/10 border-none">
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center font-bold text-[10px] text-primary">
-                                        {(user.name || "U").split(" ").map(n => n[0]).join("")}
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="font-semibold text-xs">{user.name}</span>
-                                        <span className="text-[10px] text-muted-foreground">{user.email}</span>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <Badge variant="outline" className="text-[10px] h-5 rounded-full px-2">{user.status}</Badge>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={users.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-function UsersTable({
-    users,
-    onEdit,
-    onDelete,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    users: User[],
-    onEdit: (user: User) => void,
-    onDelete: (id: string) => void,
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedUsers = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow>
-                        <TableHead className="w-[250px]">User</TableHead>
-                        <TableHead>Contact</TableHead>
-                        <TableHead>Organization</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Joined Date</TableHead>
-                        <TableHead>Last Active</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedUsers.map((user) => (
-                        <TableRow key={user._id || user.id} className="hover:bg-muted/20 transition-colors">
-                            <TableCell>
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-xs text-foreground/70">
-                                        {(user.name || "U").split(" ").map(n => n[0]).join("")}
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="font-semibold text-sm">{user.name}</span>
-                                        <span className="text-xs text-muted-foreground">{user.email}</span>
-                                    </div>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-semibold">{user.mobile || user.contactNumber || "N/A"}</span>
-                                    <span className="text-[10px] text-muted-foreground uppercase">{(user.mobile || user.contactNumber) ? "Mobile" : "No Contact"}</span>
-                                </div>
-                            </TableCell>
-                            <TableCell>
-                                <span className="text-xs font-medium italic text-primary/80">{user.organization || "Private Member"}</span>
-                            </TableCell>
-                            <TableCell>
-                                <Badge variant="secondary" className="rounded-lg text-[10px] font-black uppercase tracking-wider">{user.role}</Badge>
-                            </TableCell>
-                            <TableCell>
-                                <Badge
-                                    className={`rounded-full px-3 py-0.5 text-[10px] font-bold uppercase ${user.status === 'Active' ? 'bg-emerald-500/10 text-emerald-600' :
-                                        user.status === 'Pending' ? 'bg-amber-500/10 text-amber-600' :
-                                            'bg-destructive/10 text-destructive'
-                                        }`}
-                                >
-                                    {user.status}
-                                </Badge>
-                            </TableCell>
-                            <TableCell>
-                                <span className="text-xs font-medium">
-                                    {user.joinedDate
-                                        ? (!isNaN(new Date(user.joinedDate).getTime())
-                                            ? new Date(user.joinedDate).toLocaleDateString()
-                                            : user.joinedDate)
-                                        : "N/A"}
-                                </span>
-                            </TableCell>
-                            <TableCell>
-                                <span className="text-xs font-medium italic text-muted-foreground">
-                                    {user.lastActive
-                                        ? (!isNaN(new Date(user.lastActive).getTime())
-                                            ? formatDistanceToNow(new Date(user.lastActive), { addSuffix: true })
-                                            : user.lastActive)
-                                        : "Never"}
-                                </span>
-                            </TableCell>
-                            <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-primary hover:bg-primary/5" onClick={() => onEdit(user)}>
-                                        <Pencil className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg text-destructive hover:bg-destructive/5" onClick={() => onDelete(user._id || user.id!)}>
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ))}
-                    {paginatedUsers.length === 0 && (
-                        <TableRow>
-                            <TableCell colSpan={8} className="h-24 text-center text-muted-foreground italic font-medium">
-                                No members detected in this selection.
-                            </TableCell>
-                        </TableRow>
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={users.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-function WorkspacesTable({
-    workspaces,
-    users,
-    bookings,
-    onAllot,
-    onEdit,
-    onDelete,
-    onUnallotBooking,
-    updatingRequestId,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    workspaces: Workspace[],
-    users: User[],
-    bookings: BookingRequest[],
-    onAllot: (wsId: string, userId: string | null) => void,
-    onEdit: (ws: Workspace) => void,
-    onDelete: (id: string) => void,
-    onUnallotBooking: (booking: BookingRequest) => void,
-    updatingRequestId: string | null,
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedWorkspaces = workspaces.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow>
-                        <TableHead className="w-[40px]"></TableHead>
-                        <TableHead>Workspace Name</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Floor</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead>Capacity</TableHead>
-                        <TableHead>Allotted To</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedWorkspaces.map((ws, i) => (
-                        <WorkspaceRow
-                            key={ws._id || ws.id || i}
-                            ws={ws}
-                            bookings={bookings}
-                            onAllot={onAllot}
-                            onEdit={onEdit}
-                            onDelete={onDelete}
-                            onUnallotBooking={onUnallotBooking}
-                            updatingBookingId={updatingRequestId}
-                        />
-                    ))}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={workspaces.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-const WorkspaceRow = ({
-    ws,
-    bookings,
-    onAllot,
-    onEdit,
-    onDelete,
-    onUnallotBooking,
-    updatingBookingId
-}: {
-    ws: Workspace,
-    bookings: BookingRequest[],
-    onAllot: (wsId: string, userId: string | null) => void,
-    onEdit: (ws: Workspace) => void,
-    onDelete: (id: string) => void,
-    onUnallotBooking: (booking: BookingRequest) => void,
-    updatingBookingId: string | null
-}) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-    if (!ws) return null;
-    const allottedUser = typeof ws.allottedTo === 'object' ? ws.allottedTo : null;
-
-    const confirmedBookings = bookings.filter(b =>
-        String(b.workspaceId) === String(ws._id || ws.id) &&
-        (b.status === "Confirmed" || b.status === "Awaiting Payment")
-    );
-
-    const occupiedSeats = confirmedBookings.reduce((sum, b) => sum + (b.seatCount || 1), 0);
-    const availableSeats = ws.type === "Open WorkStation" ? Math.max(0, (ws.totalSeats || 0) - occupiedSeats) : (ws.allottedTo ? 0 : 1);
-
-    return (
-        <>
-            <TableRow
-                className={`hover:bg-muted/20 transition-colors cursor-pointer ${isExpanded ? 'bg-primary/5' : ''}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell className="font-semibold">{ws.name}</TableCell>
-                <TableCell>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                        <MapPin className="w-4 h-4" />
-                        <span className="text-sm">{ws.location}</span>
-                    </div>
-                </TableCell>
-                <TableCell className="text-sm">{ws.floor || "N/A"}</TableCell>
-                <TableCell>
-                    <Badge variant="secondary" className="rounded-full font-medium">
-                        {ws.type}
-                    </Badge>
-                </TableCell>
-                <TableCell className="text-sm">{ws.capacity}</TableCell>
-                <TableCell>
-                    {ws.type === "Open WorkStation" ? (
-                        <div className="flex flex-col gap-1">
-                            <div className="flex items-center gap-1.5">
-                                <UsersIcon className="w-3.5 h-3.5 text-primary" />
-                                <span className="text-xs font-black text-primary">
-                                    {confirmedBookings.length} People
-                                </span>
-                            </div>
-                            <div className="w-full bg-muted/50 rounded-full h-1 overflow-hidden">
-                                <div
-                                    className="h-full bg-primary transition-all duration-500 ease-out"
-                                    style={{ width: `${Math.min(100, Math.max(0, (((ws.totalSeats || 0) - availableSeats) / (ws.totalSeats || 1)) * 100))}%` }}
-                                />
-                            </div>
-                        </div>
-                    ) : allottedUser ? (
-                        <div className="flex flex-col">
-                            <span className="text-xs font-bold text-primary">{allottedUser.name}</span>
-                            <span className="text-[10px] text-muted-foreground">{allottedUser.email}</span>
-                        </div>
-                    ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground opacity-50 border-dashed">
-                            Unallotted
-                        </Badge>
-                    )}
-                </TableCell>
-                <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={(e) => e.stopPropagation()}>
-                                <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAllot((ws._id || (ws.id ? ws.id.toString() : "")), allottedUser?._id || null); }}>
-                                {allottedUser ? "Change Allotment" : "Allot to User"}
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(ws); }}>Edit Details</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(ws._id || (ws.id ? ws.id.toString() : "")); }}>Delete Space</DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={8} className="p-0">
-                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-
-                                {ws.type === "Open WorkStation" ? (
-                                    <div className="space-y-4">
-                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-2xl bg-primary/5 flex items-center justify-center">
-                                                    <UsersIcon className="w-5 h-5 text-primary" />
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-sm font-black tracking-tight">Utilisation Overview</h4>
-                                                    <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">Real-time seat distribution</p>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <div className="flex flex-col items-end px-3 py-1.5 rounded-2xl border border-primary/10 bg-primary/[0.02]">
-                                                    <span className="text-[9px] font-black text-primary/40 uppercase tracking-tighter">Current Occupancy</span>
-                                                    <span className="text-xs font-black text-primary">{confirmedBookings.length} {confirmedBookings.length === 1 ? 'Booking' : 'Bookings'}</span>
-                                                </div>
-                                                <div className="flex flex-col items-end px-3 py-1.5 rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.02]">
-                                                    <span className="text-[9px] font-black text-emerald-600/40 uppercase tracking-tighter">Vacancy Status</span>
-                                                    <span className="text-xs font-black text-emerald-600">{availableSeats} {availableSeats === 1 ? "Seat" : "Seats"} Ready</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="h-px w-full bg-gradient-to-r from-transparent via-border/50 to-transparent my-4" />
-
-                                        {confirmedBookings.length > 0 ? (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                {confirmedBookings.map((booking) => (
-                                                    <div key={booking._id} className="flex items-center gap-3 p-3 rounded-2xl bg-muted/30 border border-border/50">
-                                                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                                            <UserIcon className="w-5 h-5" />
-                                                        </div>
-                                                        <div className="flex flex-col flex-1 min-w-0">
-                                                            <span className="text-sm font-bold truncate tracking-tight">{booking.fullName}</span>
-                                                            <div className="flex items-center gap-2 mt-0.5">
-                                                                <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
-                                                                    <Calendar className="w-2.5 h-2.5" />
-                                                                    {new Date(booking.startDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                                                                </div>
-                                                                <span className="text-[9px] text-muted-foreground/50">→</span>
-                                                                <div className="flex items-center gap-1 text-[9px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
-                                                                    <Clock className="w-2.5 h-2.5" />
-                                                                    {booking.endDate ? new Date(booking.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : "Notice"}
-                                                                </div>
-                                                            </div>
-                                                            <div className="flex items-center justify-between mt-1.5">
-                                                                <span className="text-[10px] text-primary/80 font-black tracking-widest">{booking.seatCount || 1} {(booking.seatCount || 1) === 1 ? 'SEAT' : 'SEATS'}</span>
-                                                                <span className="text-[9px] text-emerald-600 font-black bg-emerald-500/10 px-1.5 rounded-full">ACTIVE</span>
-                                                            </div>
-                                                        </div>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-8 w-8 rounded-full text-destructive hover:bg-destructive/10 hover:text-destructive shrink-0"
-                                                            disabled={updatingBookingId === (booking._id || (booking as any).id)}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                onUnallotBooking(booking);
-                                                            }}
-                                                        >
-                                                            {updatingBookingId === (booking._id || (booking as any).id) ? (
-                                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                                            ) : (
-                                                                <CircleX className="w-4 h-4" />
-                                                            )}
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="py-8 text-center text-muted-foreground italic text-sm bg-muted/10 rounded-2xl border border-dashed">
-                                                No active seat bookings found for this workstation.
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="grid md:grid-cols-2 gap-8">
-                                        <div className="space-y-4">
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Space Metadata</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <Building className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{ws.type}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <MapPin className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{ws.location}, {ws.floor}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <UsersIcon className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">Capacity: {ws.capacity}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {allottedUser ? (
-                                            <div className="space-y-4">
-                                                <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Allotment Details</h4>
-                                                <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className="w-12 h-12 rounded-2xl bg-primary flex items-center justify-center text-white font-bold text-lg shadow-lg shadow-primary/20">
-                                                            {allottedUser.name[0]}
-                                                        </div>
-                                                        <div className="flex flex-col">
-                                                            <span className="font-black text-foreground italic">{allottedUser.name}</span>
-                                                            <span className="text-xs text-muted-foreground font-medium">{allottedUser.email}</span>
-                                                        </div>
-                                                    </div>
-                                                    {ws.allotmentStart && (
-                                                        <div className="mt-4 pt-4 border-t border-primary/10 flex items-center gap-2 text-[10px] font-black text-primary/70 uppercase">
-                                                            <Calendar className="w-3 h-3" /> Allotted: {new Date(ws.allotmentStart).toLocaleDateString()}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="flex items-center justify-center p-8 bg-muted/10 rounded-2xl border border-dashed">
-                                                <p className="text-muted-foreground font-bold italic text-sm">Space currently unallotted</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-};
-
-function QuotesTable({
-    quotes,
-    onUpdateStatus,
-    updatingRequestId,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    quotes: QuoteRequest[],
-    onUpdateStatus: (id: string, status: string) => void,
-    updatingRequestId: string | null,
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedQuotes = quotes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border/50">
-                        <TableHead className="w-[40px]"></TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Customer</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Workspace</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Requested On</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedQuotes.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                                <div className="flex flex-col items-center gap-2">
-                                    <ClipboardList className="w-8 h-8 opacity-20" />
-                                    <p className="font-medium">No quote requests found.</p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ) : (
-                        paginatedQuotes.map((quote) => (
-                            <QuoteRow key={quote._id} quote={quote} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === quote._id} />
-                        ))
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={quotes.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-const QuoteRow = ({ quote, onUpdateStatus, isUpdating }: { quote: QuoteRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <>
-            <TableRow
-                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-foreground">{quote.fullName}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">{quote.firmName}</span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="bg-background text-primary border-primary/20 font-bold text-[10px] px-2">
-                            {quote.requiredWorkspace}
-                        </Badge>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-xs font-semibold text-muted-foreground">
-                        {quote.createdAt ? new Date(quote.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <Badge
-                        variant="default"
-                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${quote.status === "Pending" ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
-                            quote.status === "Reviewed" ? "bg-blue-100 text-blue-700 shadow-blue-200/50" :
-                                "bg-emerald-100 text-emerald-700 shadow-emerald-200/50"
-                            }`}
-                    >
-                        {quote.status}
-                    </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
-                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(quote._id!, "Pending"); }}>
-                                Pending
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(quote._id!, "Reviewed"); }}>
-                                Reviewed
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(quote._id!, "Completed"); }}>
-                                Completed
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={6} className="p-0">
-                        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            {/* Contact Details Card */}
-                            <div className="space-y-4">
-                                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
-                                    <UserIcon className="w-3 h-3" /> Contact Details
-                                </h4>
-                                <div className="space-y-3 bg-background/50 p-4 rounded-2xl border border-primary/10 shadow-sm">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
-                                            <Mail className="w-4 h-4" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Work Email</span>
-                                            <span className="text-sm font-bold truncate max-w-[180px]">{quote.workEmail}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                                            <Phone className="w-4 h-4" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Phone Number</span>
-                                            <span className="text-sm font-bold">{quote.contactNumber}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Inquiry Details Card */}
-                            <div className="space-y-4">
-                                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
-                                    <Building className="w-3 h-3" /> Space Requirements
-                                </h4>
-                                <div className="space-y-3 bg-background/50 p-4 rounded-2xl border border-primary/10 shadow-sm">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Capacity</span>
-                                            <span className="text-sm font-bold flex items-center gap-1">
-                                                <UsersIcon className="w-3 h-3 text-primary" /> {quote.capacity} Pax
-                                            </span>
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Duration</span>
-                                            <span className="text-sm font-bold"> {quote.duration}</span>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col pt-1">
-                                        <span className="text-[10px] text-muted-foreground uppercase font-black tracking-tighter">Planning to Start</span>
-                                        <span className="text-sm font-bold flex items-center gap-2 mt-1">
-                                            <Calendar className="w-4 h-4 text-primary" />
-                                            {quote.startDate ? new Date(quote.startDate).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) : "N/A"}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Additional Info Card */}
-                            <div className="space-y-4">
-                                <h4 className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-primary/60">
-                                    <MessageSquare className="w-3 h-3" /> Additional Notes
-                                </h4>
-                                <div className="bg-background/50 p-3 rounded-2xl border border-primary/10 shadow-sm flex flex-col">
-                                    <p className="text-[11px] text-muted-foreground leading-relaxed italic break-words whitespace-pre-wrap">
-                                        {quote.additionalRequirements ? `"${quote.additionalRequirements}"` : "No special requirements or additional notes provided by the customer."}
-                                    </p>
-                                    <div className="mt-auto pt-4 flex gap-2">
-                                        <Badge variant="outline" className="text-[9px] font-black bg-primary/5 text-primary border-primary/10">
-                                            {quote.firmType}
-                                        </Badge>
-                                        <Badge variant="outline" className="text-[9px] font-black bg-muted text-muted-foreground border-muted-foreground/10">
-                                            Ref: {quote._id?.slice(-6).toUpperCase()}
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-};
-
-function ContactsTable({
-    contacts,
-    onUpdateStatus,
-    updatingRequestId,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    contacts: ContactRequest[],
-    onUpdateStatus: (id: string, status: string) => void,
-    updatingRequestId: string | null,
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedContacts = contacts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border/50">
-                        <TableHead className="w-[40px]"></TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Sender</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Subject</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Received On</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedContacts.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                                <div className="flex flex-col items-center gap-2">
-                                    <MessageSquare className="w-8 h-8 opacity-20" />
-                                    <p className="font-medium">No contact inquiries found.</p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ) : (
-                        paginatedContacts.map((contact) => (
-                            <ContactRow key={contact._id} contact={contact} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === contact._id} />
-                        ))
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={contacts.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-const ContactRow = ({ contact, onUpdateStatus, isUpdating }: { contact: ContactRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) => {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <>
-            <TableRow
-                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-foreground">{contact.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">{contact.email}</span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-sm font-semibold text-primary/80 line-clamp-1 truncate max-w-[200px]">
-                        {contact.subject}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <span className="text-xs font-semibold text-muted-foreground">
-                        {contact.createdAt ? new Date(contact.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : "N/A"}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <Badge
-                        variant="secondary"
-                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${contact.status === "Pending" || !contact.status ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
-                            contact.status === "Reviewed" ? "bg-blue-100 text-blue-700 shadow-blue-200/50" :
-                                "bg-emerald-100 text-emerald-700 shadow-emerald-200/50"
-                            }`}
-                    >
-                        {contact.status || "Pending"}
-                    </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
-                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(contact._id!, "Pending"); }}>
-                                Pending
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(contact._id!, "Reviewed"); }}>
-                                Reviewed
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(contact._id!, "Completed"); }}>
-                                Completed
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={6} className="p-0">
-                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="space-y-1">
-                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Subject Header</h4>
-                                        <p className="text-lg font-bold text-foreground leading-tight">{contact.subject}</p>
-                                    </div>
-                                    <Badge variant="outline" className="text-[10px] font-black text-muted-foreground">
-                                        EXT-ID: {contact._id?.slice(-8).toUpperCase()}
-                                    </Badge>
-                                </div>
-                                <div className="space-y-2 pt-2">
-                                    <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60">Message Body</h4>
-                                    <div className="bg-muted/10 p-4 rounded-xl border border-dashed border-muted-foreground/20">
-                                        <p className="text-xs text-foreground/80 leading-relaxed font-medium break-words whitespace-pre-wrap">
-                                            {contact.message}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="flex gap-4 mt-6 pt-6 border-t border-border/50">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                            <Mail className="w-4 h-4" />
-                                        </div>
-                                        <span className="text-xs font-bold">{contact.email}</span>
-                                    </div>
-                                    {contact.phone && (
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                                <Phone className="w-4 h-4" />
-                                            </div>
-                                            <span className="text-xs font-bold">{contact.phone}</span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                                            <Calendar className="w-4 h-4" />
-                                        </div>
-                                        <span className="text-xs font-bold">
-                                            {new Date(contact.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} •
-                                            {new Date(contact.createdAt).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-};
-
-function BookingsTable({
-    bookings,
-    onUpdateStatus,
-    updatingRequestId,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    bookings: BookingRequest[],
-    onUpdateStatus: (id: string, status: string) => void,
-    updatingRequestId: string | null,
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedBookings = bookings.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft border-none">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border/50">
-                        <TableHead className="w-[50px]"></TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Client Details</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Workspace</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Duration / Start</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedBookings.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                                <div className="flex flex-col items-center gap-2">
-                                    <Calendar className="w-8 h-8 opacity-20" />
-                                    <p className="font-medium">No booking requests found.</p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ) : (
-                        paginatedBookings.map((booking) => (
-                            <BookingRow key={booking._id} booking={booking} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === booking._id} />
-                        ))
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={bookings.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-function BookingRow({ booking, onUpdateStatus, isUpdating }: { booking: BookingRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <>
-            <TableRow
-                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-foreground">{booking.fullName}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">{booking.email}</span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-sm font-semibold text-primary/80">
-                        {booking.workspaceName}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="text-xs font-bold text-foreground">{booking.duration}</span>
-                        <span className="text-[10px] text-muted-foreground">
-                            Starts: {new Date(booking.startDate).toLocaleDateString()}
-                        </span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <Badge
-                        variant="secondary"
-                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${booking.status === "Awaiting Payment" ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
-                            booking.status === "Confirmed" ? "bg-emerald-100 text-emerald-700 shadow-emerald-200/50" :
-                                "bg-rose-100 text-rose-700 shadow-rose-200/50"
-                            }`}
-                    >
-                        {booking.status}
-                    </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
-                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(booking._id!, "Awaiting Payment"); }}>
-                                Awaiting Payment
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(booking._id!, "Confirmed"); }}>
-                                Confirmed
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(booking._id!, "Cancelled"); }}>
-                                Cancelled
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={6} className="p-0">
-                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Booking Essentials</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <Building className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{booking.workspaceName}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Clock className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{booking.duration}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">Planned Start: {new Date(booking.startDate).toLocaleDateString(undefined, { dateStyle: 'long' })}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Requester Information</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{booking.fullName}</span>
-                                                </div>
-                                                {booking.firmName && (
-                                                    <div className="flex items-center gap-3">
-                                                        <Briefcase className="w-4 h-4 text-muted-foreground" />
-                                                        <span className="text-sm font-bold">{booking.firmName}</span>
-                                                    </div>
-                                                )}
-                                                <div className="flex items-center gap-3">
-                                                    <Mail className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{booking.email}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Phone className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{booking.contactNumber}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-6 pt-4 border-t border-border/50 flex justify-between items-center">
-                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Received {new Date(booking.createdAt).toLocaleString()}</span>
-                                    <Badge variant="outline" className="text-[10px] font-black text-muted-foreground uppercase">REQ-ID: {booking._id?.slice(-8).toUpperCase()}</Badge>
-                                </div>
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-}
-
-function VisitsTable({
-    visits,
-    onUpdateStatus,
-    updatingRequestId,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    visits: VisitRequest[],
-    onUpdateStatus: (id: string, status: string) => void,
-    updatingRequestId: string | null,
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedVisits = visits.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft border-none">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border/50">
-                        <TableHead className="w-[50px]"></TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Visitor</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Workspace</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Visit Date</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                        <TableHead className="text-right font-bold text-xs uppercase tracking-wider">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedVisits.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                                <div className="flex flex-col items-center gap-2">
-                                    <Calendar className="w-8 h-8 opacity-20" />
-                                    <p className="font-medium">No visit requests found.</p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ) : (
-                        paginatedVisits.map((visit) => (
-                            <VisitRow key={visit._id} visit={visit} onUpdateStatus={onUpdateStatus} isUpdating={updatingRequestId === visit._id} />
-                        ))
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={visits.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-function VisitRow({ visit, onUpdateStatus, isUpdating }: { visit: VisitRequest, onUpdateStatus: (id: string, status: string) => void, isUpdating: boolean }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <>
-            <TableRow
-                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-foreground">{visit.fullName}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">{visit.email}</span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-sm font-semibold text-primary/80">
-                        {visit.workspaceName}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <span className="text-xs font-bold text-foreground">
-                        {new Date(visit.visitDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <Badge
-                        variant="secondary"
-                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${visit.status === "Pending" ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
-                            visit.status === "Confirmed" ? "bg-blue-100 text-blue-700 shadow-blue-200/50" :
-                                visit.status === "Completed" ? "bg-emerald-100 text-emerald-700 shadow-emerald-200/50" :
-                                    "bg-rose-100 text-rose-700 shadow-rose-200/50"
-                            }`}
-                    >
-                        {visit.status}
-                    </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 rounded-xl font-bold text-xs" onClick={(e) => e.stopPropagation()} disabled={isUpdating}>
-                                {isUpdating ? <><Loader2 className="w-3 h-3 animate-spin mr-2" /> Working...</> : "Update Status"}
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="rounded-xl">
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(visit._id!, "Pending"); }}>
-                                Pending
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(visit._id!, "Confirmed"); }}>
-                                Confirmed
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(visit._id!, "Completed"); }}>
-                                Completed
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onUpdateStatus(visit._id!, "Cancelled"); }}>
-                                Cancelled
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={6} className="p-0">
-                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Visit Details</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <Building className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{visit.workspaceName}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">Planned Visit: {new Date(visit.visitDate).toLocaleDateString(undefined, { dateStyle: 'full' })}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Visitor Information</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{visit.fullName}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Mail className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{visit.email}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Phone className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{visit.contactNumber}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-6 pt-4 border-t border-border/50 flex justify-between items-center">
-                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Requested {new Date(visit.createdAt).toLocaleString()}</span>
-                                    <Badge variant="outline" className="text-[10px] font-black text-muted-foreground uppercase">VST-ID: {visit._id?.slice(-8).toUpperCase()}</Badge>
-                                </div>
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-}
-
-function DayPassesTable({
-    passes,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    passes: DayPassRequest[],
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedPasses = passes.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow>
-                        <TableHead className="w-[40px]"></TableHead>
-                        <TableHead>Visitor Name</TableHead>
-                        <TableHead>Visit Date</TableHead>
-                        <TableHead>Pass Code</TableHead>
-                        <TableHead>Purpose</TableHead>
-                        <TableHead>Status</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedPasses.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={6} className="text-center py-20 text-muted-foreground font-bold">No day passes issued yet.</TableCell>
-                        </TableRow>
-                    ) : (
-                        paginatedPasses.map((pass) => (
-                            <DayPassRow key={pass._id} pass={pass} />
-                        ))
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={passes.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-function DayPassRow({ pass }: { pass: DayPassRequest }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <>
-            <TableRow
-                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-foreground">{pass.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">{pass.email}</span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-xs font-bold text-foreground">
-                        {new Date(pass.visitDate).toLocaleDateString(undefined, { dateStyle: 'medium' })}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <Badge variant="outline" className="font-black text-[10px] uppercase tracking-wider text-primary bg-primary/5 border-primary/20">
-                        {pass.passCode}
-                    </Badge>
-                </TableCell>
-                <TableCell>
-                    <span className="text-sm font-medium text-muted-foreground truncate max-w-[200px] block">
-                        {pass.purpose}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <Badge
-                        variant="secondary"
-                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${pass.status === "Pending" ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
-                            pass.status === "Used" ? "bg-emerald-100 text-emerald-700 shadow-emerald-200/50" :
-                                "bg-rose-100 text-rose-700 shadow-rose-200/50"
-                            }`}
-                    >
-                        {pass.status}
-                    </Badge>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={6} className="p-0">
-                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Visitor Details</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{pass.name}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Mail className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{pass.email}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Phone className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{pass.contact}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Visit Information</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">Visit Date: {new Date(pass.visitDate).toLocaleDateString(undefined, { dateStyle: 'full' })}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Purpose of Visit</span>
-                                                        <p className="text-sm font-bold italic">"{pass.purpose}"</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-6 pt-4 border-t border-border/50 flex justify-between items-center">
-                                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">Issued {new Date(pass.createdAt).toLocaleString()}</span>
-                                    <Badge variant="outline" className="text-[10px] font-black text-muted-foreground uppercase">PASS-ID: {pass._id?.slice(-8).toUpperCase()}</Badge>
-                                </div>
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-}
-
-function InvoicesTable({
-    invoices,
-    currentPage,
-    onPageChange,
-    itemsPerPage
-}: {
-    invoices: any[],
-    currentPage: number,
-    onPageChange: (page: number) => void,
-    itemsPerPage: number
-}) {
-    const paginatedInvoices = invoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    return (
-        <div className="card-elevated overflow-hidden glass shadow-soft border-none">
-            <Table>
-                <TableHeader className="bg-muted/30">
-                    <TableRow className="hover:bg-transparent border-border/50">
-                        <TableHead className="w-[50px]"></TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Invoice ID</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Client Info</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Workspace</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Period / Due</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Amount</TableHead>
-                        <TableHead className="font-bold text-xs uppercase tracking-wider">Status</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {paginatedInvoices.length === 0 ? (
-                        <TableRow>
-                            <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                                <div className="flex flex-col items-center gap-2">
-                                    <FileText className="w-8 h-8 opacity-20" />
-                                    <p className="font-medium">No invoices found.</p>
-                                </div>
-                            </TableCell>
-                        </TableRow>
-                    ) : (
-                        paginatedInvoices.map((inv) => (
-                            <InvoiceRow key={inv._id} invoice={inv} />
-                        ))
-                    )}
-                </TableBody>
-            </Table>
-            <TablePagination
-                totalItems={invoices.length}
-                itemsPerPage={itemsPerPage}
-                currentPage={currentPage}
-                onPageChange={onPageChange}
-            />
-        </div>
-    );
-}
-
-function InvoiceRow({ invoice }: { invoice: any }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-
-    return (
-        <>
-            <TableRow
-                className={`group cursor-pointer transition-all duration-300 ${isExpanded ? 'bg-primary/5 hover:bg-primary/5' : 'hover:bg-muted/40'}`}
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <TableCell>
-                    <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-primary/20 text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
-                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-mono font-bold text-xs text-primary">{invoice.invoiceNumber}</span>
-                        {invoice.type === 'recurring' && (
-                            <Badge className="w-fit mt-1 px-1.5 py-0 rounded-sm bg-violet-500/10 text-violet-600 text-[8px] font-black uppercase border-none">Recurring</Badge>
-                        )}
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-sm text-foreground">{invoice.customerName}</span>
-                        <span className="text-[10px] text-muted-foreground font-medium">{invoice.customerEmail}</span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-sm font-semibold text-primary/80">
-                        {invoice.workspaceName}
-                    </span>
-                </TableCell>
-                <TableCell>
-                    <div className="flex flex-col">
-                        <span className="text-xs font-bold text-foreground">
-                            {invoice.billingMonth ?
-                                new Date(invoice.billingMonth + '-01T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) :
-                                new Date(invoice.createdAt).toLocaleDateString()
-                            }
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                            Due: {new Date(invoice.dueDate).toLocaleDateString()}
-                        </span>
-                    </div>
-                </TableCell>
-                <TableCell>
-                    <span className="text-sm font-black text-foreground">₹{(invoice.amount || 0).toLocaleString()}</span>
-                </TableCell>
-                <TableCell>
-                    <Badge
-                        variant="secondary"
-                        className={`rounded-full font-black uppercase text-[8px] tracking-[0.1em] px-3 py-0.5 border-none shadow-sm ${invoice.status === "Paid" ? "bg-emerald-100 text-emerald-700 shadow-emerald-200/50" :
-                            invoice.status === "Pending" ? "bg-amber-100 text-amber-700 shadow-amber-200/50" :
-                                "bg-rose-100 text-rose-700 shadow-rose-200/50"
-                            }`}
-                    >
-                        {invoice.status}
-                    </Badge>
-                </TableCell>
-            </TableRow>
-            {isExpanded && (
-                <TableRow className="bg-primary/[0.02] hover:bg-primary/[0.02] border-none">
-                    <TableCell colSpan={7} className="p-0">
-                        <div className="p-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                            <div className="bg-background/50 p-6 rounded-3xl border border-primary/10 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
-                                <div className="grid md:grid-cols-2 gap-8">
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Billing Context</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <Building className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{invoice.workspaceName}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <CreditCard className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{invoice.paymentMethod}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">Generated: {new Date(invoice.createdAt).toLocaleString()}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <div>
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-2">Recipient Information</h4>
-                                            <div className="space-y-3">
-                                                <div className="flex items-center gap-3">
-                                                    <UserIcon className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{invoice.customerName}</span>
-                                                </div>
-                                                <div className="flex items-center gap-3">
-                                                    <Mail className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">{invoice.customerEmail}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {invoice.status === 'Paid' && invoice.paidDate && (
-                                    <div className="mt-4 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/10 flex items-center gap-2">
-                                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                                        <span className="text-xs font-bold text-emerald-700 uppercase">Paid on {new Date(invoice.paidDate).toLocaleString()}</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </TableCell>
-                </TableRow>
-            )}
-        </>
-    );
-}
 
 export default AdminDashboard;
-
-
-
-
