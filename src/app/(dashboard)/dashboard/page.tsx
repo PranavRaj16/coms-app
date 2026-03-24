@@ -101,7 +101,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import cohortimage from "@/assets/cohort-logo.png";
-import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice } from "@/lib/api";
+import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice, deleteReply } from "@/lib/api";
 import { Workspace } from "@/data/workspaces";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
@@ -215,12 +215,15 @@ const UserDashboard = () => {
     const [activeReplyBox, setActiveReplyBox] = useState<string | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isCommentDeleteDialogOpen, setIsCommentDeleteDialogOpen] = useState(false);
+    const [isReplyDeleteDialogOpen, setIsReplyDeleteDialogOpen] = useState(false);
     const [postToDelete, setPostToDelete] = useState<string | null>(null);
     const [commentToDelete, setCommentToDelete] = useState<{ postId: string, commentId: string } | null>(null);
+    const [replyToDelete, setReplyToDelete] = useState<{ postId: string, commentId: string, replyId: string } | null>(null);
     const [loading, setLoading] = useState(true);
     const [isPosting, setIsPosting] = useState(false);
     const [isDeletingPost, setIsDeletingPost] = useState(false);
     const [isDeletingComment, setIsDeletingComment] = useState(false);
+    const [isDeletingReply, setIsDeletingReply] = useState(false);
     const [submittingCommentPostId, setSubmittingCommentPostId] = useState<string | null>(null);
     const [submittingReplyCommentId, setSubmittingReplyCommentId] = useState<string | null>(null);
     const [isRequestingWorkspace, setIsRequestingWorkspace] = useState(false);
@@ -305,11 +308,11 @@ const UserDashboard = () => {
         if (bookingParams.startDate && bookingParams.endDate) {
             const start = new Date(bookingParams.startDate);
             const end = new Date(bookingParams.endDate);
-            
+
             if (end > start) {
                 const diffTime = Math.abs(end.getTime() - start.getTime());
                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                
+
                 let durationStr = "";
                 if (diffDays >= 365) {
                     const years = (diffDays / 365).toFixed(1);
@@ -323,7 +326,7 @@ const UserDashboard = () => {
                 } else {
                     durationStr = `${diffDays} Days`;
                 }
-                
+
                 setBookingParams(prev => ({ ...prev, duration: durationStr }));
             } else {
                 setBookingParams(prev => ({ ...prev, duration: "0 Days" }));
@@ -525,12 +528,12 @@ const UserDashboard = () => {
             setAllWorkspaces(Array.isArray(allWsData) ? [...allWsData].sort((a, b) => {
                 const now = new Date();
                 const startA = a.allotmentStart ? new Date(a.allotmentStart) : null;
-                const isUnavA = a.type === "Open WorkStation" 
+                const isUnavA = a.type === "Open WorkStation"
                     ? (a.availableSeats !== undefined ? a.availableSeats <= 0 : false)
                     : !!a.allottedTo && (!startA || now >= startA);
-                
+
                 const startB = b.allotmentStart ? new Date(b.allotmentStart) : null;
-                const isUnavB = b.type === "Open WorkStation" 
+                const isUnavB = b.type === "Open WorkStation"
                     ? (b.availableSeats !== undefined ? b.availableSeats <= 0 : false)
                     : !!b.allottedTo && (!startB || now >= startB);
 
@@ -702,12 +705,26 @@ const UserDashboard = () => {
         }
     };
 
+    const confirmReplyDelete = async () => {
+        if (!replyToDelete) return;
+        try {
+            const updatedPost = await deleteReply(replyToDelete.postId, replyToDelete.commentId, replyToDelete.replyId);
+            setPosts(posts.map(p => p._id === replyToDelete.postId ? updatedPost : p));
+            toast.success("Reply removed");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to delete reply");
+        } finally {
+            setIsReplyDeleteDialogOpen(false);
+            setReplyToDelete(null);
+        }
+    };
+
     const handleRequestWorkspace = async (workspace: Workspace) => {
         // Set default dates: today to one month from today
         const today = new Date();
         const nextMonth = new Date();
         nextMonth.setMonth(today.getMonth() + 1);
-        
+
         const formatDate = (date: Date) => {
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -936,9 +953,9 @@ const UserDashboard = () => {
                                             )}
                                         </div>
                                         {unreadCount > 0 && (
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
                                                 className="h-7 px-3 rounded-lg text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 transition-all border border-primary/20"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
@@ -1099,7 +1116,7 @@ const UserDashboard = () => {
                                                             </p>
                                                             <div className="font-bold text-lg flex items-center gap-2">
                                                                 <Users className="w-4 h-4 text-primary" />
-                                                                 {ws.type === "Open WorkStation" ? (
+                                                                {ws.type === "Open WorkStation" ? (
                                                                     <div className="flex flex-col">
                                                                         <div className="flex items-baseline gap-1.5">
                                                                             <span className="text-primary text-2xl font-black italic">{(ws as any).bookedSeats || 1}</span>
@@ -1184,7 +1201,7 @@ const UserDashboard = () => {
                                                                 </p>
                                                                 <div className="font-bold text-lg flex items-center gap-2">
                                                                     <Users className="w-4 h-4 text-primary" />
-                                                                     {ws.type === "Open WorkStation" ? (
+                                                                    {ws.type === "Open WorkStation" ? (
                                                                         <div className="flex flex-col">
                                                                             <div className="flex items-baseline gap-1.5">
                                                                                 <span className="text-primary text-2xl font-black italic">{(ws as any).bookedSeats || 1}</span>
@@ -1357,20 +1374,20 @@ const UserDashboard = () => {
                                                 <p className="text-[10px] font-black uppercase text-muted-foreground mb-1 tracking-widest">
                                                     {selectedWorkspace.type === "Open WorkStation" ? "Capacity" : "Workstations"}
                                                 </p>
-                                                 <div className="font-bold text-foreground flex items-center gap-2">
-                                                     <Users className="w-4 h-4 text-primary shrink-0" />
-                                                      {selectedWorkspace.type === "Open WorkStation" 
-                                                         ? (
-                                                             <div className="flex items-baseline gap-1.5">
-                                                                 <span className="text-primary text-2xl font-black italic leading-none">{selectedWorkspace.availableSeats ?? 0}</span>
-                                                                 <div className="flex flex-col">
+                                                <div className="font-bold text-foreground flex items-center gap-2">
+                                                    <Users className="w-4 h-4 text-primary shrink-0" />
+                                                    {selectedWorkspace.type === "Open WorkStation"
+                                                        ? (
+                                                            <div className="flex items-baseline gap-1.5">
+                                                                <span className="text-primary text-2xl font-black italic leading-none">{selectedWorkspace.availableSeats ?? 0}</span>
+                                                                <div className="flex flex-col">
                                                                     <span className="text-[10px] text-muted-foreground font-black uppercase tracking-widest leading-none">/ {selectedWorkspace.totalSeats ?? 0}</span>
                                                                     <span className="text-[8px] text-primary/60 font-black uppercase tracking-tighter leading-none mt-1">Seats Available</span>
-                                                                 </div>
-                                                             </div>
-                                                         )
-                                                         : <span className="text-lg">{selectedWorkspace.features?.workstationSeats || "0"} Seats</span>}
-                                                 </div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                        : <span className="text-lg">{selectedWorkspace.features?.workstationSeats || "0"} Seats</span>}
+                                                </div>
                                             </div>
                                             {selectedWorkspace.features?.hasConferenceHall && (
                                                 <div className="bg-muted/30 p-5 rounded-2xl border border-border/50 transition-all hover:bg-muted/50">
@@ -1391,8 +1408,8 @@ const UserDashboard = () => {
                                                 <div className="font-bold text-foreground flex items-center gap-2">
                                                     <Layers className="w-4 h-4 text-primary" />
                                                     <p>
-                                                        {selectedWorkspace.type === "Open WorkStation" 
-                                                            ? `${selectedWorkspace.totalSeats ?? 0} Seats` 
+                                                        {selectedWorkspace.type === "Open WorkStation"
+                                                            ? `${selectedWorkspace.totalSeats ?? 0} Seats`
                                                             : selectedWorkspace.capacity}
                                                     </p>
                                                 </div>
@@ -1405,8 +1422,8 @@ const UserDashboard = () => {
                                 <div className="lg:col-span-2 space-y-6">
                                     <div className="bg-card rounded-[2rem] p-8 border border-border/50 shadow-soft h-full">
                                         <div className="space-y-8">
-                                            {(myWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id)) || 
-                                              upcomingWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id))) ? (
+                                            {(myWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id)) ||
+                                                upcomingWorkspaces.some(ws => String(ws._id || ws.id) === String(selectedWorkspace?._id || selectedWorkspace?.id))) ? (
                                                 <div>
                                                     <h3 className="text-lg font-black mb-4 flex items-center gap-2">
                                                         <Clock className="w-5 h-5 text-primary" /> Booking Period
@@ -1562,18 +1579,7 @@ const UserDashboard = () => {
                                                             value={newPostContent}
                                                             onChange={(e) => setNewPostContent(e.target.value)}
                                                         />
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center gap-1.5">
-                                                                {[
-                                                                    { label: "Productive", icon: Zap, color: "text-amber-500" },
-                                                                    { label: "Collab", icon: Users, color: "text-blue-500" },
-                                                                    { label: "Winning", icon: Trophy, color: "text-emerald-500" }
-                                                                ].map((mood) => (
-                                                                    <Button key={mood.label} variant="ghost" size="sm" className={`rounded-lg h-7 px-2.5 font-semibold text-[10px] uppercase tracking-wide hover:bg-muted transition-all gap-1.5 text-muted-foreground hover:${mood.color}`}>
-                                                                        <mood.icon className={`w-3 h-3`} /> {mood.label}
-                                                                    </Button>
-                                                                ))}
-                                                            </div>
+                                                        <div className="flex items-center justify-end">
                                                             <Button
                                                                 onClick={handleCreatePost}
                                                                 disabled={isPosting || !newPostContent.trim()}
@@ -1648,11 +1654,10 @@ const UserDashboard = () => {
                                                                         <Button
                                                                             variant="ghost"
                                                                             size="sm"
-                                                                            className={`rounded-lg h-8 px-3 text-xs font-semibold gap-1.5 transition-all ${
-                                                                                post.upvotes.includes(userInfo?._id)
-                                                                                    ? "bg-primary/10 text-primary"
-                                                                                    : "text-muted-foreground hover:text-primary hover:bg-primary/5"
-                                                                            }`}
+                                                                            className={`rounded-lg h-8 px-3 text-xs font-semibold gap-1.5 transition-all ${post.upvotes.includes(userInfo?._id)
+                                                                                ? "bg-primary/10 text-primary"
+                                                                                : "text-muted-foreground hover:text-primary hover:bg-primary/5"
+                                                                                }`}
                                                                             onClick={() => handleUpvotePost(post._id)}
                                                                         >
                                                                             <Zap className={`w-3.5 h-3.5 ${post.upvotes.includes(userInfo?._id) ? "fill-current" : ""}`} />
@@ -1717,11 +1722,46 @@ const UserDashboard = () => {
                                                                                         {comment.replies && comment.replies.length > 0 && (
                                                                                             <div className="pt-2 space-y-2 pl-3 border-l-2 border-border/20">
                                                                                                 {comment.replies.map((reply: any) => (
-                                                                                                    <div key={reply._id} className="flex gap-2">
-                                                                                                        <div className="w-6 h-6 rounded-md bg-muted/50 flex items-center justify-center font-bold text-[9px] shrink-0">{reply.userName?.[0] || "U"}</div>
-                                                                                                        <div>
-                                                                                                            <p className="text-[10px] font-bold">{reply.userName}</p>
-                                                                                                            <p className="text-[10px] text-muted-foreground">{reply.content || reply.text}</p>
+                                                                                                    <div key={reply._id} className="flex gap-2 group/reply">
+                                                                                                        <div className="w-6 h-6 rounded-md bg-muted/50 flex items-center justify-center font-bold text-[9px] shrink-0 mt-0.5">{reply.userName?.[0] || "U"}</div>
+                                                                                                        <div className="flex-1">
+                                                                                                            <div className="flex items-center justify-between">
+                                                                                                                <p className="text-[10px] font-bold">{reply.userName}</p>
+                                                                                                                {isAuth(reply.user, userInfo?._id) && (
+                                                                                                                    <button
+                                                                                                                        className="opacity-0 group-hover/reply:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                                                                                                                        onClick={() => { setReplyToDelete({ postId: post._id, commentId: comment._id, replyId: reply._id }); setIsReplyDeleteDialogOpen(true); }}
+                                                                                                                    >
+                                                                                                                        <Trash2 className="w-3 h-3" />
+                                                                                                                    </button>
+                                                                                                                )}
+                                                                                                            </div>
+                                                                                                            <p className="text-[10px] text-muted-foreground">{reply.text || reply.content}</p>
+                                                                                                            
+                                                                                                            {/* Sub-replies rendering */}
+                                                                                                            {reply.replies && reply.replies.length > 0 && (
+                                                                                                               <div className="mt-2 space-y-2 pl-2 border-l border-border/20">
+                                                                                                                   {reply.replies.map((subReply: any) => (
+                                                                                                                       <div key={subReply._id} className="flex gap-2 group/subreply">
+                                                                                                                           <div className="w-5 h-5 rounded-md bg-muted/70 flex items-center justify-center font-bold text-[8px] shrink-0 mt-0.5">{subReply.userName?.[0] || "U"}</div>
+                                                                                                                           <div className="flex-1">
+                                                                                                                               <div className="flex items-center justify-between">
+                                                                                                                                   <p className="text-[9px] font-bold">{subReply.userName}</p>
+                                                                                                                                   {isAuth(subReply.user, userInfo?._id) && (
+                                                                                                                                       <button
+                                                                                                                                           className="opacity-0 group-hover/subreply:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                                                                                                                                           onClick={() => { setReplyToDelete({ postId: post._id, commentId: comment._id, replyId: subReply._id }); setIsReplyDeleteDialogOpen(true); }}
+                                                                                                                                       >
+                                                                                                                                           <Trash2 className="w-2.5 h-2.5" />
+                                                                                                                                       </button>
+                                                                                                                                   )}
+                                                                                                                               </div>
+                                                                                                                               <p className="text-[9px] text-muted-foreground">{subReply.text || subReply.content}</p>
+                                                                                                                           </div>
+                                                                                                                       </div>
+                                                                                                                   ))}
+                                                                                                               </div>
+                                                                                                            )}
                                                                                                         </div>
                                                                                                     </div>
                                                                                                 ))}
@@ -1770,7 +1810,7 @@ const UserDashboard = () => {
                                                     <div className="bg-emerald-500/5 rounded-xl p-3 border border-emerald-500/10">
                                                         <div className="flex items-center gap-1.5 mb-1">
                                                             <div className="flex items-end gap-0.5 h-3">
-                                                                {[40,70,45,90,65].map((h,i) => <div key={i} className="w-0.5 bg-emerald-500/40 rounded-full" style={{height:`${h}%`}} />)}
+                                                                {[40, 70, 45, 90, 65].map((h, i) => <div key={i} className="w-0.5 bg-emerald-500/40 rounded-full" style={{ height: `${h}%` }} />)}
                                                             </div>
                                                         </div>
                                                         <p className="text-2xl font-black text-emerald-600">{posts.length}</p>
@@ -1790,11 +1830,10 @@ const UserDashboard = () => {
                                                         <button
                                                             key={tag}
                                                             onClick={() => setActiveHashtag(activeHashtag === tag ? null : tag)}
-                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
-                                                                activeHashtag === tag
-                                                                    ? "bg-primary text-primary-foreground shadow-sm"
-                                                                    : "bg-muted/60 text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                                                            }`}
+                                                            className={`px-3 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${activeHashtag === tag
+                                                                ? "bg-primary text-primary-foreground shadow-sm"
+                                                                : "bg-muted/60 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                                                }`}
                                                         >
                                                             {tag}
                                                         </button>
@@ -1832,29 +1871,16 @@ const UserDashboard = () => {
                                             <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-muted-foreground group-focus-within:text-primary transition-colors">
                                                 <Users className="w-4 h-4" />
                                             </div>
-                                            <Input 
-                                                placeholder="Search members by name or role..." 
+                                            <Input
+                                                placeholder="Search members by name or role..."
                                                 className="bg-muted/20 border-border/50 rounded-2xl pl-12 h-12 focus-visible:ring-primary/20 focus-visible:border-primary/30 transition-all font-medium"
                                                 value={membersSearch}
                                                 onChange={(e) => setMembersSearch(e.target.value)}
                                             />
                                         </div>
-                                        <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-none w-full sm:w-auto">
-                                            {["All", "Founders", "Designers", "Devs", "Strategists"].map(role => (
-                                                <Button
-                                                    key={role}
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className={`rounded-xl px-4 py-2 font-black uppercase text-[9px] tracking-widest border border-transparent transition-all ${selectedRoleFilter === role ? "bg-primary/10 text-primary border-primary/20 shadow-sm" : "hover:bg-primary/5 text-muted-foreground"}`}
-                                                    onClick={() => setSelectedRoleFilter(role)}
-                                                >
-                                                    {role}
-                                                </Button>
-                                            ))}
-                                        </div>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                        {community.filter(m => 
+                                        {community.filter(m =>
                                             (m.user?.name?.toLowerCase().includes(membersSearch.toLowerCase()) || m.user?.role?.toLowerCase().includes(membersSearch.toLowerCase())) &&
                                             (selectedRoleFilter === "All" || m.user?.role?.toLowerCase().includes(selectedRoleFilter.slice(0, -1).toLowerCase()))
                                         ).length === 0 ? (
@@ -1869,103 +1895,103 @@ const UserDashboard = () => {
                                             </div>
                                         ) : (
                                             community
-                                                .filter(m => 
+                                                .filter(m =>
                                                     (m.user?.name?.toLowerCase().includes(membersSearch.toLowerCase()) || m.user?.role?.toLowerCase().includes(membersSearch.toLowerCase())) &&
                                                     (selectedRoleFilter === "All" || m.user?.role?.toLowerCase().includes(selectedRoleFilter.slice(0, -1).toLowerCase()))
                                                 )
                                                 .map((member, i) => (
-                                                <div key={i} className="bg-card glass rounded-[2.5rem] p-8 space-y-8 flex flex-col group/member hover:shadow-2xl hover:scale-[1.02] transition-all duration-700 border border-border/50 relative overflow-hidden">
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover/member:bg-primary/10 transition-colors" />
+                                                    <div key={i} className="bg-card glass rounded-[2.5rem] p-8 space-y-8 flex flex-col group/member hover:shadow-2xl hover:scale-[1.02] transition-all duration-700 border border-border/50 relative overflow-hidden">
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover/member:bg-primary/10 transition-colors" />
 
-                                                    <div className="flex items-center gap-5 relative z-10">
-                                                        <div className="relative group/avatar">
-                                                            <div className={`w-24 h-24 rounded-[2rem] ${[
-                                                                'bg-gradient-to-tr from-primary/30 via-primary/10 to-accent/10',
-                                                                'bg-gradient-to-tr from-violet-500/30 via-violet-500/10 to-indigo-500/10',
-                                                                'bg-gradient-to-tr from-emerald-500/30 via-emerald-500/10 to-teal-500/10',
-                                                                'bg-gradient-to-tr from-rose-500/30 via-rose-500/10 to-orange-500/10',
-                                                                'bg-gradient-to-tr from-amber-500/30 via-amber-500/10 to-yellow-500/10',
-                                                                'bg-gradient-to-tr from-blue-500/30 via-blue-500/10 to-cyan-500/10',
-                                                            ][i % 6]} flex items-center justify-center font-black text-primary text-3xl shadow-xl group-hover/member:rotate-6 transition-all duration-700 border border-primary/20 relative overflow-hidden`}>
-                                                                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover/member:opacity-100 transition-opacity" />
-                                                                {(member.user?.name || "U")[0]}
+                                                        <div className="flex items-center gap-5 relative z-10">
+                                                            <div className="relative group/avatar">
+                                                                <div className={`w-24 h-24 rounded-[2rem] ${[
+                                                                    'bg-gradient-to-tr from-primary/30 via-primary/10 to-accent/10',
+                                                                    'bg-gradient-to-tr from-violet-500/30 via-violet-500/10 to-indigo-500/10',
+                                                                    'bg-gradient-to-tr from-emerald-500/30 via-emerald-500/10 to-teal-500/10',
+                                                                    'bg-gradient-to-tr from-rose-500/30 via-rose-500/10 to-orange-500/10',
+                                                                    'bg-gradient-to-tr from-amber-500/30 via-amber-500/10 to-yellow-500/10',
+                                                                    'bg-gradient-to-tr from-blue-500/30 via-blue-500/10 to-cyan-500/10',
+                                                                ][i % 6]} flex items-center justify-center font-black text-primary text-3xl shadow-xl group-hover/member:rotate-6 transition-all duration-700 border border-primary/20 relative overflow-hidden`}>
+                                                                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent opacity-0 group-hover/member:opacity-100 transition-opacity" />
+                                                                    {(member.user?.name || "U")[0]}
+                                                                </div>
+                                                                <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 border-4 border-background rounded-full shadow-xl flex items-center justify-center">
+                                                                    <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                                                                </div>
                                                             </div>
-                                                            <div className="absolute -bottom-1 -right-1 w-7 h-7 bg-emerald-500 border-4 border-background rounded-full shadow-xl flex items-center justify-center">
-                                                                <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                                                            </div>
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <h4 className="text-2xl font-black italic leading-tight group-hover/member:text-primary transition-colors tracking-tight">{member.user?.name}</h4>
-                                                            <div className="flex flex-wrap items-center gap-2">
-                                                                <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black uppercase px-2 py-0.5 rounded-lg tracking-widest shadow-sm">
-                                                                    Top Pro
-                                                                </Badge>
-                                                                <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
-                                                                    <div className="w-1 h-1 rounded-full bg-emerald-500" />
-                                                                    <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Active</span>
+                                                            <div className="space-y-2">
+                                                                <h4 className="text-2xl font-black italic leading-tight group-hover/member:text-primary transition-colors tracking-tight">{member.user?.name}</h4>
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black uppercase px-2 py-0.5 rounded-lg tracking-widest shadow-sm">
+                                                                        Top Pro
+                                                                    </Badge>
+                                                                    <div className="flex items-center gap-1.5 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20">
+                                                                        <div className="w-1 h-1 rounded-full bg-emerald-500" />
+                                                                        <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Active</span>
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
 
-                                                    <div className="space-y-6 flex-1 relative z-10">
-                                                        <div className="space-y-3 bg-muted/10 p-5 rounded-[2rem] border border-border/50 group-hover/member:bg-muted/30 transition-all">
-                                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 leading-none mb-2">Ecosystem Role</p>
-                                                            <p className="text-sm font-bold text-foreground/80 leading-relaxed italic line-clamp-2 min-h-[2.5rem]">
-                                                                {member.user?.role || "Independent Professional Shaping the Future of the Ecosystem"}
+                                                        <div className="space-y-6 flex-1 relative z-10">
+                                                            <div className="space-y-3 bg-muted/10 p-5 rounded-[2rem] border border-border/50 group-hover/member:bg-muted/30 transition-all">
+                                                                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 leading-none mb-2">Ecosystem Role</p>
+                                                                <p className="text-sm font-bold text-foreground/80 leading-relaxed italic line-clamp-2 min-h-[2.5rem]">
+                                                                    {member.user?.role || "Independent Professional Shaping the Future of the Ecosystem"}
+                                                                </p>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {(member.user?.skills?.length ? member.user.skills.slice(0, 3) : ["Strategy", "Scale", "Innovation"]).map((skill: string) => (
+                                                                    <span key={skill} className="px-3 py-1 rounded-lg bg-muted/50 text-[9px] font-black uppercase text-muted-foreground tracking-widest group-hover/member:bg-primary/5 group-hover/member:text-primary transition-colors">
+                                                                        {skill}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+
+                                                            {(member.user?.organization || member.user?.email) && (
+                                                                <div className="flex items-center gap-2 bg-muted/20 px-3 py-2 rounded-xl border border-border/40">
+                                                                    {member.user?.organization && (
+                                                                        <span className="text-[10px] font-bold text-muted-foreground truncate flex items-center gap-1.5">
+                                                                            <Building2 className="w-3 h-3 shrink-0" /> {member.user.organization}
+                                                                        </span>
+                                                                    )}
+                                                                    {member.user?.email && (
+                                                                        <span className="text-[10px] font-bold text-muted-foreground truncate flex items-center gap-1.5 ml-auto">
+                                                                            <Mail className="w-3 h-3 shrink-0" /> {member.user.email}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="pt-6 border-t border-border/10 flex items-center gap-3 relative z-10">
+                                                            <Button
+                                                                className="flex-1 rounded-2xl h-12 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
+                                                                onClick={() => {
+                                                                    setSelectedMember(member.user);
+                                                                    setIsContactModalOpen(true);
+                                                                }}
+                                                            >
+                                                                Collaborate
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-12 w-12 rounded-2xl bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:rotate-12 transition-all"
+                                                            >
+                                                                <Activity className="w-5 h-5" />
+                                                            </Button>
+                                                        </div>
+
+                                                        <div className="absolute bottom-6 right-8">
+                                                            <p className="text-[8px] font-black uppercase text-muted-foreground/20 tracking-widest italic group-hover/member:text-primary/30 transition-colors">
+                                                                Active {i % 2 === 0 ? "Now" : (i + 1) + "h ago"}
                                                             </p>
                                                         </div>
-
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {(member.user?.skills?.length ? member.user.skills.slice(0,3) : ["Strategy", "Scale", "Innovation"]).map((skill: string) => (
-                                                                <span key={skill} className="px-3 py-1 rounded-lg bg-muted/50 text-[9px] font-black uppercase text-muted-foreground tracking-widest group-hover/member:bg-primary/5 group-hover/member:text-primary transition-colors">
-                                                                    {skill}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-
-                                                        {(member.user?.organization || member.user?.email) && (
-                                                            <div className="flex items-center gap-2 bg-muted/20 px-3 py-2 rounded-xl border border-border/40">
-                                                                {member.user?.organization && (
-                                                                    <span className="text-[10px] font-bold text-muted-foreground truncate flex items-center gap-1.5">
-                                                                        <Building2 className="w-3 h-3 shrink-0" /> {member.user.organization}
-                                                                    </span>
-                                                                )}
-                                                                {member.user?.email && (
-                                                                    <span className="text-[10px] font-bold text-muted-foreground truncate flex items-center gap-1.5 ml-auto">
-                                                                        <Mail className="w-3 h-3 shrink-0" /> {member.user.email}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        )}
                                                     </div>
-
-                                                    <div className="pt-6 border-t border-border/10 flex items-center gap-3 relative z-10">
-                                                        <Button
-                                                            className="flex-1 rounded-2xl h-12 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.05] active:scale-[0.95] transition-all"
-                                                            onClick={() => {
-                                                                setSelectedMember(member.user);
-                                                                setIsContactModalOpen(true);
-                                                            }}
-                                                        >
-                                                            Collaborate
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-12 w-12 rounded-2xl bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:rotate-12 transition-all"
-                                                        >
-                                                            <Activity className="w-5 h-5" />
-                                                        </Button>
-                                                    </div>
-
-                                                    <div className="absolute bottom-6 right-8">
-                                                        <p className="text-[8px] font-black uppercase text-muted-foreground/20 tracking-widest italic group-hover/member:text-primary/30 transition-colors">
-                                                            Active {i % 2 === 0 ? "Now" : (i + 1) + "h ago"}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            ))
+                                                ))
                                         )}
                                     </div>
                                 </TabsContent>
@@ -2018,7 +2044,7 @@ const UserDashboard = () => {
                                         {allWorkspaces.map((ws) => {
                                             const now = new Date();
                                             const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-                                            const isUnavailable = ws.type === "Open WorkStation" 
+                                            const isUnavailable = ws.type === "Open WorkStation"
                                                 ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
                                                 : !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
                                             const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
@@ -2065,8 +2091,8 @@ const UserDashboard = () => {
                                                                         {ws.type === "Open WorkStation" ? "Booking Status" : "Booked Until"}
                                                                     </span>
                                                                     <span className="text-xs font-bold text-destructive">
-                                                                        {ws.type === "Open WorkStation" 
-                                                                            ? "Current capacity is full" 
+                                                                        {ws.type === "Open WorkStation"
+                                                                            ? "Current capacity is full"
                                                                             : (ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
                                                                                 month: 'short',
                                                                                 day: 'numeric',
@@ -2084,8 +2110,8 @@ const UserDashboard = () => {
                                                             </div>
                                                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                                 <Users className="w-4 h-4 text-primary" />
-                                                                {ws.type === "Open WorkStation" 
-                                                                    ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available` 
+                                                                {ws.type === "Open WorkStation"
+                                                                    ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available`
                                                                     : ws.capacity}
                                                             </div>
                                                         </div>
@@ -2222,110 +2248,110 @@ const UserDashboard = () => {
                                                             </td>
                                                         </tr>
                                                     ) : invoices.map((inv) => {
-                                                            const booking = myRequests.find(r => r.invoiceId === inv.invoiceNumber);
-                                                            const isExpanded = expandedInv === inv.invoiceNumber;
+                                                        const booking = myRequests.find(r => r.invoiceId === inv.invoiceNumber);
+                                                        const isExpanded = expandedInv === inv.invoiceNumber;
 
-                                                            return (
-                                                                <Fragment key={inv._id}>
-                                                                    <tr
-                                                                        className={`group transition-colors h-20 cursor-pointer ${isExpanded ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'}`}
-                                                                        onClick={() => setExpandedInv(isExpanded ? null : inv.invoiceNumber)}
-                                                                    >
-                                                                        <td className="px-8 py-4">
-                                                                            <span className="text-xs font-mono font-black text-primary/80 tracking-tighter bg-primary/5 px-2 py-1 rounded-lg">
-                                                                                {inv.invoiceNumber}
+                                                        return (
+                                                            <Fragment key={inv._id}>
+                                                                <tr
+                                                                    className={`group transition-colors h-20 cursor-pointer ${isExpanded ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'}`}
+                                                                    onClick={() => setExpandedInv(isExpanded ? null : inv.invoiceNumber)}
+                                                                >
+                                                                    <td className="px-8 py-4">
+                                                                        <span className="text-xs font-mono font-black text-primary/80 tracking-tighter bg-primary/5 px-2 py-1 rounded-lg">
+                                                                            {inv.invoiceNumber}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-8 py-4">
+                                                                        <div className="flex flex-col">
+                                                                            <span className="text-xs font-bold">{formatDisplayDate(inv.createdAt)}</span>
+                                                                            <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter">Issue Date</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-8 py-4">
+                                                                        <span className="text-sm font-black italic">₹{inv.amount.toLocaleString('en-IN')}</span>
+                                                                    </td>
+                                                                    <td className="px-8 py-4">
+                                                                        <Badge className={`rounded-full px-4 py-1 text-[9px] font-black uppercase border-none shadow-sm ${inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600 border-red-200'
+                                                                            }`}>
+                                                                            {inv.status}
+                                                                        </Badge>
+                                                                    </td>
+                                                                    <td className="px-8 py-4 text-right">
+                                                                        {inv.status === 'Pending' ? (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                disabled={isRequesting || payingInvoiceId === inv._id}
+                                                                                onClick={(e) => { e.stopPropagation(); handlePayInvoice(inv._id); }}
+                                                                                className="rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md shadow-primary/20"
+                                                                            >
+                                                                                {payingInvoiceId === inv._id ? (
+                                                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                ) : "Clear Dues"}
+                                                                            </Button>
+                                                                        ) : inv.status === 'Paid' ? (
+                                                                            <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1">
+                                                                                <CheckCircle2 className="w-3 h-3" /> Paid
                                                                             </span>
-                                                                        </td>
-                                                                        <td className="px-8 py-4">
-                                                                            <div className="flex flex-col">
-                                                                                <span className="text-xs font-bold">{formatDisplayDate(inv.createdAt)}</span>
-                                                                                <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter">Issue Date</span>
-                                                                            </div>
-                                                                        </td>
-                                                                        <td className="px-8 py-4">
-                                                                            <span className="text-sm font-black italic">₹{inv.amount.toLocaleString('en-IN')}</span>
-                                                                        </td>
-                                                                        <td className="px-8 py-4">
-                                                                            <Badge className={`rounded-full px-4 py-1 text-[9px] font-black uppercase border-none shadow-sm ${inv.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600 border-red-200'
-                                                                                }`}>
-                                                                                {inv.status}
-                                                                            </Badge>
-                                                                        </td>
-                                                                        <td className="px-8 py-4 text-right">
-                                                                            {inv.status === 'Pending' ? (
-                                                                                <Button
-                                                                                    size="sm"
-                                                                                    disabled={isRequesting || payingInvoiceId === inv._id}
-                                                                                    onClick={(e) => { e.stopPropagation(); handlePayInvoice(inv._id); }}
-                                                                                    className="rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md shadow-primary/20"
-                                                                                >
-                                                                                    {payingInvoiceId === inv._id ? (
-                                                                                        <Loader2 className="w-3 h-3 animate-spin" />
-                                                                                    ) : "Clear Dues"}
-                                                                                </Button>
-                                                                            ) : inv.status === 'Paid' ? (
-                                                                                <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1">
-                                                                                    <CheckCircle2 className="w-3 h-3" /> Paid
-                                                                                </span>
-                                                                            ) : (
-                                                                                <span className="text-[10px] text-muted-foreground">—</span>
-                                                                            )}
-                                                                        </td>
-                                                                    </tr>
-                                                                    {isExpanded && (
-                                                                        <tr className="bg-primary/[0.02]">
-                                                                            <td colSpan={5} className="px-8 py-8 border-b border-primary/10">
-                                                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-fade-in">
-                                                                                    <div className="space-y-4">
-                                                                                        <div className="flex items-center gap-2 text-primary">
-                                                                                            <Building2 className="w-4 h-4" />
-                                                                                            <h4 className="text-xs font-black uppercase tracking-widest">Workspace Details</h4>
-                                                                                        </div>
-                                                                                        <div className="space-y-2">
-                                                                                            <p className="text-sm font-bold">{inv.workspaceName}</p>
-                                                                                            <Badge variant="outline" className="rounded-lg text-[10px] uppercase font-bold text-muted-foreground">
-                                                                                                {booking?.requiredWorkspace || "Dedicated Cabin"}
-                                                                                            </Badge>
-                                                                                        </div>
+                                                                        ) : (
+                                                                            <span className="text-[10px] text-muted-foreground">—</span>
+                                                                        )}
+                                                                    </td>
+                                                                </tr>
+                                                                {isExpanded && (
+                                                                    <tr className="bg-primary/[0.02]">
+                                                                        <td colSpan={5} className="px-8 py-8 border-b border-primary/10">
+                                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 animate-fade-in">
+                                                                                <div className="space-y-4">
+                                                                                    <div className="flex items-center gap-2 text-primary">
+                                                                                        <Building2 className="w-4 h-4" />
+                                                                                        <h4 className="text-xs font-black uppercase tracking-widest">Workspace Details</h4>
                                                                                     </div>
-                                                                                    <div className="space-y-4">
-                                                                                        <div className="flex items-center gap-2 text-primary">
-                                                                                            <Calendar className="w-4 h-4" />
-                                                                                            <h4 className="text-xs font-black uppercase tracking-widest">Booking Period</h4>
-                                                                                        </div>
-                                                                                        <div className="space-y-1">
-                                                                                            <div className="flex items-center gap-4 text-xs">
-                                                                                                <span className="text-muted-foreground font-medium w-10">From:</span>
-                                                                                                <span className="font-bold">{formatDisplayDate(booking?.startDate)}</span>
-                                                                                            </div>
-                                                                                            <div className="flex items-center gap-4 text-xs">
-                                                                                                <span className="text-muted-foreground font-medium w-10">To:</span>
-                                                                                                <span className="font-bold">{getEndDate(booking?.startDate, booking?.duration)}</span>
-                                                                                            </div>
-                                                                                            <div className="mt-2 text-[10px] font-black text-primary uppercase bg-primary/5 px-2 py-1 rounded-md inline-block">
-                                                                                                Duration: {booking?.duration || 'N/A'}
-                                                                                            </div>
-                                                                                        </div>
+                                                                                    <div className="space-y-2">
+                                                                                        <p className="text-sm font-bold">{inv.workspaceName}</p>
+                                                                                        <Badge variant="outline" className="rounded-lg text-[10px] uppercase font-bold text-muted-foreground">
+                                                                                            {booking?.requiredWorkspace || "Dedicated Cabin"}
+                                                                                        </Badge>
                                                                                     </div>
-                                                                                    <div className="space-y-4">
-                                                                                        <div className="flex items-center gap-2 text-primary">
-                                                                                            <Sparkles className="w-4 h-4" />
-                                                                                            <h4 className="text-xs font-black uppercase tracking-widest">Billing Info</h4>
+                                                                                </div>
+                                                                                <div className="space-y-4">
+                                                                                    <div className="flex items-center gap-2 text-primary">
+                                                                                        <Calendar className="w-4 h-4" />
+                                                                                        <h4 className="text-xs font-black uppercase tracking-widest">Booking Period</h4>
+                                                                                    </div>
+                                                                                    <div className="space-y-1">
+                                                                                        <div className="flex items-center gap-4 text-xs">
+                                                                                            <span className="text-muted-foreground font-medium w-10">From:</span>
+                                                                                            <span className="font-bold">{formatDisplayDate(booking?.startDate)}</span>
                                                                                         </div>
-                                                                                        <div className="space-y-1 border-l-2 border-primary/20 pl-4">
-                                                                                            <p className="text-[10px] text-muted-foreground font-black uppercase">Recipient</p>
-                                                                                            <p className="text-xs font-bold">{inv.customerName}</p>
-                                                                                            <p className="text-[10px] text-muted-foreground font-medium">{inv.customerEmail}</p>
-                                                                                            {booking?.firmName && <p className="text-[10px] text-primary font-black mt-1">{booking.firmName}</p>}
+                                                                                        <div className="flex items-center gap-4 text-xs">
+                                                                                            <span className="text-muted-foreground font-medium w-10">To:</span>
+                                                                                            <span className="font-bold">{getEndDate(booking?.startDate, booking?.duration)}</span>
+                                                                                        </div>
+                                                                                        <div className="mt-2 text-[10px] font-black text-primary uppercase bg-primary/5 px-2 py-1 rounded-md inline-block">
+                                                                                            Duration: {booking?.duration || 'N/A'}
                                                                                         </div>
                                                                                     </div>
                                                                                 </div>
-                                                                            </td>
-                                                                        </tr>
-                                                                    )}
-                                                                </Fragment>
-                                                            );
-                                                        })}
+                                                                                <div className="space-y-4">
+                                                                                    <div className="flex items-center gap-2 text-primary">
+                                                                                        <Sparkles className="w-4 h-4" />
+                                                                                        <h4 className="text-xs font-black uppercase tracking-widest">Billing Info</h4>
+                                                                                    </div>
+                                                                                    <div className="space-y-1 border-l-2 border-primary/20 pl-4">
+                                                                                        <p className="text-[10px] text-muted-foreground font-black uppercase">Recipient</p>
+                                                                                        <p className="text-xs font-bold">{inv.customerName}</p>
+                                                                                        <p className="text-[10px] text-muted-foreground font-medium">{inv.customerEmail}</p>
+                                                                                        {booking?.firmName && <p className="text-[10px] text-primary font-black mt-1">{booking.firmName}</p>}
+                                                                                    </div>
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                )}
+                                                            </Fragment>
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -2354,7 +2380,7 @@ const UserDashboard = () => {
                                     {/* Profile Overview Card */}
                                     <div className="card-elevated glass p-8 flex flex-col items-center text-center space-y-8 relative overflow-hidden group/card shadow-2xl border-primary/5">
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-2xl group-hover:bg-primary/10 transition-colors" />
-                                        
+
                                         <div className="relative">
                                             <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-[3rem] bg-gradient-to-tr from-primary via-primary to-accent flex items-center justify-center font-black text-white text-4xl sm:text-5xl shadow-2xl relative z-10 rotate-3 group-hover:rotate-0 transition-all duration-500">
                                                 {(userInfo?.name || "U").split(" ").map((n: string) => n[0]).join("")}
@@ -2385,7 +2411,7 @@ const UserDashboard = () => {
                                                 <span className="text-[10px] font-black text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded-md uppercase tracking-tighter">Gold Tier</span>
                                             </div>
                                             <div className="h-3 w-full bg-muted/50 rounded-full overflow-hidden p-0.5">
-                                                <div 
+                                                <div
                                                     className="h-full bg-gradient-to-r from-primary to-accent w-[92%] rounded-full shadow-[0_0_15px_rgba(var(--primary),0.4)] relative"
                                                 >
                                                     <div className="absolute top-0 right-0 w-4 h-full bg-white/20 animate-shimmer" />
@@ -2423,7 +2449,7 @@ const UserDashboard = () => {
                                 <div className="lg:col-span-8 space-y-8">
                                     <div className="card-elevated glass p-8 sm:p-10 space-y-10 relative overflow-hidden">
                                         <div className="absolute top-0 left-0 w-1 h-full bg-primary/20" />
-                                        
+
                                         <div>
                                             <div className="flex items-center justify-between mb-8">
                                                 <div className="space-y-1">
@@ -2568,7 +2594,7 @@ const UserDashboard = () => {
                                                                     <DialogDescription className="text-xs font-bold uppercase tracking-wider text-amber-600/60">Authentication Update</DialogDescription>
                                                                 </div>
                                                             </div>
-                                                            
+
                                                             <p className="text-sm font-medium text-muted-foreground leading-relaxed text-left">
                                                                 Enhance your account security by updating your master credentials. COMS recommends rotating keys every 90 days.
                                                             </p>
@@ -2748,6 +2774,32 @@ const UserDashboard = () => {
                 </AlertDialogContent>
             </AlertDialog>
 
+            <AlertDialog open={isReplyDeleteDialogOpen} onOpenChange={(open) => { if (!isDeletingReply) setIsReplyDeleteDialogOpen(open); }}>
+                <AlertDialogContent className="rounded-3xl border-border/50 glass max-w-[400px]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="text-xl font-black">Remove Reply?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm font-medium text-muted-foreground">
+                            Are you sure you want to delete this reply? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter className="gap-2 sm:gap-0">
+                        <AlertDialogCancel className="rounded-xl font-bold border-border/50" disabled={isDeletingReply}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={async (e) => {
+                                e.preventDefault();
+                                setIsDeletingReply(true);
+                                await confirmReplyDelete();
+                                setIsDeletingReply(false);
+                            }}
+                            disabled={isDeletingReply}
+                            className="rounded-xl font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-2"
+                        >
+                            {isDeletingReply ? <><Loader2 className="w-4 h-4 animate-spin" />Removing...</> : "Delete Reply"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
             <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
                 <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl glass">
                     <DialogHeader className="sr-only">
@@ -2827,14 +2879,14 @@ const UserDashboard = () => {
                                             Pay Later
                                         </div>
                                     </SelectItem>
-                                    <SelectItem 
-                                        value="Pay Monthly" 
+                                    <SelectItem
+                                        value="Pay Monthly"
                                         disabled={(() => {
                                             const parts = bookingParams.duration.split(" ");
                                             const num = parseFloat(parts[0]) || 0;
                                             const unit = parts[1]?.toLowerCase() || '';
                                             if (unit.startsWith('month')) return num < 1;
-                                            if (unit.startsWith('year')) return num < (1/12);
+                                            if (unit.startsWith('year')) return num < (1 / 12);
                                             return true; // Not eligible for days/weeks/hours
                                         })()}
                                     >
@@ -2869,14 +2921,14 @@ const UserDashboard = () => {
                                     {bookingParams.paymentMethod === "Pay Monthly" ? "Monthly Commitment" : "Estimated Total"}
                                 </p>
                                 <p className="text-sm font-medium text-muted-foreground leading-none">
-                                    {bookingParams.paymentMethod === "Pay Monthly" 
-                                        ? "Billed every month start" 
+                                    {bookingParams.paymentMethod === "Pay Monthly"
+                                        ? "Billed every month start"
                                         : `Pro-rated for ${bookingParams.duration}`}
                                 </p>
                             </div>
                             <div className="text-right">
                                 <p className="text-2xl font-black text-primary italic">
-                                    ₹{bookingParams.paymentMethod === "Pay Monthly" 
+                                    ₹{bookingParams.paymentMethod === "Pay Monthly"
                                         ? (Number(selectedWorkspaceToBook?.price || 0) * (selectedWorkspaceToBook?.type === "Open WorkStation" ? bookingParams.seatCount : 1)).toLocaleString()
                                         : estimatedTotal.toLocaleString()}
                                 </p>
@@ -2902,8 +2954,8 @@ const UserDashboard = () => {
                                         <span>Processing...</span>
                                     </div>
                                 ) : (
-                                    bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" : 
-                                    bookingParams.paymentMethod === "Pay Monthly" ? "Confirm Monthly Plan" : "Confirm Request"
+                                    bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" :
+                                        bookingParams.paymentMethod === "Pay Monthly" ? "Confirm Monthly Plan" : "Confirm Request"
                                 )}
                             </Button>
                         </div>

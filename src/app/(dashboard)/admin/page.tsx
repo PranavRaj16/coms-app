@@ -547,9 +547,9 @@ const AdminDashboard = () => {
         features: {
             hasConferenceHall: false,
             hasCabin: false,
-            workstationSeats: 0,
-            conferenceHallSeats: 0,
-            cabinSeats: 0
+            workstationSeats: undefined,
+            conferenceHallSeats: undefined,
+            cabinSeats: undefined
         }
     });
     const [amenityInput, setAmenityInput] = useState("");
@@ -586,7 +586,7 @@ const AdminDashboard = () => {
 
     // Auto-calculate capacity for new workspace
     useEffect(() => {
-        if (newWorkspace.type === "Dedicated Workspace" && newWorkspace.features) {
+        if ((newWorkspace.type === "Dedicated Workspace" || newWorkspace.type === "Open WorkStation") && newWorkspace.features) {
             const { workstationSeats = 0, conferenceHallSeats = 0, cabinSeats = 0, hasConferenceHall, hasCabin } = newWorkspace.features;
             const total = Number(workstationSeats) +
                 (hasConferenceHall ? Number(conferenceHallSeats) : 0) +
@@ -610,7 +610,7 @@ const AdminDashboard = () => {
 
     // Auto-calculate capacity for editing workspace
     useEffect(() => {
-        if (editingWorkspace?.type === "Dedicated Workspace" && editingWorkspace.features) {
+        if ((editingWorkspace?.type === "Dedicated Workspace" || editingWorkspace?.type === "Open WorkStation") && editingWorkspace.features) {
             const { workstationSeats = 0, conferenceHallSeats = 0, cabinSeats = 0, hasConferenceHall, hasCabin } = editingWorkspace.features;
             const total = Number(workstationSeats) +
                 (hasConferenceHall ? Number(conferenceHallSeats) : 0) +
@@ -855,9 +855,9 @@ const AdminDashboard = () => {
                 features: {
                     hasConferenceHall: false,
                     hasCabin: false,
-                    workstationSeats: 0,
-                    conferenceHallSeats: 0,
-                    cabinSeats: 0
+                    workstationSeats: undefined,
+                    conferenceHallSeats: undefined,
+                    cabinSeats: undefined
                 }
             });
             setAmenityInput("");
@@ -2055,7 +2055,7 @@ const AdminDashboard = () => {
                                                                     id="capacity"
                                                                     placeholder="e.g. 10 people"
                                                                     className={`pl-9 ${workspaceErrors.capacity ? "border-destructive ring-destructive/20" : ""}`}
-                                                                    value={newWorkspace.capacity || ""}
+                                                                    value={newWorkspace.capacity === "0 people" || newWorkspace.capacity === "0" ? "" : (newWorkspace.capacity || "")}
                                                                     onChange={(e) => {
                                                                         setNewWorkspace({ ...newWorkspace, capacity: e.target.value });
                                                                         if (workspaceErrors.capacity) setWorkspaceErrors({ ...workspaceErrors, capacity: "" });
@@ -2227,7 +2227,7 @@ const AdminDashboard = () => {
                                                             <div className="flex items-center justify-between">
                                                                 <Label className="text-primary font-black uppercase tracking-widest text-[10px]">{newWorkspace.type === "Open WorkStation" ? "Capacity Configuration" : "Workspace Architecture"}</Label>
                                                                 <Badge variant="outline" className="bg-background text-primary border-primary/20 text-[10px] uppercase font-black">
-                                                                    {newWorkspace.type === "Open WorkStation" ? `Total Seats: ${newWorkspace.features?.workstationSeats || 0}` : `Capacity: ${newWorkspace.capacity}`}
+                                                                    {newWorkspace.type === "Open WorkStation" ? `Total Seats: ${newWorkspace.features?.workstationSeats || ""}` : `Capacity: ${newWorkspace.capacity}`}
                                                                 </Badge>
                                                             </div>
 
@@ -2238,10 +2238,10 @@ const AdminDashboard = () => {
                                                                         type="number"
                                                                         className="rounded-xl h-10"
                                                                         placeholder="e.g. 20"
-                                                                        value={newWorkspace.features?.workstationSeats || 0}
+                                                                        value={newWorkspace.features?.workstationSeats || ""}
                                                                         onChange={(e) => setNewWorkspace({
                                                                             ...newWorkspace,
-                                                                            features: { ...newWorkspace.features!, workstationSeats: parseInt(e.target.value) || 0 }
+                                                                            features: { ...newWorkspace.features!, workstationSeats: e.target.value === "" ? undefined : parseInt(e.target.value) || 0 }
                                                                         })}
                                                                     />
                                                                 </div>
@@ -2272,10 +2272,10 @@ const AdminDashboard = () => {
                                                                                     <Input
                                                                                         type="number"
                                                                                         className="h-8 text-xs rounded-lg"
-                                                                                        value={newWorkspace.features?.conferenceHallSeats || 0}
+                                                                                        value={newWorkspace.features?.conferenceHallSeats || ""}
                                                                                         onChange={(e) => setNewWorkspace({
                                                                                             ...newWorkspace,
-                                                                                            features: { ...newWorkspace.features!, conferenceHallSeats: parseInt(e.target.value) || 0 }
+                                                                                            features: { ...newWorkspace.features!, conferenceHallSeats: e.target.value === "" ? undefined : parseInt(e.target.value) || 0 }
                                                                                         })}
                                                                                     />
                                                                                 </div>
@@ -2306,10 +2306,10 @@ const AdminDashboard = () => {
                                                                                     <Input
                                                                                         type="number"
                                                                                         className="h-8 text-xs rounded-lg"
-                                                                                        value={newWorkspace.features?.cabinSeats || 0}
+                                                                                        value={newWorkspace.features?.cabinSeats || ""}
                                                                                         onChange={(e) => setNewWorkspace({
                                                                                             ...newWorkspace,
-                                                                                            features: { ...newWorkspace.features!, cabinSeats: parseInt(e.target.value) || 0 }
+                                                                                            features: { ...newWorkspace.features!, cabinSeats: e.target.value === "" ? undefined : parseInt(e.target.value) || 0 }
                                                                                         })}
                                                                                     />
                                                                                 </div>
@@ -2607,7 +2607,7 @@ const AdminDashboard = () => {
                                                         <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Seating Capacity</Label>
                                                         <Input
                                                             className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
-                                                            value={editingWorkspace?.capacity || ""}
+                                                            value={editingWorkspace?.capacity === "0 people" || editingWorkspace?.capacity === "0" ? "" : (editingWorkspace?.capacity || "")}
                                                             onChange={(e) => editingWorkspace && setEditingWorkspace({ ...editingWorkspace, capacity: e.target.value })}
                                                         />
                                                     </div>
@@ -2753,7 +2753,7 @@ const AdminDashboard = () => {
                                                     <div className="flex items-center justify-between">
                                                         <Label className="text-primary font-black uppercase tracking-widest text-[10px]">{editingWorkspace?.type === "Open WorkStation" ? "Capacity Configuration" : "Workspace Architecture"}</Label>
                                                         <Badge variant="outline" className="bg-background text-primary border-primary/20 text-[10px] uppercase font-black">
-                                                            {editingWorkspace?.type === "Open WorkStation" ? `Total Seats: ${editingWorkspace?.features?.workstationSeats || 0}` : `Capacity: ${editingWorkspace?.capacity}`}
+                                                            {editingWorkspace?.type === "Open WorkStation" ? `Total Seats: ${editingWorkspace?.features?.workstationSeats || ""}` : `Capacity: ${editingWorkspace?.capacity}`}
                                                         </Badge>
                                                     </div>
 
@@ -2764,10 +2764,10 @@ const AdminDashboard = () => {
                                                                 type="number"
                                                                 className="rounded-xl h-10 bg-background/50"
                                                                 placeholder="e.g. 20"
-                                                                value={editingWorkspace?.features?.workstationSeats || 0}
+                                                                value={editingWorkspace?.features?.workstationSeats || ""}
                                                                 onChange={(e) => editingWorkspace && setEditingWorkspace({
                                                                     ...editingWorkspace,
-                                                                    features: { ...editingWorkspace.features!, workstationSeats: parseInt(e.target.value) || 0 }
+                                                                    features: { ...editingWorkspace.features!, workstationSeats: e.target.value === "" ? undefined : parseInt(e.target.value) || 0 }
                                                                 })}
                                                             />
                                                         </div>
@@ -2798,10 +2798,10 @@ const AdminDashboard = () => {
                                                                             <Input
                                                                                 type="number"
                                                                                 className="h-8 text-xs rounded-lg"
-                                                                                value={editingWorkspace?.features?.conferenceHallSeats || 0}
+                                                                                value={editingWorkspace?.features?.conferenceHallSeats || ""}
                                                                                 onChange={(e) => editingWorkspace && setEditingWorkspace({
                                                                                     ...editingWorkspace,
-                                                                                    features: { ...editingWorkspace.features!, conferenceHallSeats: parseInt(e.target.value) || 0 }
+                                                                                    features: { ...editingWorkspace.features!, conferenceHallSeats: e.target.value === "" ? undefined : parseInt(e.target.value) || 0 }
                                                                                 })}
                                                                             />
                                                                         </div>
@@ -2832,10 +2832,10 @@ const AdminDashboard = () => {
                                                                             <Input
                                                                                 type="number"
                                                                                 className="h-8 text-xs rounded-lg"
-                                                                                value={editingWorkspace?.features?.cabinSeats || 0}
+                                                                                value={editingWorkspace?.features?.cabinSeats || ""}
                                                                                 onChange={(e) => editingWorkspace && setEditingWorkspace({
                                                                                     ...editingWorkspace,
-                                                                                    features: { ...editingWorkspace.features!, cabinSeats: parseInt(e.target.value) || 0 }
+                                                                                    features: { ...editingWorkspace.features!, cabinSeats: e.target.value === "" ? undefined : parseInt(e.target.value) || 0 }
                                                                                 })}
                                                                             />
                                                                         </div>

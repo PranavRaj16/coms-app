@@ -51,14 +51,11 @@ export async function DELETE(
             return NextResponse.json({ message: 'Reply not found' }, { status: 404 });
         }
 
-        // Authorization check: Replier OR Story Author OR Admin OR Original Commenter
+        // Authorization check: ONLY the original replier can delete their reply
         const isReplier = replyToDelete.user.toString() === user._id.toString();
-        const isPostAuthor = post.author.toString() === user._id.toString();
-        const isCommentAuthor = comment.user.toString() === user._id.toString();
-        const isAdmin = user.role === 'Admin';
 
-        if (!isReplier && !isPostAuthor && !isAdmin && !isCommentAuthor) {
-            return authResponse('Not authorized to delete this reply.', 401);
+        if (!isReplier) {
+            return authResponse('Only the author of this reply can delete it.', 403);
         }
 
         parentCollection.splice(deleteIndex, 1);

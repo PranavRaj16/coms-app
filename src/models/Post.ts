@@ -23,6 +23,7 @@ export interface IPost extends Document {
     author: mongoose.Types.ObjectId | string;
     authorName: string;
     content: string;
+    location: string;
     upvotes: string[];
     comments: IComment[];
     createdAt: Date;
@@ -42,6 +43,11 @@ const postSchema: Schema = new Schema({
     content: {
         type: String,
         required: true,
+    },
+    location: {
+        type: String,
+        required: true,
+        default: 'Global',
     },
     upvotes: {
         type: [String],
