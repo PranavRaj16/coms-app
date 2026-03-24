@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link"; import { useRouter } from "next/navigation";
@@ -130,7 +130,10 @@ import {
     fetchDayPasses,
     generateMonthlyInvoices,
     resetMonthlyInvoices,
-    fetchInvoices
+    fetchInvoices,
+    fetchAgreements,
+    uploadAgreement,
+    deleteAgreement as deleteAgreementApi
 } from "@/lib/api";
 
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
@@ -177,7 +180,7 @@ const AdminProfile = dynamic(() => import("@/components/admin/AdminProfile").the
     loading: () => <div className="w-full h-screen bg-muted/20 animate-pulse rounded-3xl" />
 });
 
-type View = "dashboard" | "users" | "workspaces" | "requests" | "contacts" | "daypasses" | "profile" | "invoices";
+type View = "dashboard" | "users" | "workspaces" | "requests" | "contacts" | "daypasses" | "profile" | "invoices" | "agreements";
 
 // Using interfaces imported from @/types/admin
 
@@ -209,6 +212,22 @@ const AdminDashboard = () => {
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [isGeneratingInvoices, setIsGeneratingInvoices] = useState(false);
     const [isResettingInvoices, setIsResettingInvoices] = useState(false);
+
+    // Agreements state
+    const [agreements, setAgreements] = useState<any[]>([]);
+    const [isUploadAgreementDialogOpen, setIsUploadAgreementDialogOpen] = useState(false);
+    const [isDeleteAgreementDialogOpen, setIsDeleteAgreementDialogOpen] = useState(false);
+    const [agreementToDelete, setAgreementToDelete] = useState<string | null>(null);
+    const [isUploadingAgreement, setIsUploadingAgreement] = useState(false);
+    const [isDeletingAgreement, setIsDeletingAgreement] = useState(false);
+    const [agreementForm, setAgreementForm] = useState({
+        userId: '',
+        workspaceId: '',
+        startDate: '',
+        endDate: '',
+        notes: '',
+        file: null as File | null
+    });
     const [isAdminLoading, setIsAdminLoading] = useState(true);
     const [updatingRequestId, setUpdatingRequestId] = useState<string | null>(null);
     const [bookingToUnallot, setBookingToUnallot] = useState<BookingRequest | null>(null);
@@ -431,7 +450,7 @@ const AdminDashboard = () => {
 
     const loadData = useCallback(async (isAutoRefresh = false) => {
         try {
-            const [wsData, userData, statsData, quotesData, contactsData, bookingsData, visitsData, dayPassesData, invoicesData, freshProfile] = await Promise.all([
+            const [wsData, userData, statsData, quotesData, contactsData, bookingsData, visitsData, dayPassesData, invoicesData, freshProfile, agreementsData] = await Promise.all([
                 fetchWorkspaces().catch(() => []),
                 fetchUsers().catch(() => []),
                 fetchDashboardStats().catch(() => ({ totalUsers: 0, activeMembers: 0, newQuoteRequests: 0, newBookingRequests: 0, newVisitRequests: 0, revenueGrowth: "+0%" })),
@@ -462,6 +481,10 @@ const AdminDashboard = () => {
                 fetchUserProfile().catch(err => {
                     console.error("Failed to fetch fresh profile:", err);
                     return null;
+                }),
+                fetchAgreements().catch(err => {
+                    console.error("Failed to fetch agreements:", err);
+                    return [];
                 })
             ]);
 
@@ -483,6 +506,7 @@ const AdminDashboard = () => {
             setDashboardStats(statsData);
             setQuotes(quotesData);
             setContactRequests(contactsData);
+            setAgreements(agreementsData || []);
             setBookings(bookingsData);
             setVisitRequests(visitsData);
             setDayPasses(dayPassesData);
@@ -534,6 +558,50 @@ const AdminDashboard = () => {
         };
     }, [router, loadData, currentView]);
 
+
+    // Agreement handlers
+    const handleUploadAgreement = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!agreementForm.file || !agreementForm.userId) {
+            toast.error("Please select a user and a PDF file.");
+            return;
+        }
+        setIsUploadingAgreement(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', agreementForm.file);
+            formData.append('userId', agreementForm.userId);
+            if (agreementForm.workspaceId) formData.append('workspaceId', agreementForm.workspaceId);
+            if (agreementForm.startDate) formData.append('startDate', agreementForm.startDate);
+            if (agreementForm.endDate) formData.append('endDate', agreementForm.endDate);
+            if (agreementForm.notes) formData.append('notes', agreementForm.notes);
+            const result = await uploadAgreement(formData);
+            setAgreements(prev => [result, ...prev]);
+            setIsUploadAgreementDialogOpen(false);
+            setAgreementForm({ userId: '', workspaceId: '', startDate: '', endDate: '', notes: '', file: null });
+            toast.success("Service agreement uploaded and assigned successfully!");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to upload agreement");
+        } finally {
+            setIsUploadingAgreement(false);
+        }
+    };
+
+    const handleDeleteAgreement = async () => {
+        if (!agreementToDelete) return;
+        setIsDeletingAgreement(true);
+        try {
+            await deleteAgreementApi(agreementToDelete);
+            setAgreements(prev => prev.filter(a => a._id !== agreementToDelete));
+            setIsDeleteAgreementDialogOpen(false);
+            setAgreementToDelete(null);
+            toast.success("Agreement deleted successfully");
+        } catch (error: any) {
+            toast.error(error.message || "Failed to delete agreement");
+        } finally {
+            setIsDeletingAgreement(false);
+        }
+    };
 
     // New Workspace Form State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -680,7 +748,7 @@ const AdminDashboard = () => {
 
                 if (currentAllotteeId && currentAllotteeId !== allotValue) {
                     // Check if the current allottee is an Admin (placeholder for guest bookings).
-                    // If so, skip the conflict check — Admin was only a temporary placeholder
+                    // If so, skip the conflict check â€” Admin was only a temporary placeholder
                     // and should be freely reassigned to the actual user.
                     const currentAllotteeUser = users.find(u => u._id === currentAllotteeId || (u as any).id === currentAllotteeId);
                     const isAdminPlaceholder = (currentAllotteeUser as any)?.role === 'Admin';
@@ -1219,6 +1287,17 @@ const AdminDashboard = () => {
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
                                     <SidebarMenuButton
+                                        isActive={currentView === "agreements"}
+                                        onClick={() => setCurrentView("agreements")}
+                                        tooltip="Agreements"
+                                        className="group-data-[collapsible=icon]:justify-center"
+                                    >
+                                        <FileText className="w-5 h-5" />
+                                        <span className="group-data-[collapsible=icon]:hidden">Agreements</span>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                                <SidebarMenuItem>
+                                    <SidebarMenuButton
                                         isActive={currentView === "profile"}
                                         onClick={() => setCurrentView("profile")}
                                         tooltip="My Profile"
@@ -1341,7 +1420,7 @@ const AdminDashboard = () => {
                                                             <Badge variant={notif.status === 'Pending' ? 'destructive' : 'secondary'} className="text-[8px] h-4 px-1.5 rounded-sm uppercase font-black">
                                                                 {notif.status}
                                                             </Badge>
-                                                            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground opacity-50">• {notif.type}</span>
+                                                            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground opacity-50">â€¢ {notif.type}</span>
                                                         </div>
                                                     </div>
                                                 </button>
@@ -1661,7 +1740,7 @@ const AdminDashboard = () => {
                                                                     <Input
                                                                         id="user-password"
                                                                         type="password"
-                                                                        placeholder="••••••••"
+                                                                        placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                                                                         className={`h-12 pl-11 rounded-xl bg-muted/50 border-primary/5 focus:border-primary/20 transition-all font-bold ${userErrors.password ? "border-destructive ring-destructive/20" : ""}`}
                                                                         value={newUserData.password || ""}
                                                                         onChange={(e) => {
@@ -2098,9 +2177,9 @@ const AdminDashboard = () => {
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label htmlFor="price">Monthly Price (₹)</Label>
+                                                        <Label htmlFor="price">Monthly Price (â‚¹)</Label>
                                                         <div className="relative">
-                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">₹</span>
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold">â‚¹</span>
                                                             <Input
                                                                 id="price"
                                                                 type="number"
@@ -2583,9 +2662,9 @@ const AdminDashboard = () => {
                                                     </div>
 
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Monthly Price (₹)</Label>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Monthly Price (â‚¹)</Label>
                                                         <div className="relative">
-                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">₹</span>
+                                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary font-bold">â‚¹</span>
                                                             <Input
                                                                 type="number"
                                                                 className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold pl-10 ${editWorkspaceErrors.price ? "border-destructive ring-destructive/20" : ""}`}
@@ -3183,6 +3262,240 @@ const AdminDashboard = () => {
                             handleUpdateProfileInfo={handleUpdateProfileInfo}
                             onUpdatePassword={handlePasswordSubmit}
                         />
+                    )}
+
+                    {currentView === "agreements" && (
+                        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="text-3xl font-black italic tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70 flex items-center gap-3">
+                                        <FileText className="w-8 h-8 text-primary" />
+                                        Agreements
+                                    </h2>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60 mt-1">Service Agreement Documents</p>
+                                </div>
+                                <Button
+                                    onClick={() => setIsUploadAgreementDialogOpen(true)}
+                                    className="h-12 px-6 rounded-2xl gap-2 font-black shadow-lg shadow-primary/20"
+                                >
+                                    <Upload className="w-4 h-4" />
+                                    Upload Agreement
+                                </Button>
+                            </div>
+
+                            {agreements.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-28 text-center">
+                                    <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center mb-5 ring-1 ring-border/50">
+                                        <FileText className="w-10 h-10 text-muted-foreground/30" />
+                                    </div>
+                                    <p className="text-sm font-black uppercase tracking-widest text-muted-foreground/40">No agreements uploaded yet</p>
+                                    <p className="text-xs text-muted-foreground/30 mt-1">Upload a PDF to assign a service agreement to a user</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {agreements.map((agr) => (
+                                        <div key={agr._id} className="group flex items-center justify-between p-5 rounded-2xl bg-muted/20 border border-border/50 hover:border-primary/20 hover:bg-primary/5 transition-all duration-300">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">
+                                                    <FileText className="w-6 h-6 text-rose-500" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-sm">{agr.fileName}</p>
+                                                    <p className="text-xs text-muted-foreground font-semibold">
+                                                        Assigned to: <span className="text-foreground font-black">{agr.userName}</span>
+                                                        {agr.workspaceName && <> &middot; <span className="text-primary">{agr.workspaceName}</span></>}
+                                                    </p>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        {agr.startDate && (
+                                                            <span className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">
+                                                                {new Date(agr.startDate).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}
+                                                                {agr.endDate && <> â†’ {new Date(agr.endDate).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })}</>}
+                                                            </span>
+                                                        )}
+                                                        {agr.notes && <span className="text-[10px] text-muted-foreground/50 italic">"{agr.notes}"</span>}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <a
+                                                    href={agr.fileUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center gap-1.5 h-9 px-4 rounded-xl bg-primary/10 text-primary text-xs font-black hover:bg-primary/20 transition-colors"
+                                                >
+                                                    <FileText className="w-3.5 h-3.5" />
+                                                    View
+                                                </a>
+                                                <button
+                                                    onClick={() => { setAgreementToDelete(agr._id); setIsDeleteAgreementDialogOpen(true); }}
+                                                    className="h-9 w-9 rounded-xl bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive/20 transition-colors"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Upload Agreement Dialog */}
+                            <Dialog open={isUploadAgreementDialogOpen} onOpenChange={setIsUploadAgreementDialogOpen}>
+                                <DialogContent className="sm:max-w-[520px] max-h-[90vh] rounded-3xl p-0 border-none shadow-2xl flex flex-col overflow-hidden">
+                                    {/* Sticky top gradient bar */}
+                                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-indigo-500 to-violet-600 z-10" />
+
+                                    {/* Fixed header */}
+                                    <div className="px-8 pt-9 pb-4 shrink-0">
+                                        <DialogTitle className="text-2xl font-black italic tracking-tight">Upload Agreement</DialogTitle>
+                                        <DialogDescription className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mt-1">
+                                            Upload a PDF and assign it to a member.
+                                        </DialogDescription>
+                                    </div>
+
+                                    {/* Scrollable form body */}
+                                    <form onSubmit={handleUploadAgreement} className="flex flex-col flex-1 min-h-0">
+                                        <div className="overflow-y-auto flex-1 px-8 pb-2 space-y-4">
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Assign To Member *</Label>
+                                                <Select value={agreementForm.userId} onValueChange={(val) => setAgreementForm(prev => ({ ...prev, userId: val }))}>
+                                                    <SelectTrigger className="rounded-2xl h-12 bg-muted/30 border-border/50 font-bold">
+                                                        <SelectValue placeholder="Select a member..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-2xl">
+                                                        {users.filter(u => u.role !== 'Admin').map(u => (
+                                                            <SelectItem key={u._id} value={u._id || ''}>
+                                                                {u.name} <span className="text-muted-foreground">({u.email})</span>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Workspace (Optional)</Label>
+                                                <Select value={agreementForm.workspaceId} onValueChange={(val) => setAgreementForm(prev => ({ ...prev, workspaceId: val }))}>
+                                                    <SelectTrigger className="rounded-2xl h-12 bg-muted/30 border-border/50 font-bold">
+                                                        <SelectValue placeholder="Link to workspace..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-2xl">
+                                                        <SelectItem value="none">None</SelectItem>
+                                                        {workspaces.map(ws => (
+                                                            <SelectItem key={ws._id} value={ws._id || (ws as any).id || ''}>
+                                                                {ws.name} &mdash; {ws.location}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-2">
+                                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Start Date</Label>
+                                                    <Input type="date" className="rounded-xl h-12 bg-muted/30 border-border/50 font-bold"
+                                                        value={agreementForm.startDate}
+                                                        onChange={(e) => setAgreementForm(prev => ({ ...prev, startDate: e.target.value }))}
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">End Date</Label>
+                                                    <Input type="date" className="rounded-xl h-12 bg-muted/30 border-border/50 font-bold"
+                                                        value={agreementForm.endDate}
+                                                        onChange={(e) => setAgreementForm(prev => ({ ...prev, endDate: e.target.value }))}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Notes (Optional)</Label>
+                                                <Input
+                                                    placeholder="e.g. 6-month agreement renewal"
+                                                    className="rounded-xl h-12 bg-muted/30 border-border/50 font-bold"
+                                                    value={agreementForm.notes}
+                                                    onChange={(e) => setAgreementForm(prev => ({ ...prev, notes: e.target.value }))}
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">PDF Document *</Label>
+                                                <div
+                                                    className="border-2 border-dashed border-border/50 rounded-2xl p-5 flex flex-col items-center justify-center gap-3 bg-muted/20 hover:bg-muted/30 hover:border-primary/30 transition-all cursor-pointer group"
+                                                    onClick={() => document.getElementById('agreement-pdf-input')?.click()}
+                                                >
+                                                    {agreementForm.file ? (
+                                                        <div className="flex items-center gap-3 text-primary">
+                                                            <FileText className="w-6 h-6" />
+                                                            <div>
+                                                                <p className="text-sm font-black">{agreementForm.file.name}</p>
+                                                                <p className="text-[10px] text-muted-foreground">{(agreementForm.file.size / 1024).toFixed(1)} KB</p>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <>
+                                                            <div className="w-9 h-9 bg-background rounded-full flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                                                                <Upload className="w-4 h-4 text-primary" />
+                                                            </div>
+                                                            <div className="text-center">
+                                                                <p className="text-sm font-bold">Click to upload PDF</p>
+                                                                <p className="text-[10px] text-muted-foreground">PDF files only Â· max 10MB</p>
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                    <input
+                                                        id="agreement-pdf-input"
+                                                        type="file"
+                                                        accept="application/pdf"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                if (file.type !== 'application/pdf') { toast.error('Only PDF files are allowed'); return; }
+                                                                if (file.size > 10 * 1024 * 1024) { toast.error('File size must be under 10MB'); return; }
+                                                                setAgreementForm(prev => ({ ...prev, file }));
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Sticky footer */}
+                                        <div className="px-8 py-5 shrink-0 border-t border-border/30 bg-background/80 backdrop-blur-sm flex justify-end gap-3">
+                                            <Button type="button" variant="ghost" className="rounded-2xl h-11 font-bold px-6" onClick={() => setIsUploadAgreementDialogOpen(false)} disabled={isUploadingAgreement}>
+                                                Cancel
+                                            </Button>
+                                            <Button type="submit" className="rounded-2xl h-11 px-8 font-black shadow-lg shadow-primary/20" disabled={isUploadingAgreement}>
+                                                {isUploadingAgreement ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Uploading...</> : "Upload & Assign"}
+                                            </Button>
+                                        </div>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
+
+                            {/* Delete Agreement Confirmation */}
+                            <Dialog open={isDeleteAgreementDialogOpen} onOpenChange={setIsDeleteAgreementDialogOpen}>
+                                <DialogContent className="sm:max-w-[400px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                                    <div className="p-8 text-center space-y-6 bg-gradient-to-b from-destructive/5 to-background">
+                                        <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto ring-8 ring-destructive/5">
+                                            <Trash2 className="w-10 h-10 text-destructive" />
+                                        </div>
+                                        <DialogHeader className="space-y-2">
+                                            <DialogTitle className="text-2xl font-black tracking-tight text-center">Delete Agreement?</DialogTitle>
+                                            <DialogDescription className="text-muted-foreground font-medium text-center">
+                                                This will permanently remove the PDF. The member will no longer be able to view this document.
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="flex flex-col gap-3">
+                                            <Button variant="destructive" onClick={handleDeleteAgreement} className="w-full h-14 rounded-2xl font-black" disabled={isDeletingAgreement}>
+                                                {isDeletingAgreement ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Deleting...</> : "Delete Agreement"}
+                                            </Button>
+                                            <Button variant="ghost" onClick={() => setIsDeleteAgreementDialogOpen(false)} className="w-full h-14 rounded-2xl font-bold" disabled={isDeletingAgreement}>
+                                                Cancel
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </DialogContent>
+                            </Dialog>
+                        </div>
                     )}
 
                 </main>

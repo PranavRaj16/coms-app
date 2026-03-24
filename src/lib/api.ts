@@ -28,6 +28,7 @@ const getAuthHeaders = () => {
     };
 };
 
+// For FormData/file uploads — do NOT set Content-Type, let the browser handle it
 const getAuthHeadersMultipart = () => {
     const userInfo = localStorage.getItem('userInfo');
     const token = userInfo ? JSON.parse(userInfo).token : null;
@@ -359,6 +360,25 @@ export const addReply = (postId: string, commentId: string, data: any) =>
 
 export const deleteReply = (postId: string, commentId: string, replyId: string) =>
     fetch(`${API_BASE_URL}/posts/${postId}/comments/${commentId}/replies/${replyId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+    }).then(handleResponse);
+
+// Agreement APIs
+export const fetchAgreements = () =>
+    fetch(`${API_BASE_URL}/agreements`, {
+        headers: getAuthHeaders(),
+    }).then(handleResponse);
+
+export const uploadAgreement = (formData: FormData) =>
+    fetch(`${API_BASE_URL}/agreements`, {
+        method: 'POST',
+        headers: getAuthHeadersMultipart(),
+        body: formData,
+    }).then(handleResponse);
+
+export const deleteAgreement = (id: string) =>
+    fetch(`${API_BASE_URL}/agreements/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
     }).then(handleResponse);

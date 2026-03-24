@@ -47,7 +47,8 @@ import {
     Zap,
     MessageSquareMore,
     Coffee,
-    Trophy
+    Trophy,
+    FileText
 } from "lucide-react";
 import {
     Sidebar,
@@ -101,7 +102,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import cohortimage from "@/assets/cohort-logo.png";
-import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice, deleteReply } from "@/lib/api";
+import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice, deleteReply, fetchAgreements } from "@/lib/api";
 import { Workspace } from "@/data/workspaces";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
@@ -146,7 +147,7 @@ interface Post {
     createdAt: string;
 }
 
-type View = "dashboard" | "community" | "profile" | "workspace-details" | "bookings";
+type View = "dashboard" | "community" | "profile" | "workspace-details" | "bookings" | "agreements";
 
 const UserDashboard = () => {
     const isAuth = (idOrObj: any, currentUserId: any) => {
@@ -230,6 +231,7 @@ const UserDashboard = () => {
     const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
     const [myRequests, setMyRequests] = useState<any[]>([]);
     const [invoices, setInvoices] = useState<any[]>([]);
+    const [agreements, setAgreements] = useState<any[]>([]);
     const [isRequesting, setIsRequesting] = useState(false);
     const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
     const [editProfileData, setEditProfileData] = useState({
@@ -499,7 +501,7 @@ const UserDashboard = () => {
     const loadDashboardData = useCallback(async (showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
-            const [wsData, upcomingWsData, allWsData, communityData, postsData, freshProfile, quotesData, bookingsData, invoicesData] = await Promise.all([
+            const [wsData, upcomingWsData, allWsData, communityData, postsData, freshProfile, quotesData, bookingsData, invoicesData, agreementsData] = await Promise.all([
                 fetchMyWorkspace().catch(() => null),
                 fetchUpcomingWorkspace().catch(() => null),
                 fetchWorkspaces().catch(() => []),
@@ -508,7 +510,8 @@ const UserDashboard = () => {
                 fetchUserProfile().catch(() => null),
                 fetchQuoteRequests().catch(() => []),
                 fetchBookingRequests().catch(() => []),
-                fetchInvoices().catch(() => [])
+                fetchInvoices().catch(() => []),
+                fetchAgreements().catch(() => [])
             ]);
 
             if (freshProfile) {
@@ -544,6 +547,7 @@ const UserDashboard = () => {
             setCommunity(communityData);
             setPosts(postsData);
             setInvoices(invoicesData);
+            setAgreements(Array.isArray(agreementsData) ? agreementsData : []);
             const combinedRequests = [
                 ...quotesData.map((q: any) => ({ ...q, type: 'quote', email: q.workEmail })),
                 ...bookingsData.map((b: any) => ({ ...b, type: 'booking', requiredWorkspace: b.workspaceName }))
@@ -861,6 +865,16 @@ const UserDashboard = () => {
                                     >
                                         <CalendarCheck className="w-5 h-5 mr-3 group-data-[collapsible=icon]:mr-0" />
                                         <span className="font-semibold group-data-[collapsible=icon]:hidden">My Bookings</span>
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                                <SidebarMenuItem>
+                                    <SidebarMenuButton
+                                        isActive={currentView === "agreements"}
+                                        onClick={() => changeView("agreements")}
+                                        className={`rounded-xl h-11 px-3 mb-1 transition-all ${currentView === "agreements" ? "bg-primary/10 text-primary shadow-sm" : "hover:bg-primary/5"} group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-2`}
+                                    >
+                                        <FileText className="w-5 h-5 mr-3 group-data-[collapsible=icon]:mr-0" />
+                                        <span className="font-semibold group-data-[collapsible=icon]:hidden">My Agreement</span>
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             </SidebarMenu>
@@ -1737,30 +1751,30 @@ const UserDashboard = () => {
                                                                                                                 )}
                                                                                                             </div>
                                                                                                             <p className="text-[10px] text-muted-foreground">{reply.text || reply.content}</p>
-                                                                                                            
+
                                                                                                             {/* Sub-replies rendering */}
                                                                                                             {reply.replies && reply.replies.length > 0 && (
-                                                                                                               <div className="mt-2 space-y-2 pl-2 border-l border-border/20">
-                                                                                                                   {reply.replies.map((subReply: any) => (
-                                                                                                                       <div key={subReply._id} className="flex gap-2 group/subreply">
-                                                                                                                           <div className="w-5 h-5 rounded-md bg-muted/70 flex items-center justify-center font-bold text-[8px] shrink-0 mt-0.5">{subReply.userName?.[0] || "U"}</div>
-                                                                                                                           <div className="flex-1">
-                                                                                                                               <div className="flex items-center justify-between">
-                                                                                                                                   <p className="text-[9px] font-bold">{subReply.userName}</p>
-                                                                                                                                   {isAuth(subReply.user, userInfo?._id) && (
-                                                                                                                                       <button
-                                                                                                                                           className="opacity-0 group-hover/subreply:opacity-100 text-muted-foreground hover:text-destructive transition-all"
-                                                                                                                                           onClick={() => { setReplyToDelete({ postId: post._id, commentId: comment._id, replyId: subReply._id }); setIsReplyDeleteDialogOpen(true); }}
-                                                                                                                                       >
-                                                                                                                                           <Trash2 className="w-2.5 h-2.5" />
-                                                                                                                                       </button>
-                                                                                                                                   )}
-                                                                                                                               </div>
-                                                                                                                               <p className="text-[9px] text-muted-foreground">{subReply.text || subReply.content}</p>
-                                                                                                                           </div>
-                                                                                                                       </div>
-                                                                                                                   ))}
-                                                                                                               </div>
+                                                                                                                <div className="mt-2 space-y-2 pl-2 border-l border-border/20">
+                                                                                                                    {reply.replies.map((subReply: any) => (
+                                                                                                                        <div key={subReply._id} className="flex gap-2 group/subreply">
+                                                                                                                            <div className="w-5 h-5 rounded-md bg-muted/70 flex items-center justify-center font-bold text-[8px] shrink-0 mt-0.5">{subReply.userName?.[0] || "U"}</div>
+                                                                                                                            <div className="flex-1">
+                                                                                                                                <div className="flex items-center justify-between">
+                                                                                                                                    <p className="text-[9px] font-bold">{subReply.userName}</p>
+                                                                                                                                    {isAuth(subReply.user, userInfo?._id) && (
+                                                                                                                                        <button
+                                                                                                                                            className="opacity-0 group-hover/subreply:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                                                                                                                                            onClick={() => { setReplyToDelete({ postId: post._id, commentId: comment._id, replyId: subReply._id }); setIsReplyDeleteDialogOpen(true); }}
+                                                                                                                                        >
+                                                                                                                                            <Trash2 className="w-2.5 h-2.5" />
+                                                                                                                                        </button>
+                                                                                                                                    )}
+                                                                                                                                </div>
+                                                                                                                                <p className="text-[9px] text-muted-foreground">{subReply.text || subReply.content}</p>
+                                                                                                                            </div>
+                                                                                                                        </div>
+                                                                                                                    ))}
+                                                                                                                </div>
                                                                                                             )}
                                                                                                         </div>
                                                                                                     </div>
@@ -2358,6 +2372,90 @@ const UserDashboard = () => {
                                     </div>
                                 </TabsContent>
                             </Tabs>
+                        </div>
+                    )}
+
+                    {/* ---- My Agreements View ---- */}
+                    {currentView === "agreements" && (
+                        <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                            <div className="flex flex-col gap-2">
+                                <h1 className="text-4xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-500 to-violet-600">My Agreement</h1>
+                                <p className="text-muted-foreground font-black uppercase tracking-[0.25em] text-[10px]">Service Agreement Documents</p>
+                            </div>
+
+                            {agreements.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-32 text-center">
+                                    <div className="w-24 h-24 rounded-3xl bg-muted/30 flex items-center justify-center mb-6 ring-1 ring-border/50 rotate-3">
+                                        <FileText className="w-12 h-12 text-muted-foreground/20" />
+                                    </div>
+                                    <p className="text-sm font-black uppercase tracking-widest text-muted-foreground/40">No agreement assigned yet</p>
+                                    <p className="text-xs text-muted-foreground/30 mt-2">Your service agreement will appear here once your admin uploads it</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {agreements.map((agr) => (
+                                        <div key={agr._id} className="group relative overflow-hidden rounded-3xl border border-border/50 bg-gradient-to-br from-muted/20 to-muted/5 p-6 hover:border-primary/20 hover:from-primary/5 hover:to-muted/5 transition-all duration-500 shadow-sm hover:shadow-lg">
+                                            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary/60 via-indigo-500/60 to-violet-600/60" />
+
+                                            <div className="flex items-start gap-5">
+                                                <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300">
+                                                    <FileText className="w-7 h-7 text-rose-500" />
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-black text-base truncate">{agr.fileName}</p>
+                                                    {agr.workspaceName && agr.workspaceName !== 'General' && (
+                                                        <p className="text-xs font-bold text-primary mt-0.5">{agr.workspaceName}</p>
+                                                    )}
+
+                                                    {(agr.startDate || agr.endDate) && (
+                                                        <div className="flex flex-wrap items-center gap-3 mt-3">
+                                                            {agr.startDate && (
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                                                    <Calendar className="w-3 h-3 text-emerald-500" />
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600">
+                                                                        Start: {new Date(agr.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                            {agr.endDate && (
+                                                                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+                                                                    <Clock className="w-3 h-3 text-rose-500" />
+                                                                    <span className="text-[10px] font-black uppercase tracking-wider text-rose-600">
+                                                                        End: {new Date(agr.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                    </span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    {agr.notes && (
+                                                        <p className="mt-3 text-xs text-muted-foreground italic border-l-2 border-primary/30 pl-3">{agr.notes}</p>
+                                                    )}
+
+                                                    <div className="flex items-center gap-3 mt-4">
+                                                        <a
+                                                            href={agr.fileUrl}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="inline-flex items-center gap-2 h-10 px-5 rounded-xl bg-primary text-primary-foreground text-xs font-black shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all duration-200"
+                                                        >
+                                                            <FileText className="w-3.5 h-3.5" />
+                                                            View Document
+                                                        </a>
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-right shrink-0">
+                                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">
+                                                        {new Date(agr.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
