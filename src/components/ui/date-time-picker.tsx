@@ -26,6 +26,7 @@ interface DateTimePickerProps {
   showTime?: boolean;
   placeholder?: string;
   className?: string;
+  disabled?: any;
 }
 
 // Convert 24h hour to 12h display hour (1-12)
@@ -54,7 +55,9 @@ export function DateTimePicker({
   showTime = false,
   placeholder = "Pick a date",
   className,
+  disabled,
 }: DateTimePickerProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(date);
 
   const [hour12, setHour12] = React.useState<string>(
@@ -91,6 +94,7 @@ export function DateTimePicker({
         ? applyTime(newDate, hour12, ampm, minutes)
         : new Date(newDate);
       setDate(updatedDate);
+      if (!showTime) setIsOpen(false);
     } else {
       setDate(undefined);
     }
@@ -121,14 +125,14 @@ export function DateTimePicker({
   const displayFormat = showTime ? "PPP hh:mm aa" : "PPP";
 
   return (
-    <Popover>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant={"outline"}
           className={cn(
-            "w-full justify-start text-left font-normal rounded-xl h-11 transition-all hover:bg-muted/50",
-            !date && "text-muted-foreground hover:text-foreground",
+            "w-full justify-start text-left font-bold rounded-xl h-11 transition-all hover:bg-primary/5 hover:text-primary hover:border-primary/20",
+            !date && "text-muted-foreground",
             className
           )}
         >
@@ -142,10 +146,11 @@ export function DateTimePicker({
       </PopoverTrigger>
       <PopoverContent
         className="w-auto p-0 rounded-2xl border border-border/60 shadow-2xl z-[9999] overflow-hidden"
-        align="start"
+        align="center"
         side="bottom"
+        sideOffset={8}
         avoidCollisions={true}
-        collisionPadding={16}
+        collisionPadding={24}
       >
         {/* Calendar section */}
         <div className="bg-popover">
@@ -155,6 +160,7 @@ export function DateTimePicker({
             onSelect={handleDateSelect}
             initialFocus
             className="p-3"
+            disabled={disabled}
           />
         </div>
 

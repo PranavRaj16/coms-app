@@ -149,6 +149,11 @@ export async function POST(req: NextRequest) {
             ? Math.ceil(workspace.price * (isOpenWorkstation ? seatCount : 1))
             : totalAmount;
 
+        // For Pay Monthly, tag the initial invoice as 'recurring' with billingMonth
+        // so the cron job on the 1st of the month won't create a duplicate for the same month
+        const now = new Date();
+        const billingMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
         const invoiceData: any = {
             invoiceNumber: invoiceId,
             bookingId: createdBooking._id,
@@ -160,6 +165,8 @@ export async function POST(req: NextRequest) {
             amount: invoiceAmount,
             paymentMethod: body.paymentMethod,
             status: bookingData.paymentStatus,
+            type: isMonthly ? 'recurring' : 'booking',
+            billingMonth: isMonthly ? billingMonth : null,
             dueDate: dueDate,
             paidDate: isPayNow ? new Date() : undefined
         };

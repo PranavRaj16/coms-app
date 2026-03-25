@@ -20,6 +20,9 @@ export async function GET(req: NextRequest) {
         const totalWorkspaces = await Workspace.countDocuments();
         const activeMembers = await User.countDocuments({ status: { $ne: 'Inactive' } });
         const pendingQuotes = await QuoteRequest.countDocuments({ status: 'Pending' });
+        const activeBookings = await BookingRequest.countDocuments({ 
+            status: { $in: ['Awaiting Payment', 'Confirmed'] }
+        });
         const pendingBookings = await BookingRequest.countDocuments({ status: 'Pending' });
         const pendingContacts = await ContactRequest.countDocuments({ status: 'Pending' });
         const pendingVisits = await VisitRequest.countDocuments({ status: 'Pending' });
@@ -29,6 +32,7 @@ export async function GET(req: NextRequest) {
             activeMembers,
             newQuoteRequests: pendingQuotes,
             newBookingRequests: pendingBookings,
+            activeBookings,
             newVisitRequests: pendingVisits,
             totalWorkspaces,
             pendingContacts,

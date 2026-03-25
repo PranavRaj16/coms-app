@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link"; import { useRouter } from "next/navigation";
@@ -248,6 +248,7 @@ const AdminDashboard = () => {
         activeMembers: 0,
         newQuoteRequests: 0,
         newBookingRequests: 0,
+        activeBookings: 0,
         newVisitRequests: 0,
         revenueGrowth: "+12.5%"
     });
@@ -453,7 +454,7 @@ const AdminDashboard = () => {
             const [wsData, userData, statsData, quotesData, contactsData, bookingsData, visitsData, dayPassesData, invoicesData, freshProfile, agreementsData] = await Promise.all([
                 fetchWorkspaces().catch(() => []),
                 fetchUsers().catch(() => []),
-                fetchDashboardStats().catch(() => ({ totalUsers: 0, activeMembers: 0, newQuoteRequests: 0, newBookingRequests: 0, newVisitRequests: 0, revenueGrowth: "+0%" })),
+                fetchDashboardStats().catch(() => ({ totalUsers: 0, activeMembers: 0, newQuoteRequests: 0, newBookingRequests: 0, activeBookings: 0, newVisitRequests: 0, revenueGrowth: "+0%" })),
                 fetchQuoteRequests().catch(err => {
                     console.error("Failed to fetch quotes:", err);
                     return [];
@@ -1466,7 +1467,7 @@ const AdminDashboard = () => {
                                     { label: "Total Users", value: dashboardStats.totalUsers ?? 0, icon: UsersIcon, color: "blue", trend: "+12.5%", description: "Registered users in the system" },
                                     { label: "Active Members", value: dashboardStats.activeMembers ?? 0, icon: ShieldCheck, color: "emerald", trend: "+5.2%", description: "Members with active status" },
                                     { label: "Quote Requests", value: dashboardStats.newQuoteRequests ?? 0, icon: UserPlus, color: "amber", trend: "Pending", description: "New requests for workspace quotes" },
-                                    { label: "Bookings", value: dashboardStats.newBookingRequests ?? 0, icon: Calendar, color: "violet", trend: "Active", description: "Confirmed space bookings" }
+                                    { label: "Active Bookings", value: (dashboardStats as any).activeBookings ?? 0, icon: Calendar, color: "violet", trend: "Active", description: "All active space bookings" }
                                 ].map((stat) => (
                                     <div key={stat.label} className="group/stat card-elevated p-6 glass relative overflow-hidden transition-all duration-500 hover:scale-[1.02] active:scale-[0.98]">
                                         <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 bg-${stat.color}-500/5 rounded-full blur-2xl group-hover/stat:bg-${stat.color}-500/10 transition-all duration-700`} />
@@ -2523,6 +2524,7 @@ const AdminDashboard = () => {
                                                             }}
                                                             showTime={true}
                                                             className="border-primary/20 focus:ring-primary/10"
+                                                            disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                                         />
                                                         <p className="text-[10px] text-muted-foreground italic">
                                                             Mention when this booking starts.
@@ -2551,6 +2553,10 @@ const AdminDashboard = () => {
                                                             showTime={true}
                                                             className="border-destructive/20 focus:ring-destructive/10"
                                                             placeholder="Indefinite / Further Notice"
+                                                            disabled={(date: Date) => {
+                                                                const start = allotmentStartDate ? new Date(allotmentStartDate) : new Date(new Date().setHours(0, 0, 0, 0));
+                                                                return date <= start;
+                                                            }}
                                                         />
                                                         <p className="text-[10px] text-muted-foreground italic">
                                                             Mention when this booking ends. Leave empty for "Further Notice".
@@ -3391,16 +3397,41 @@ const AdminDashboard = () => {
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div className="space-y-2">
                                                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Start Date</Label>
-                                                    <Input type="date" className="rounded-xl h-12 bg-muted/30 border-border/50 font-bold"
-                                                        value={agreementForm.startDate}
-                                                        onChange={(e) => setAgreementForm(prev => ({ ...prev, startDate: e.target.value }))}
+                                                    <DateTimePicker
+                                                        date={agreementForm.startDate ? new Date(agreementForm.startDate + 'T00:00:00') : undefined}
+                                                        setDate={(date) => {
+                                                            if (date) {
+                                                                const y = date.getFullYear();
+                                                                const m = String(date.getMonth() + 1).padStart(2, '0');
+                                                                const d = String(date.getDate()).padStart(2, '0');
+                                                                setAgreementForm(prev => ({ ...prev, startDate: `${y}-${m}-${d}` }));
+                                                            } else {
+                                                                setAgreementForm(prev => ({ ...prev, startDate: '' }));
+                                                            }
+                                                        }}
+                                                        className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
+                                                        disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                                     />
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">End Date</Label>
-                                                    <Input type="date" className="rounded-xl h-12 bg-muted/30 border-border/50 font-bold"
-                                                        value={agreementForm.endDate}
-                                                        onChange={(e) => setAgreementForm(prev => ({ ...prev, endDate: e.target.value }))}
+                                                    <DateTimePicker
+                                                        date={agreementForm.endDate ? new Date(agreementForm.endDate + 'T23:59:59') : undefined}
+                                                        setDate={(date) => {
+                                                            if (date) {
+                                                                const y = date.getFullYear();
+                                                                const m = String(date.getMonth() + 1).padStart(2, '0');
+                                                                const d = String(date.getDate()).padStart(2, '0');
+                                                                setAgreementForm(prev => ({ ...prev, endDate: `${y}-${m}-${d}` }));
+                                                            } else {
+                                                                setAgreementForm(prev => ({ ...prev, endDate: '' }));
+                                                            }
+                                                        }}
+                                                        className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
+                                                        disabled={(date: Date) => {
+                                                            const start = agreementForm.startDate ? new Date(agreementForm.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                                                            return date <= start;
+                                                        }}
                                                     />
                                                 </div>
                                             </div>

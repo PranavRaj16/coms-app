@@ -2929,7 +2929,8 @@ const UserDashboard = () => {
                                         setBookingParams({ ...bookingParams, startDate: '' });
                                     }
                                 }}
-                                className="h-12 border-border/50 bg-muted/30 font-bold hover:bg-muted/50 transition-colors focus:ring-primary/20"
+                                className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
+                                disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                             />
                         </div>
 
@@ -2947,7 +2948,11 @@ const UserDashboard = () => {
                                         setBookingParams({ ...bookingParams, endDate: '' });
                                     }
                                 }}
-                                className="h-12 border-border/50 bg-muted/30 font-bold hover:bg-muted/50 transition-colors focus:ring-primary/20"
+                                className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
+                                disabled={(date: Date) => {
+                                    const start = bookingParams.startDate ? new Date(bookingParams.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                                    return date <= start;
+                                }}
                             />
                         </div>
 
