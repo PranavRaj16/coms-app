@@ -45,7 +45,7 @@ const CoTrading = () => {
                         </div>
 
                         <div className="pt-6 flex flex-col sm:flex-row gap-4">
-                            <Link href="/contact">
+                            <Link href="/get-quote">
                                 <Button size="xl" className="w-full sm:w-auto rounded-2xl px-12 shadow-2xl shadow-primary/30 hover:scale-[1.05] active:scale-[0.95] transition-all group h-16 text-lg font-black bg-primary">
                                     Book Your Desk <ArrowRight className="ml-3 w-6 h-6 group-hover:translate-x-1 transition-transform" />
                                 </Button>
