@@ -271,6 +271,13 @@ export const fetchInvoices = () =>
         headers: getAuthHeaders(),
     }).then(handleResponse);
 
+export const createInvoice = (data: any) =>
+    fetch(`${API_BASE_URL}/requests/invoices`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data),
+    }).then(handleResponse);
+
 export const payInvoice = (id: string) =>
     fetch(`${API_BASE_URL}/requests/invoices/${id}/pay`, {
         method: 'PUT',

@@ -309,27 +309,17 @@ const Workspaces = () => {
                                                 </div>
                                             </div>
 
-                                            <div className="flex flex-col justify-between items-end gap-4 min-w-[200px]">
-                                                <div className="text-right">
-                                                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Starting from</p>
-                                                    <p className="text-2xl font-black text-foreground italic">
-                                                        {ws.price && Number(ws.price) > 0
-                                                            ? `₹${Number(ws.price).toLocaleString('en-IN')}`
-                                                            : "Contact"}
-                                                        <span className="text-xs font-bold text-muted-foreground not-italic ml-1">/ mo</span>
-                                                    </p>
+                                                <div className="flex flex-col justify-end items-end gap-4 min-w-[200px]">
+                                                    <Button
+                                                        variant="outline"
+                                                        className="w-full md:w-auto px-8 group/btn transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                                        asChild
+                                                    >
+                                                        <Link href={`/workspaces/${ws._id || ws.id}`}>
+                                                            View Details
+                                                        </Link>
+                                                    </Button>
                                                 </div>
-                                                <Button
-                                                    variant={isUnavailable ? "outline" : "default"}
-                                                    className="w-full md:w-auto px-8 group/btn transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                                    asChild
-                                                >
-                                                    <Link href={`/workspaces/${ws._id || ws.id}`}>
-                                                        {isUnavailable ? "View Details" : "Book Now"}
-                                                        <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover/btn:translate-x-1" />
-                                                    </Link>
-                                                </Button>
-                                            </div>
                                         </div>
                                     </div>
                                 );
@@ -360,21 +350,12 @@ const Workspaces = () => {
                                                 Available Until {new Date(availableUntil.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                             </div>
                                         )}
-                                        <div className="absolute bottom-4 right-4 animate-fade-in opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button size="sm" className="rounded-full shadow-lg" asChild>
-                                                <Link href={`/workspaces/${ws._id || ws.id}`}>View Details</Link>
-                                            </Button>
-                                        </div>
+                                        <div className="absolute inset-0 bg-transparent" />
                                     </div>
 
                                     <div className="p-6 flex-1 flex flex-col">
                                         <div className="flex justify-between items-start mb-2">
                                             <span className="text-xs font-bold text-primary uppercase tracking-widest">{ws.type}</span>
-                                            <span className="text-sm font-semibold text-foreground">
-                                                {ws.price && Number(ws.price) > 0
-                                                    ? `₹${Number(ws.price).toLocaleString('en-IN')} / month`
-                                                    : "Contact for Pricing"}
-                                            </span>
                                         </div>
                                         <h3 className="text-xl font-bold text-foreground mb-3 group-hover:text-primary transition-colors">
                                             {ws.name}
@@ -442,13 +423,12 @@ const Workspaces = () => {
                                         </div>
 
                                         <Button
-                                            variant={isUnavailable ? "outline" : "default"}
+                                            variant="outline"
                                             className="w-full mt-auto group/btn transition-all hover:scale-[1.02] active:scale-[0.98]"
                                             asChild
                                         >
                                             <Link href={`/workspaces/${ws._id || ws.id}`}>
-                                                {isUnavailable ? "View Details" : "Book Now"}
-                                                <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover/btn:translate-x-1" />
+                                                View Details
                                             </Link>
                                         </Button>
                                     </div>

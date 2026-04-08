@@ -12,11 +12,10 @@ export async function POST(req: NextRequest) {
         }
 
         const results = await processMonthlyInvoices();
-        const now = new Date();
-        const monthName = now.toLocaleString('default', { month: 'long' });
+        const billingMonthLabel = results.billingMonthLabel;
 
         return NextResponse.json({
-            message: `Invoice generation summary for ${monthName}: ${results.generated} created, ${results.alreadyInvoiced} already exist.`,
+            message: `Invoice generation summary for ${billingMonthLabel}: ${results.generated} created, ${results.alreadyInvoiced} already exist.`,
             ...results,
         });
     } catch (error: any) {

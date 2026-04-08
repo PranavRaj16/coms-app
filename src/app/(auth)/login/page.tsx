@@ -236,10 +236,6 @@ const Login = () => {
                         </div>
                     </div>
 
-                    <div className="mt-8 text-center bg-primary/5 p-4 rounded-2xl border border-primary/10">
-                        <p className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Test Credentials</p>
-                        <p className="text-sm text-muted-foreground">Admin: <span className="font-semibold text-foreground">k.pranavraj123@gmail.com</span> / <span className="font-semibold text-foreground">password123</span></p>
-                    </div>
                 </div>
             </main>
 
@@ -249,7 +245,3 @@ const Login = () => {
 };
 
 export default Login;
-
-
-
-

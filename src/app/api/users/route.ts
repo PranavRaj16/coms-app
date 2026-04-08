@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
         // For now, let's keep it similar to the controller
 
         const body = await req.json();
-        const { name, email, role, mobile, organization, password } = body;
+        const { name, email, role, mobile, organization, password, includeGST, includeCarParking, carParkingSlots, carParkingPricePerSlot } = body;
 
         const requiredError = checkRequiredFields(body, ['name', 'email']);
         if (requiredError) {
@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
             role: role || 'Member',
             status: body.status || 'Pending',
             mobile,
-            organization
+            organization,
+            includeGST: !!includeGST,
+            includeCarParking: !!includeCarParking,
+            carParkingSlots: Number(carParkingSlots) || 0,
+            carParkingPricePerSlot: Number(carParkingPricePerSlot) || 0
         });
 
         if (newUser) {

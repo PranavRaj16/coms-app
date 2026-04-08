@@ -288,8 +288,26 @@ const WorkspaceRow = ({
                                                 </div>
                                                 <div className="flex items-center gap-3">
                                                     <UsersIcon className="w-4 h-4 text-muted-foreground" />
-                                                    <span className="text-sm font-bold">Capacity: {ws.capacity}</span>
+                                                    <span className="text-sm font-bold">Total Capacity: {ws.capacity}</span>
                                                 </div>
+                                                {ws.features?.workstationSeats ? (
+                                                    <div className="flex items-center gap-3 ml-7 py-0.5 text-[11px] text-muted-foreground/80 font-bold bg-muted/20 px-3 rounded-lg border border-border/30">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-primary/60 shadow-[0_0_8px_rgba(var(--primary),0.4)]" />
+                                                        {ws.features.workstationSeats} Workstation Seats
+                                                    </div>
+                                                ) : null}
+                                                {ws.features?.hasConferenceHall && (
+                                                    <div className="flex items-center gap-3 ml-7 py-0.5 text-[11px] text-muted-foreground/80 font-bold bg-muted/20 px-3 rounded-lg border border-border/30">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.4)]" />
+                                                        {ws.features.numConferenceHalls || 1} Conf. Hall{ (ws.features.numConferenceHalls || 1) > 1 ? 's' : ''} ({ws.features.conferenceHallSeats || 0} seats ea.)
+                                                    </div>
+                                                )}
+                                                {ws.features?.hasCabin && (
+                                                    <div className="flex items-center gap-3 ml-7 py-0.5 text-[11px] text-muted-foreground/80 font-bold bg-muted/20 px-3 rounded-lg border border-border/30">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500/60 shadow-[0_0_8px_rgba(99,102,241,0.4)]" />
+                                                        {ws.features.numCabins || 1} Cabin{ (ws.features.numCabins || 1) > 1 ? 's' : ''} ({ws.features.cabinSeats || 0} seats ea.)
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 

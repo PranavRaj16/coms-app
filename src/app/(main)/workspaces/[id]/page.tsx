@@ -1,6 +1,5 @@
 "use client";
 import { useParams } from "next/navigation";
-import { useMemo } from "react";
 import Link from "next/link";
 import { workspaces as initialWorkspaces } from "@/data/workspaces";
 import { useEffect, useState } from "react";
@@ -47,37 +46,9 @@ const WorkspaceDetails = () => {
     const [isLightboxOpen, setIsLightboxOpen] = useState(false);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-    // Booking Modal State
-    const [isBookingOpen, setIsBookingOpen] = useState(false);
-    const [bookingData, setBookingData] = useState({
-        name: "",
-        contact: "",
-        email: "",
-        firmName: "",
-        endDate: new Date(new Date().setMonth(new Date().getMonth() + 1)) as Date | undefined,
-        paymentMethod: "Pay Now",
-        startDate: new Date() as Date | undefined,
-        seatCount: 1
-    });
-
     const [isVisitOpen, setIsVisitOpen] = useState(false);
-    const [isSubmittingBooking, setIsSubmittingBooking] = useState(false);
     const [isSubmittingVisit, setIsSubmittingVisit] = useState(false);
 
-    const estimatedTotal = useMemo(() => {
-        if (!workspace || !bookingData.startDate || !bookingData.endDate) return 0;
-        
-        const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        
-        const price = Number(workspace.price) || 0;
-        // Calculate based on daily rate (monthly / 30.44)
-        const dailyRate = price / 30.44;
-        const isOpenWorkstation = workspace.type === "Open WorkStation";
-        const seatFactor = isOpenWorkstation ? (bookingData.seatCount || 1) : 1;
-        
-        return Math.ceil(dailyRate * diffDays * seatFactor);
-    }, [workspace, bookingData.startDate, bookingData.endDate, bookingData.seatCount]);
     const [visitData, setVisitData] = useState({
         name: "",
         contact: "",
@@ -85,26 +56,7 @@ const WorkspaceDetails = () => {
         visitDate: undefined as Date | undefined
     });
 
-    const [bookingErrors, setBookingErrors] = useState<{ [key: string]: string }>({});
     const [visitErrors, setVisitErrors] = useState<{ [key: string]: string }>({});
-
-    const validateBookingForm = () => {
-        const errors: { [key: string]: string } = {};
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-        if (!bookingData.name.trim()) errors.name = "Full name is required";
-        if (!bookingData.email.trim()) {
-            errors.email = "Email is required";
-        } else if (!emailRegex.test(bookingData.email)) {
-            errors.email = "Invalid email format";
-        }
-        if (!bookingData.contact.trim()) errors.contact = "Contact number is required";
-        if (!bookingData.startDate) errors.startDate = "Start date is required";
-        if (!bookingData.endDate) errors.endDate = "End date is required";
-
-        setBookingErrors(errors);
-        return Object.keys(errors).length === 0;
-    };
 
     const validateVisitForm = () => {
         const errors: { [key: string]: string } = {};
@@ -121,62 +73,6 @@ const WorkspaceDetails = () => {
 
         setVisitErrors(errors);
         return Object.keys(errors).length === 0;
-    };
-
-    const handleBookingSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        if (!validateBookingForm()) {
-            toast.error("Please fill in all required fields correctly.");
-            return;
-        }
-
-        setIsSubmittingBooking(true);
-
-        const calcDuration = () => {
-            if (!bookingData.startDate || !bookingData.endDate) return "N/A";
-            const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // inclusive
-            return `${diffDays} Days`;
-        };
-
-        try {
-            const payload = {
-                workspaceId: id,
-                workspaceName: workspace?.name,
-                fullName: bookingData.name,
-                email: bookingData.email,
-                contactNumber: bookingData.contact,
-                firmName: bookingData.firmName,
-                duration: calcDuration(),
-                paymentMethod: bookingData.paymentMethod,
-                startDate: bookingData.startDate ? (() => {
-                    const d = bookingData.startDate;
-                    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                })() : undefined,
-                status: 'Awaiting Payment',
-                seatCount: workspace?.type === "Open WorkStation" ? bookingData.seatCount : 1
-            };
-
-            await submitBookingRequest(payload);
-
-            toast.success("Booking request submitted successfully! Admin will contact you soon.");
-            setIsBookingOpen(false);
-            setBookingData({
-                name: "",
-                contact: "",
-                email: "",
-                firmName: "",
-                endDate: undefined,
-                paymentMethod: "Pay Now",
-                startDate: undefined,
-                seatCount: 1
-            });
-        } catch (error: any) {
-            toast.error(error.message || "Failed to submit booking request");
-        } finally {
-            setIsSubmittingBooking(false);
-        }
     };
 
     const handleVisitSubmit = async (e: React.FormEvent) => {
@@ -218,10 +114,7 @@ const WorkspaceDetails = () => {
         }
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setBookingData(prev => ({ ...prev, [name]: value }));
-    };
+
 
     const allImages = workspace ? [(workspace.image || DEFAULT_WORKSPACE_IMAGE), ...(workspace.images?.filter(img => img && img !== workspace.image) || [])] : [];
 
@@ -291,7 +184,7 @@ const WorkspaceDetails = () => {
 
     const now = new Date();
     const allotmentStart = workspace.allotmentStart ? new Date(workspace.allotmentStart) : null;
-    const isUnavailable = workspace.type === "Open WorkStation" 
+    const isUnavailable = workspace.type === "Open WorkStation"
         ? (workspace.availableSeats !== undefined ? workspace.availableSeats <= 0 : false)
         : !!workspace.allottedTo && (!allotmentStart || now >= allotmentStart);
     const availableUntil = !!workspace.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
@@ -420,8 +313,8 @@ const WorkspaceDetails = () => {
                                     <div className="flex items-center gap-2">
                                         <Users className="w-5 h-5 text-primary" />
                                         <span className="font-medium">
-                                            {workspace.type === "Open WorkStation" 
-                                                ? `${workspace.availableSeats ?? 0} / ${workspace.totalSeats ?? 0} Seats Available` 
+                                            {workspace.type === "Open WorkStation"
+                                                ? `${workspace.availableSeats ?? 0} / ${workspace.totalSeats ?? 0} Seats Available`
                                                 : `Up to ${workspace.capacity}`}
                                         </span>
                                     </div>
@@ -495,267 +388,56 @@ const WorkspaceDetails = () => {
                             </div>
                         </div>
 
-                        {/* Right Column: Booking Card */}
+                        {/* Right Column: Experience Card */}
                         <div className="space-y-6">
-                            <div className="sticky top-28 p-8 rounded-3xl bg-card border border-border shadow-2xl space-y-6">
-                                <div className="space-y-2">
-                                    <p className="text-sm text-muted-foreground font-medium uppercase tracking-wider">Pricing</p>
-                                    <p className="text-3xl font-bold text-foreground">
-                                        {workspace.price && Number(workspace.price) > 0
-                                            ? `₹${Number(workspace.price).toLocaleString('en-IN')} / month`
-                                            : "Contact for Pricing"}
-                                    </p>
+                            <div className="sticky top-28 p-6 rounded-3xl bg-card border border-border shadow-2xl space-y-5 relative overflow-hidden group">
+                                {/* Decorative background element */}
+                                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-32 h-32 bg-primary/10 rounded-full blur-3xl opacity-50" />
+
+                                <div className="space-y-3 relative">
+                                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-500">
+                                        <Building className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-black italic tracking-tight">Experience Hive</h3>
+                                        <p className="text-xs text-muted-foreground font-medium mt-1 leading-relaxed">
+                                            Tour this premium workspace and find your team's new home.
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    {isUnavailable && (
-                                        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 space-y-2 mb-4">
-                                            <div className="flex items-center gap-2 text-destructive font-black text-[10px] uppercase tracking-widest">
-                                                <Clock className="w-4 h-4" />
-                                                {workspace.type === "Open WorkStation" ? "Fully Booked" : "Currently Booked"}
+                                <div className="space-y-2 relative">
+                                    {[
+                                        { icon: <MapPin className="w-3.5 h-3.5 text-primary" />, text: "Guided space walkthrough" },
+                                        { icon: <Users className="w-3.5 h-3.5 text-primary" />, text: "Meet the local community" },
+                                        { icon: <Wifi className="w-3.5 h-3.5 text-primary" />, text: "Check connectivity & speed" }
+                                    ].map((item, i) => (
+                                        <div key={i} className="flex items-center gap-3 text-xs font-semibold text-foreground/80 p-2 rounded-xl hover:bg-primary/5 transition-colors">
+                                            <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center shrink-0">
+                                                {item.icon}
                                             </div>
-                                            <p className="text-xs font-bold text-destructive/80">
-                                                {workspace.type === "Open WorkStation" 
-                                                    ? "This workstation has reached its full capacity and is currently unavailable for booking."
-                                                    : "This space is currently occupied and unavailable for immediate booking."}
-                                            </p>
+                                            {item.text}
                                         </div>
-                                    )}
+                                    ))}
+                                </div>
 
-                                    {availableUntil && (
-                                        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2 mb-4">
-                                            <div className="flex items-center gap-2 text-amber-600 font-black text-[10px] uppercase tracking-widest">
-                                                <Clock className="w-4 h-4" />
-                                                Upcoming Booking
-                                            </div>
-                                            <p className="text-xs font-bold text-amber-700/80">
-                                                Available for use until {new Date(availableUntil.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}.
-                                            </p>
-                                        </div>
-                                    )}
-
+                                <div className="space-y-4 relative">
                                     <Button
                                         size="lg"
-                                        className="w-full h-14 rounded-xl text-lg font-bold shadow-lg shadow-primary/20"
-                                        onClick={() => setIsBookingOpen(true)}
+                                        className="w-full h-14 rounded-xl text-md font-black shadow-xl shadow-primary/20 gap-3 group/btn transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                        onClick={() => setIsVisitOpen(true)}
                                     >
-                                        Book Now
-                                    </Button>
-
-                                    <Button variant="outline" size="lg" className="w-full h-14 rounded-xl text-lg font-bold" onClick={() => setIsVisitOpen(true)}>
+                                        <CalendarIcon className="w-4 h-4 group-hover/btn:rotate-12 transition-transform" />
                                         Schedule a Visit
                                     </Button>
                                 </div>
-
-                                <p className="text-center text-xs text-muted-foreground">
-                                    No hidden charges. Instant confirmation.
-                                </p>
                             </div>
                         </div>
                     </div>
                 </div>
             </main>
 
-            <Dialog open={isBookingOpen} onOpenChange={setIsBookingOpen}>
-                <DialogContent className="sm:max-w-[500px] p-6 rounded-3xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="text-2xl font-bold">Book {workspace.name}</DialogTitle>
-                        <DialogDescription>
-                            Enter your details below to request a booking for this workspace.
-                        </DialogDescription>
-                    </DialogHeader>
 
-                    <form onSubmit={handleBookingSubmit} className="space-y-6 mt-4" noValidate>
-                        <div className="space-y-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="name">Full Name</Label>
-                                <Input
-                                    id="name"
-                                    name="name"
-                                    placeholder="John Doe"
-                                    className={bookingErrors.name ? "border-destructive ring-destructive/20" : ""}
-                                    value={bookingData.name || ""}
-                                    onChange={(e) => {
-                                        handleInputChange(e);
-                                        if (bookingErrors.name) setBookingErrors({ ...bookingErrors, name: "" });
-                                    }}
-                                />
-                                {bookingErrors.name && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.name}</p>}
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="contact">Contact Number</Label>
-                                    <Input
-                                        id="contact"
-                                        name="contact"
-                                        placeholder="+91 9876..."
-                                        className={bookingErrors.contact ? "border-destructive ring-destructive/20" : ""}
-                                        value={bookingData.contact || ""}
-                                        onChange={(e) => {
-                                            handleInputChange(e);
-                                            if (bookingErrors.contact) setBookingErrors({ ...bookingErrors, contact: "" });
-                                        }}
-                                    />
-                                    {bookingErrors.contact && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.contact}</p>}
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email Address</Label>
-                                    <Input
-                                        id="email"
-                                        name="email"
-                                        type="email"
-                                        placeholder="john@example.com"
-                                        className={bookingErrors.email ? "border-destructive ring-destructive/20" : ""}
-                                        value={bookingData.email || ""}
-                                        onChange={(e) => {
-                                            handleInputChange(e);
-                                            if (bookingErrors.email) setBookingErrors({ ...bookingErrors, email: "" });
-                                        }}
-                                    />
-                                    {bookingErrors.email && <p className="text-destructive text-xs mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.email}</p>}
-                                </div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="firmName">Firm/Company Name</Label>
-                                <Input
-                                    id="firmName"
-                                    name="firmName"
-                                    placeholder="Acme Inc."
-                                    value={bookingData.firmName || ""}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2 flex flex-col">
-                                    <Label className="mb-2">Start Date</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant={"outline"}
-                                                className={cn(
-                                                    "w-full justify-start text-left font-normal h-12 rounded-xl",
-                                                    !bookingData.startDate && "text-muted-foreground",
-                                                    bookingErrors.startDate && "border-destructive ring-destructive/20"
-                                                )}
-                                            >
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                                {bookingData.startDate ? format(bookingData.startDate, "PP") : <span>Start date</span>}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0 z-[200]">
-                                            <Calendar
-                                                mode="single"
-                                                selected={bookingData.startDate}
-                                                onSelect={(date) => {
-                                                    setBookingData(prev => ({ ...prev, startDate: date, endDate: date && prev.endDate && date > prev.endDate ? undefined : prev.endDate }));
-                                                    if (bookingErrors.startDate) setBookingErrors({ ...bookingErrors, startDate: "" });
-                                                }}
-                                                disabled={(date) => {
-                                                    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-                                                    const isAfterAllotment = availableUntil ? date >= availableUntil : false;
-                                                    return isPast || isAfterAllotment;
-                                                }}
-                                                initialFocus
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                    {bookingErrors.startDate && <p className="text-destructive text-[10px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.startDate}</p>}
-                                </div>
-
-                                <div className="space-y-2 flex flex-col">
-                                    <Label className="mb-2">End Date</Label>
-                                    <Popover>
-                                        <PopoverTrigger asChild>
-                                            <Button
-                                                variant={"outline"}
-                                                className={cn(
-                                                    "w-full justify-start text-left font-normal h-12 rounded-xl",
-                                                    !bookingData.endDate && "text-muted-foreground",
-                                                    bookingErrors.endDate && "border-destructive ring-destructive/20"
-                                                )}
-                                            >
-                                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                                {bookingData.endDate ? format(bookingData.endDate, "PP") : <span>End date</span>}
-                                            </Button>
-                                        </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0 z-[200]">
-                                            <Calendar
-                                                mode="single"
-                                                selected={bookingData.endDate}
-                                                onSelect={(date) => {
-                                                    setBookingData(prev => ({ ...prev, endDate: date }));
-                                                    if (bookingErrors.endDate) setBookingErrors({ ...bookingErrors, endDate: "" });
-                                                }}
-                                                disabled={(date) => {
-                                                    const isPast = date < new Date(new Date().setHours(0, 0, 0, 0));
-                                                    const isBeforeStart = bookingData.startDate ? date < bookingData.startDate : false;
-                                                    const isAfterAllotment = availableUntil ? date >= availableUntil : false;
-                                                    return isPast || isBeforeStart || isAfterAllotment;
-                                                }}
-                                                initialFocus
-                                            />
-                                        </PopoverContent>
-                                    </Popover>
-                                    {bookingErrors.endDate && <p className="text-destructive text-[10px] mt-1 flex items-center gap-1"><AlertCircle className="w-3 h-3" /> {bookingErrors.endDate}</p>}
-                                </div>
-                            </div>
-
-                            {workspace?.type === "Open WorkStation" && (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300 mb-6">
-                                    <Label className="text-xs font-bold">Number of Seats (Available: {workspace.availableSeats ?? (workspace as any).features?.workstationSeats ?? 0})</Label>
-                                    <Input
-                                        type="number"
-                                        min={1}
-                                        max={workspace.availableSeats ?? (workspace as any).features?.workstationSeats ?? 20}
-                                        value={bookingData.seatCount || 1}
-                                        onChange={(e) => setBookingData({ ...bookingData, seatCount: parseInt(e.target.value) || 1 })}
-                                        className="h-12 rounded-xl"
-                                    />
-                                </div>
-                            )}
-
-                            {bookingData.startDate && bookingData.endDate && (
-                                <div className="space-y-3">
-                                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/10 flex items-center justify-between animate-in fade-in zoom-in-95">
-                                        <div className="space-y-0.5">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Duration</p>
-                                            <p className="text-sm font-bold flex items-center gap-2">
-                                                <Clock className="w-3.5 h-3.5" />
-                                                {(() => {
-                                                    const diffTime = Math.abs(bookingData.endDate.getTime() - bookingData.startDate.getTime());
-                                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-                                                    return `${diffDays} Day${diffDays > 1 ? 's' : ''}`;
-                                                })()}
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Estimated Total</p>
-                                            <p className="text-xl font-black text-primary italic">₹{estimatedTotal.toLocaleString('en-IN')}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <DialogFooter className="gap-2 sm:gap-0">
-                            <Button type="button" variant="outline" onClick={() => setIsBookingOpen(false)}>
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={isSubmittingBooking}>
-                                {isSubmittingBooking ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Processing...
-                                    </>
-                                ) : "Pay Now"}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
 
             <Dialog open={isVisitOpen} onOpenChange={setIsVisitOpen}>
                 <DialogContent className="sm:max-w-[500px] p-6 rounded-3xl max-h-[90vh] overflow-y-auto">
@@ -839,7 +521,6 @@ const WorkspaceDetails = () => {
                                                 setVisitData(prev => ({ ...prev, visitDate: date }));
                                                 if (visitErrors.visitDate) setVisitErrors({ ...visitErrors, visitDate: "" });
                                             }}
-                                            disabled={(date) => date < new Date(new Date().setHours(0,0,0,0))}
                                             initialFocus
                                         />
                                     </PopoverContent>

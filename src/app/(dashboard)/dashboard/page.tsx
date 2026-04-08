@@ -48,7 +48,12 @@ import {
     MessageSquareMore,
     Coffee,
     Trophy,
-    FileText
+    FileText,
+    Search,
+    Filter,
+    Download,
+    Printer,
+    Eye
 } from "lucide-react";
 import {
     Sidebar,
@@ -102,7 +107,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import cohortimage from "@/assets/cohort-logo.png";
-import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchInvoices, payInvoice, deleteReply, fetchAgreements } from "@/lib/api";
+import { fetchMyWorkspace, fetchUpcomingWorkspace, fetchCommunityMembers, updateProfile, fetchPosts, createPost as createPostApi, upvotePost, addComment, deletePost as deletePostApi, upvoteComment, addReply, deleteComment as deleteCommentApi, fetchUserProfile, fetchWorkspaces, submitQuoteRequest, fetchQuoteRequests, submitBookingRequest, fetchBookingRequests, fetchVisitRequests, fetchInvoices, payInvoice, deleteReply, fetchAgreements } from "@/lib/api";
 import { Workspace } from "@/data/workspaces";
 import { DEFAULT_WORKSPACE_IMAGE } from "@/lib/constants";
 import { ThemeSwitcher } from "@/components/layout/ThemeSwitcher";
@@ -241,6 +246,54 @@ const UserDashboard = () => {
         mobile: ""
     });
     const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+    // Filters and Search State
+    const [workspaceSearch, setWorkspaceSearch] = useState("");
+    const [workspaceTypeFilter, setWorkspaceTypeFilter] = useState("All");
+    const [locationFilter, setLocationFilter] = useState("All");
+    const [requestSearch, setRequestSearch] = useState("");
+    const [requestStatusFilter, setRequestStatusFilter] = useState("All");
+    const [requestTypeFilter, setRequestTypeFilter] = useState("All");
+    const [invoiceStatusFilter, setInvoiceStatusFilter] = useState("All");
+
+    const workspaceTypes = useMemo(() => {
+        const types = new Set(allWorkspaces.map(ws => ws.type));
+        return ["All", ...Array.from(types)];
+    }, [allWorkspaces]);
+
+    const locations = useMemo(() => {
+        const locs = new Set(allWorkspaces.map(ws => ws.location));
+        return ["All", ...Array.from(locs)];
+    }, [allWorkspaces]);
+
+    const filteredWorkspaces = useMemo(() => {
+        return allWorkspaces.filter(ws => {
+            const matchesSearch = !workspaceSearch ||
+                ws.name.toLowerCase().includes(workspaceSearch.toLowerCase()) ||
+                ws.type.toLowerCase().includes(workspaceSearch.toLowerCase()) ||
+                ws.location.toLowerCase().includes(workspaceSearch.toLowerCase());
+            const matchesType = workspaceTypeFilter === "All" || ws.type === workspaceTypeFilter;
+            const matchesLocation = locationFilter === "All" || ws.location === locationFilter;
+            return matchesSearch && matchesType && matchesLocation;
+        });
+    }, [allWorkspaces, workspaceSearch, workspaceTypeFilter, locationFilter]);
+
+    const filteredRequests = useMemo(() => {
+        return myRequests.filter(req => {
+            const matchesSearch = !requestSearch ||
+                req.requiredWorkspace?.toLowerCase().includes(requestSearch.toLowerCase()) ||
+                req.status?.toLowerCase().includes(requestSearch.toLowerCase());
+            const matchesStatus = requestStatusFilter === "All" || req.status === requestStatusFilter;
+            const matchesType = requestTypeFilter === "All" || req.type === requestTypeFilter.toLowerCase();
+            return matchesSearch && matchesStatus && matchesType;
+        });
+    }, [myRequests, requestSearch, requestStatusFilter, requestTypeFilter]);
+
+    const filteredInvoices = useMemo(() => {
+        return invoices.filter(inv => {
+            return invoiceStatusFilter === "All" || inv.status === invoiceStatusFilter;
+        });
+    }, [invoices, invoiceStatusFilter]);
 
     const formatDisplayDate = (date: any) => {
         if (!date) return "N/A";
@@ -501,7 +554,7 @@ const UserDashboard = () => {
     const loadDashboardData = useCallback(async (showLoading = true) => {
         if (showLoading) setLoading(true);
         try {
-            const [wsData, upcomingWsData, allWsData, communityData, postsData, freshProfile, quotesData, bookingsData, invoicesData, agreementsData] = await Promise.all([
+            const [wsData, upcomingWsData, allWsData, communityData, postsData, freshProfile, quotesData, bookingsData, visitsData, invoicesData, agreementsData] = await Promise.all([
                 fetchMyWorkspace().catch(() => null),
                 fetchUpcomingWorkspace().catch(() => null),
                 fetchWorkspaces().catch(() => []),
@@ -510,6 +563,7 @@ const UserDashboard = () => {
                 fetchUserProfile().catch(() => null),
                 fetchQuoteRequests().catch(() => []),
                 fetchBookingRequests().catch(() => []),
+                fetchVisitRequests().catch(() => []),
                 fetchInvoices().catch(() => []),
                 fetchAgreements().catch(() => [])
             ]);
@@ -550,7 +604,8 @@ const UserDashboard = () => {
             setAgreements(Array.isArray(agreementsData) ? agreementsData : []);
             const combinedRequests = [
                 ...quotesData.map((q: any) => ({ ...q, type: 'quote', email: q.workEmail })),
-                ...bookingsData.map((b: any) => ({ ...b, type: 'booking', requiredWorkspace: b.workspaceName }))
+                ...bookingsData.map((b: any) => ({ ...b, type: 'booking', requiredWorkspace: b.workspaceName })),
+                ...visitsData.map((v: any) => ({ ...v, type: 'visit', requiredWorkspace: v.workspaceName || 'Site Visit' }))
             ];
 
             setMyRequests(combinedRequests.sort((a, b) =>
@@ -2054,8 +2109,72 @@ const UserDashboard = () => {
                                 </TabsList>
 
                                 <TabsContent value="explore" className="mt-0 focus-visible:ring-0">
-                                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                                        {allWorkspaces.map((ws) => {
+                                    {/* Workspace Filters */}
+                                    <div className="flex flex-col md:flex-row gap-4 mb-8">
+                                        <div className="relative flex-1 group">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                            <Input
+                                                placeholder="Search workspaces by name or location..."
+                                                className="pl-10 h-11 bg-muted/20 border-border/50 rounded-xl focus:ring-primary/20 transition-all font-medium"
+                                                value={workspaceSearch}
+                                                onChange={(e) => setWorkspaceSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex flex-wrap gap-4">
+                                            <Select value={workspaceTypeFilter} onValueChange={setWorkspaceTypeFilter}>
+                                                <SelectTrigger className="w-[180px] h-11 bg-muted/20 border-border/50 rounded-xl font-bold">
+                                                    <div className="flex items-center gap-2">
+                                                        <Layers className="w-3.5 h-3.5 text-primary" />
+                                                        <SelectValue placeholder="Type" />
+                                                    </div>
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border-border/50">
+                                                    {workspaceTypes.map(type => (
+                                                        <SelectItem key={type} value={type} className="font-medium rounded-lg">{type}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+
+                                            <Select value={locationFilter} onValueChange={setLocationFilter}>
+                                                <SelectTrigger className="w-[180px] h-11 bg-muted/20 border-border/50 rounded-xl font-bold">
+                                                    <div className="flex items-center gap-2">
+                                                        <MapPin className="w-3.5 h-3.5 text-primary" />
+                                                        <SelectValue placeholder="Location" />
+                                                    </div>
+                                                </SelectTrigger>
+                                                <SelectContent className="rounded-xl border-border/50">
+                                                    {locations.map(loc => (
+                                                        <SelectItem key={loc} value={loc} className="font-medium rounded-lg">{loc}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+
+                                    {filteredWorkspaces.length === 0 ? (
+                                        <div className="py-20 text-center space-y-6 card-elevated glass rounded-[2.5rem] border border-dashed border-border/50">
+                                            <div className="w-20 h-20 bg-muted/30 rounded-full flex items-center justify-center mx-auto text-muted-foreground animate-pulse">
+                                                <Building2 className="w-10 h-10" />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <h3 className="text-2xl font-black italic">No workspaces found</h3>
+                                                <p className="text-muted-foreground text-sm font-medium">Try adjusting your filters or search terms to find available spaces.</p>
+                                                <Button
+                                                    variant="ghost"
+                                                    className="mt-4 text-primary font-bold hover:bg-primary/5"
+                                                    onClick={() => {
+                                                        setWorkspaceSearch("");
+                                                        setWorkspaceTypeFilter("All");
+                                                        setLocationFilter("All");
+                                                    }}
+                                                >
+                                                    Reset all filters
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                                            {filteredWorkspaces.map((ws) => {
                                             const now = new Date();
                                             const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
                                             const isUnavailable = ws.type === "Open WorkStation"
@@ -2151,16 +2270,56 @@ const UserDashboard = () => {
                                                     </div>
                                                 </div>
                                             );
-                                        })}
-                                    </div>
+                                            })}
+                                        </div>
+                                    )}
                                 </TabsContent>
 
                                 <TabsContent value="my-requests" className="mt-0 focus-visible:ring-0">
+                                    <div className="flex flex-col md:flex-row gap-4 mb-6">
+                                        <div className="relative flex-1 group">
+                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                                            <Input
+                                                placeholder="Search by workspace name..."
+                                                className="pl-10 h-11 bg-muted/20 border-border/50 rounded-xl focus:ring-primary/20 transition-all font-medium"
+                                                value={requestSearch}
+                                                onChange={(e) => setRequestSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        <Select value={requestTypeFilter} onValueChange={setRequestTypeFilter}>
+                                            <SelectTrigger className="w-[150px] h-11 bg-muted/20 border-border/50 rounded-xl font-bold">
+                                                <div className="flex items-center gap-2">
+                                                    <Layers className="w-3.5 h-3.5 text-primary" />
+                                                    <SelectValue placeholder="Type" />
+                                                </div>
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl border-border/50">
+                                                {["All", "Booking", "Visit", "Quote"].map(type => (
+                                                    <SelectItem key={type} value={type} className="font-medium rounded-lg">{type}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        <Select value={requestStatusFilter} onValueChange={setRequestStatusFilter}>
+                                            <SelectTrigger className="w-[150px] h-11 bg-muted/20 border-border/50 rounded-xl font-bold">
+                                                <div className="flex items-center gap-2">
+                                                    <Filter className="w-3.5 h-3.5 text-primary" />
+                                                    <SelectValue placeholder="Status" />
+                                                </div>
+                                            </SelectTrigger>
+                                            <SelectContent className="rounded-xl border-border/50">
+                                                {["All", "Pending", "Reviewed", "Awaiting Payment", "Completed"].map(status => (
+                                                    <SelectItem key={status} value={status} className="font-medium rounded-lg">{status}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
                                     <div className="bg-background rounded-[2rem] border border-border/50 shadow-sm overflow-hidden">
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-left">
                                                 <thead>
                                                     <tr className="bg-muted/30 border-b border-border/50">
+                                                        <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Type</th>
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Workspace</th>
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Seats</th>
                                                         <th className="px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Duration</th>
@@ -2170,19 +2329,41 @@ const UserDashboard = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-border/30">
-                                                    {myRequests.length === 0 ? (
+                                                    {filteredRequests.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={6} className="px-8 py-20 text-center">
+                                                            <td colSpan={7} className="px-8 py-20 text-center">
                                                                 <div className="flex flex-col items-center gap-4 opacity-50">
                                                                     <Ticket className="w-12 h-12" />
                                                                     <p className="text-xl font-black italic">No booking requests found</p>
-                                                                    <p className="text-sm font-medium">Explore spaces to start your first booking.</p>
+                                                                    <p className="text-sm font-medium">Try adjusting your filters or explore spaces to start a booking.</p>
+                                                                    {(requestSearch || requestStatusFilter !== "All" || requestTypeFilter !== "All") && (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="text-primary font-bold hover:bg-primary/5 mt-2"
+                                                                            onClick={() => {
+                                                                                setRequestSearch("");
+                                                                                setRequestStatusFilter("All");
+                                                                                setRequestTypeFilter("All");
+                                                                            }}
+                                                                        >
+                                                                            Clear request filters
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                         </tr>
                                                     ) : (
-                                                        myRequests.map((req, i) => (
+                                                        filteredRequests.map((req, i) => (
                                                             <tr key={i} className="hover:bg-muted/10 transition-colors">
+                                                                <td className="px-8 py-5">
+                                                                    <Badge variant="outline" className={`rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase ${req.type === 'booking' ? 'bg-primary/5 text-primary border-primary/20' :
+                                                                            req.type === 'visit' ? 'bg-amber-500/5 text-amber-600 border-amber-500/20' :
+                                                                                'bg-indigo-500/5 text-indigo-600 border-indigo-500/20'
+                                                                        }`}>
+                                                                        {req.type}
+                                                                    </Badge>
+                                                                </td>
                                                                 <td className="px-8 py-5">
                                                                     <div className="flex flex-col">
                                                                         <span className="font-bold italic">{req.requiredWorkspace}</span>
@@ -2236,9 +2417,21 @@ const UserDashboard = () => {
                                                 <h3 className="text-xl font-black italic text-foreground/90">Invoices & Statements</h3>
                                                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest mt-1">Billed to your identity</p>
                                             </div>
-                                            <Badge className="w-fit rounded-full bg-primary/10 text-primary border-none px-4 py-1.5 font-black uppercase text-[9px] tracking-widest">
-                                                Payment Method: {userInfo.mobile ? "Pre-Authorized" : "Manual Transfer"}
-                                            </Badge>
+                                            <div className="flex flex-wrap items-center gap-4">
+                                                <Select value={invoiceStatusFilter} onValueChange={setInvoiceStatusFilter}>
+                                                    <SelectTrigger className="w-[140px] h-9 bg-muted/20 border-border/50 rounded-lg font-bold text-xs">
+                                                        <SelectValue placeholder="All Invoices" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="rounded-xl border-border/50">
+                                                        <SelectItem value="All" className="font-medium">All Invoices</SelectItem>
+                                                        <SelectItem value="Paid" className="font-medium">Paid Only</SelectItem>
+                                                        <SelectItem value="Pending" className="font-medium">Unpaid Only</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <Badge className="w-fit rounded-full bg-primary/10 text-primary border-none px-4 py-1.5 font-black uppercase text-[9px] tracking-widest">
+                                                    Payment Method: {userInfo.mobile ? "Pre-Authorized" : "Manual Transfer"}
+                                                </Badge>
+                                            </div>
                                         </div>
                                         <div className="overflow-x-auto custom-scrollbar">
                                             <table className="w-full min-w-[700px] text-left">
@@ -2252,16 +2445,26 @@ const UserDashboard = () => {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-border/20">
-                                                    {invoices.length === 0 ? (
+                                                    {filteredInvoices.length === 0 ? (
                                                         <tr>
                                                             <td colSpan={5} className="px-8 py-16 text-center">
                                                                 <div className="flex flex-col items-center gap-3 opacity-40">
                                                                     <Building2 className="w-10 h-10" />
-                                                                    <p className="text-base font-bold italic">No billing history found</p>
+                                                                    <p className="text-base font-bold italic">No {invoiceStatusFilter === 'All' ? '' : invoiceStatusFilter.toLowerCase()} invoices found</p>
+                                                                    {invoiceStatusFilter !== 'All' && (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="sm"
+                                                                            className="text-primary font-bold hover:bg-primary/5"
+                                                                            onClick={() => setInvoiceStatusFilter("All")}
+                                                                        >
+                                                                            Show all invoices
+                                                                        </Button>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                         </tr>
-                                                    ) : invoices.map((inv) => {
+                                                    ) : filteredInvoices.map((inv) => {
                                                         const booking = myRequests.find(r => r.invoiceId === inv.invoiceNumber);
                                                         const isExpanded = expandedInv === inv.invoiceNumber;
 
@@ -2292,24 +2495,42 @@ const UserDashboard = () => {
                                                                         </Badge>
                                                                     </td>
                                                                     <td className="px-8 py-4 text-right">
-                                                                        {inv.status === 'Pending' ? (
-                                                                            <Button
-                                                                                size="sm"
-                                                                                disabled={isRequesting || payingInvoiceId === inv._id}
-                                                                                onClick={(e) => { e.stopPropagation(); handlePayInvoice(inv._id); }}
-                                                                                className="rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md shadow-primary/20"
-                                                                            >
-                                                                                {payingInvoiceId === inv._id ? (
-                                                                                    <Loader2 className="w-3 h-3 animate-spin" />
-                                                                                ) : "Clear Dues"}
-                                                                            </Button>
-                                                                        ) : inv.status === 'Paid' ? (
-                                                                            <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1">
-                                                                                <CheckCircle2 className="w-3 h-3" /> Paid
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-[10px] text-muted-foreground">—</span>
-                                                                        )}
+                                                                        <div className="flex justify-end gap-2 items-center">
+                                                                                <Button 
+                                                                                    variant="ghost" 
+                                                                                    size="icon" 
+                                                                                    className="h-9 w-9 rounded-xl hover:bg-primary/10 text-primary transition-all duration-300 group/preview" 
+                                                                                    onClick={(e) => {
+                                                                                        e.stopPropagation();
+                                                                                        const userInfo = typeof window !== 'undefined' ? localStorage.getItem('userInfo') : null;
+                                                                                        const token = userInfo ? JSON.parse(userInfo).token : '';
+                                                                                        window.open(`/api/requests/invoices/${inv._id}/download?token=${token}&preview=true`, '_blank');
+                                                                                    }}
+                                                                                    title="View & Download Invoice"
+                                                                                >
+                                                                                    <Eye className="w-4 h-4 group-hover/preview:scale-110 transition-transform" />
+                                                                                </Button>
+                                                                            
+                                                                            {inv.status === 'Pending' ? (
+                                                                                <Button
+                                                                                    size="sm"
+                                                                                    disabled={isRequesting || payingInvoiceId === inv._id}
+                                                                                    onClick={(e) => { e.stopPropagation(); handlePayInvoice(inv._id); }}
+                                                                                    className="rounded-xl font-black uppercase text-[10px] tracking-widest shadow-md shadow-primary/20 h-9 px-4"
+                                                                                >
+                                                                                    {payingInvoiceId === inv._id ? (
+                                                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                                                    ) : "Clear Dues"}
+                                                                                </Button>
+                                                                            ) : inv.status === 'Paid' ? (
+                                                                                <div className="flex items-center bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl border border-emerald-100">
+                                                                                    <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+                                                                                    <span className="text-[10px] font-black uppercase tracking-widest">Paid</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-[10px] text-muted-foreground">—</span>
+                                                                            )}
+                                                                        </div>
                                                                     </td>
                                                                 </tr>
                                                                 {isExpanded && (
@@ -2331,21 +2552,47 @@ const UserDashboard = () => {
                                                                                 <div className="space-y-4">
                                                                                     <div className="flex items-center gap-2 text-primary">
                                                                                         <Calendar className="w-4 h-4" />
-                                                                                        <h4 className="text-xs font-black uppercase tracking-widest">Booking Period</h4>
+                                                                                        <h4 className="text-xs font-black uppercase tracking-widest">Billing Period</h4>
                                                                                     </div>
-                                                                                    <div className="space-y-1">
-                                                                                        <div className="flex items-center gap-4 text-xs">
-                                                                                            <span className="text-muted-foreground font-medium w-10">From:</span>
-                                                                                            <span className="font-bold">{formatDisplayDate(booking?.startDate)}</span>
+                                                                                    {inv.billingMonth ? (
+                                                                                        <div className="space-y-1">
+                                                                                            <div className="flex items-center gap-4 text-xs font-medium">
+                                                                                                <span className="text-muted-foreground w-10">From:</span>
+                                                                                                <span className="font-bold text-foreground">
+                                                                                                    {(() => {
+                                                                                                        const [year, month] = inv.billingMonth.split('-').map(Number);
+                                                                                                        return new Date(year, month - 1, 1).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                                                                                    })()}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="flex items-center gap-4 text-xs font-medium">
+                                                                                                <span className="text-muted-foreground w-10">To:</span>
+                                                                                                <span className="font-bold text-foreground">
+                                                                                                    {(() => {
+                                                                                                        const [year, month] = inv.billingMonth.split('-').map(Number);
+                                                                                                        return new Date(year, month, 0).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+                                                                                                    })()}
+                                                                                                </span>
+                                                                                            </div>
+                                                                                            <div className="mt-2 text-[10px] font-black text-primary uppercase bg-primary/5 px-2 py-1 rounded-md inline-block">
+                                                                                                DURATION: FULL MONTH
+                                                                                            </div>
                                                                                         </div>
-                                                                                        <div className="flex items-center gap-4 text-xs">
-                                                                                            <span className="text-muted-foreground font-medium w-10">To:</span>
-                                                                                            <span className="font-bold">{getEndDate(booking?.startDate, booking?.duration)}</span>
+                                                                                    ) : (
+                                                                                        <div className="space-y-1">
+                                                                                            <div className="flex items-center gap-4 text-xs">
+                                                                                                <span className="text-muted-foreground font-medium w-10">From:</span>
+                                                                                                <span className="font-bold">{formatDisplayDate(booking?.startDate)}</span>
+                                                                                            </div>
+                                                                                            <div className="flex items-center gap-4 text-xs">
+                                                                                                <span className="text-muted-foreground font-medium w-10">To:</span>
+                                                                                                <span className="font-bold">{getEndDate(booking?.startDate, booking?.duration)}</span>
+                                                                                            </div>
+                                                                                            <div className="mt-2 text-[10px] font-black text-primary uppercase bg-primary/5 px-2 py-1 rounded-md inline-block">
+                                                                                                Duration: {booking?.duration || 'N/A'}
+                                                                                            </div>
                                                                                         </div>
-                                                                                        <div className="mt-2 text-[10px] font-black text-primary uppercase bg-primary/5 px-2 py-1 rounded-md inline-block">
-                                                                                            Duration: {booking?.duration || 'N/A'}
-                                                                                        </div>
-                                                                                    </div>
+                                                                                    )}
                                                                                 </div>
                                                                                 <div className="space-y-4">
                                                                                     <div className="flex items-center gap-2 text-primary">
@@ -2900,6 +3147,7 @@ const UserDashboard = () => {
 
             <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
                 <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl glass">
+                    <ScrollArea className="max-h-[85vh]">
                     <DialogHeader className="sr-only">
                         <DialogTitle>Request Space</DialogTitle>
                         <DialogDescription>Select the start date and duration for your booking.</DialogDescription>
@@ -2930,7 +3178,6 @@ const UserDashboard = () => {
                                     }
                                 }}
                                 className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
-                                disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                             />
                         </div>
 
@@ -3063,6 +3310,7 @@ const UserDashboard = () => {
                             </Button>
                         </div>
                     </div>
+                    </ScrollArea>
                 </DialogContent>
             </Dialog>
             {/* Member Contact Modal */}

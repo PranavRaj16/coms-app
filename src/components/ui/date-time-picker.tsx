@@ -150,7 +150,7 @@ export function DateTimePicker({
         side="bottom"
         sideOffset={8}
         avoidCollisions={true}
-        collisionPadding={24}
+        collisionPadding={8}
       >
         {/* Calendar section */}
         <div className="bg-popover">
@@ -166,75 +166,63 @@ export function DateTimePicker({
 
         {/* Time section */}
         {showTime && (
-          <div className="px-4 py-3 border-t border-border/50 bg-muted/20">
-            <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">
-              <Clock className="w-3 h-3" />
-              Set Time
+            <div className="px-4 py-2.5 border-t border-border/50 bg-muted/10 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 shrink-0 opacity-80">
+                <Clock className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[9px] font-black uppercase tracking-tighter text-muted-foreground">Time</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {/* Hour 1–12 */}
+                <Select
+                  value={hour12}
+                  onValueChange={(v) => handleTimeChange("hour12", v)}
+                >
+                  <SelectTrigger className="w-[60px] h-8 rounded-lg font-bold text-xs">
+                    <SelectValue placeholder="HH" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl max-h-[180px] z-[10000]" position="popper" sideOffset={4}>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
+                      <SelectItem key={h} value={h.toString().padStart(2, "0")}>
+                        {h.toString().padStart(2, "0")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <span className="font-bold text-muted-foreground/30 text-xs">:</span>
+
+                {/* Minutes 0–59 */}
+                <Select
+                  value={minutes}
+                  onValueChange={(v) => handleTimeChange("minutes", v)}
+                >
+                  <SelectTrigger className="w-[60px] h-8 rounded-lg font-bold text-xs">
+                    <SelectValue placeholder="MM" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl max-h-[180px] z-[10000]" position="popper" sideOffset={4}>
+                    {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                      <SelectItem key={m} value={m.toString().padStart(2, "0")}>
+                        {m.toString().padStart(2, "0")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* AM/PM */}
+                <Select
+                  value={ampm}
+                  onValueChange={(v) => handleTimeChange("ampm", v)}
+                >
+                  <SelectTrigger className="w-[60px] h-8 rounded-lg font-bold text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl z-[10000]" position="popper" sideOffset={4}>
+                    <SelectItem value="AM">AM</SelectItem>
+                    <SelectItem value="PM">PM</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* Hour 1–12 */}
-              <Select
-                value={hour12}
-                onValueChange={(v) => handleTimeChange("hour12", v)}
-              >
-                <SelectTrigger className="w-[66px] h-9 rounded-lg font-bold text-sm">
-                  <SelectValue placeholder="HH" />
-                </SelectTrigger>
-                <SelectContent
-                  className="rounded-xl max-h-[180px] z-[10000]"
-                  position="popper"
-                  sideOffset={4}
-                >
-                  {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
-                    <SelectItem key={h} value={h.toString().padStart(2, "0")}>
-                      {h.toString().padStart(2, "0")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <span className="font-bold text-muted-foreground text-base">:</span>
-
-              {/* Minutes 0–59 */}
-              <Select
-                value={minutes}
-                onValueChange={(v) => handleTimeChange("minutes", v)}
-              >
-                <SelectTrigger className="w-[66px] h-9 rounded-lg font-bold text-sm">
-                  <SelectValue placeholder="MM" />
-                </SelectTrigger>
-                <SelectContent
-                  className="rounded-xl max-h-[180px] z-[10000]"
-                  position="popper"
-                  sideOffset={4}
-                >
-                  {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                    <SelectItem key={m} value={m.toString().padStart(2, "0")}>
-                      {m.toString().padStart(2, "0")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* AM/PM */}
-              <Select
-                value={ampm}
-                onValueChange={(v) => handleTimeChange("ampm", v)}
-              >
-                <SelectTrigger className="w-[66px] h-9 rounded-lg font-bold text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent
-                  className="rounded-xl z-[10000]"
-                  position="popper"
-                  sideOffset={4}
-                >
-                  <SelectItem value="AM">AM</SelectItem>
-                  <SelectItem value="PM">PM</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         )}
       </PopoverContent>
     </Popover>

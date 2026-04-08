@@ -34,6 +34,10 @@ export async function PUT(
             dbUser.mobile = body.mobile || dbUser.mobile;
             dbUser.organization = body.organization || dbUser.organization;
             dbUser.status = body.status || dbUser.status;
+            dbUser.includeGST = body.includeGST !== undefined ? body.includeGST : dbUser.includeGST;
+            dbUser.includeCarParking = body.includeCarParking !== undefined ? body.includeCarParking : dbUser.includeCarParking;
+            dbUser.carParkingSlots = body.carParkingSlots !== undefined ? body.carParkingSlots : dbUser.carParkingSlots;
+            dbUser.carParkingPricePerSlot = body.carParkingPricePerSlot !== undefined ? body.carParkingPricePerSlot : dbUser.carParkingPricePerSlot;
 
             const updatedUser = await dbUser.save();
             return NextResponse.json({
@@ -45,7 +49,11 @@ export async function PUT(
                 mobile: updatedUser.mobile,
                 status: updatedUser.status,
                 joinedDate: updatedUser.joinedDate,
-                lastActive: updatedUser.lastActive
+                lastActive: updatedUser.lastActive,
+                includeGST: updatedUser.includeGST,
+                includeCarParking: updatedUser.includeCarParking,
+                carParkingSlots: updatedUser.carParkingSlots,
+                carParkingPricePerSlot: updatedUser.carParkingPricePerSlot
             });
         } else {
             return NextResponse.json({ message: 'User not found' }, { status: 404 });

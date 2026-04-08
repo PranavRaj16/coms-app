@@ -18,12 +18,12 @@ function Calendar({
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
-      className={cn("p-3 px-8", className)}
+      className={cn("p-3", className)}
       classNames={{
         // v9 API class names
         months: "flex flex-col sm:flex-row gap-4",
         month: "flex flex-col gap-4",
-        month_caption: "flex items-center justify-center relative h-9",
+        month_caption: "flex items-center justify-center relative h-8",
         caption_label: "text-sm font-semibold",
         nav: "flex items-center gap-1",
         button_previous: cn(
@@ -37,13 +37,13 @@ function Calendar({
         month_grid: "w-full border-collapse",
         weekdays: "grid grid-cols-7",
         weekday:
-          "text-muted-foreground text-[0.75rem] font-medium flex items-center justify-center h-9 w-9 mx-auto",
+          "text-muted-foreground text-[0.75rem] font-medium flex items-center justify-center h-8 w-8 mx-auto",
         weeks: "flex flex-col gap-1 mt-1",
         week: "grid grid-cols-7",
         day: "flex items-center justify-center p-0 text-sm relative focus-within:relative focus-within:z-20 [&:has([aria-selected].day-range-end)]:rounded-r-md [&:has([aria-selected].day-outside)]:bg-accent/50 [&:has([aria-selected])]:bg-accent first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md",
         day_button: cn(
           buttonVariants({ variant: "ghost" }),
-          "h-9 w-9 p-0 font-normal aria-selected:opacity-100 rounded-full mx-auto"
+          "h-8 w-8 p-0 font-normal aria-selected:opacity-100 rounded-full mx-auto"
         ),
         range_end: "day-range-end",
         selected:

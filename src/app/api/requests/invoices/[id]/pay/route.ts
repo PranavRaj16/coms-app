@@ -36,6 +36,41 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         invoice.paidDate = new Date();
         await invoice.save();
 
+        // Send confirmation email
+        try {
+            const User = (await import('@/models/User')).default;
+            const Workspace = (await import('@/models/Workspace')).default;
+            const { sendInvoiceEmail } = await import('@/lib/services/invoiceService');
+
+            const invoiceUser = await User.findById(invoice.userId);
+            const workspace = await Workspace.findById(invoice.workspaceId);
+
+            if (invoiceUser && workspace) {
+                let billingMonthLabel = '';
+                if (invoice.billingMonth) {
+                    const [year, month] = invoice.billingMonth.split('-').map(Number);
+                    billingMonthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-IN', { 
+                        month: 'long', 
+                        year: 'numeric' 
+                    });
+                }
+
+                const workspaceSubtotal = (invoice.subtotal || 0) - (invoice.carParkingAmount || 0);
+
+                await sendInvoiceEmail(
+                    invoice, 
+                    invoiceUser, 
+                    workspace, 
+                    billingMonthLabel, 
+                    invoice.dueDate, 
+                    workspaceSubtotal
+                );
+            }
+        } catch (emailError: any) {
+            console.error('[INVOICE_PAY] Post-payment email error:', emailError.message);
+            // Don't fail the request if only the email fails
+        }
+
         return NextResponse.json(invoice);
     } catch (error: any) {
         return NextResponse.json({ message: error.message }, { status: 500 });

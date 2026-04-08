@@ -10,6 +10,10 @@ export interface User {
     status: "Active" | "Inactive" | "Pending";
     joinedDate: string;
     lastActive: string;
+    includeGST?: boolean;
+    includeCarParking?: boolean;
+    carParkingSlots?: number;
+    carParkingPricePerSlot?: number;
 }
 
 export const users: User[] = [

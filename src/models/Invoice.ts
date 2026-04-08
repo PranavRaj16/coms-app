@@ -9,12 +9,20 @@ export interface IInvoice extends Document {
     customerEmail: string;
     workspaceName: string;
     amount: number;
+    subtotal?: number;
+    gstAmount?: number;
+    isGSTIncluded?: boolean;
+    carParkingAmount?: number;
+    carParkingSlots?: number;
+    carParkingPricePerSlot?: number;
     paymentMethod: 'Pay Now' | 'Pay Later' | 'Invoice' | 'Pay Monthly' | 'Pay Montly';
     status: 'Pending' | 'Paid' | 'Cancelled';
     type: 'booking' | 'recurring';
     billingMonth?: string; // e.g. "2026-03" for March 2026
     dueDate: Date;
     paidDate?: Date;
+    createdAt?: Date;
+    updatedAt?: Date;
 }
 
 const invoiceSchema: Schema = new Schema({
@@ -53,6 +61,30 @@ const invoiceSchema: Schema = new Schema({
     amount: {
         type: Number,
         required: true
+    },
+    subtotal: {
+        type: Number,
+        default: 0
+    },
+    gstAmount: {
+        type: Number,
+        default: 0
+    },
+    isGSTIncluded: {
+        type: Boolean,
+        default: false
+    },
+    carParkingAmount: {
+        type: Number,
+        default: 0
+    },
+    carParkingSlots: {
+        type: Number,
+        default: 0
+    },
+    carParkingPricePerSlot: {
+        type: Number,
+        default: 0
     },
     paymentMethod: {
         type: String,

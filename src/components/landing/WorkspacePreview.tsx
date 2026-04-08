@@ -123,17 +123,10 @@ const WorkspacePreview = () => {
                     <h3 className="text-lg font-semibold text-foreground mb-1">
                       {workspace.name}
                     </h3>
-                    <div className="flex justify-between items-start mb-1">
-                      <p className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" />
-                        {workspace.location}
-                      </p>
-                      <span className="text-[10px] font-bold text-primary">
-                        {workspace.price && Number(workspace.price) > 0
-                          ? `₹${Number(workspace.price).toLocaleString('en-IN')} / mo`
-                          : "Contact for Price"}
-                      </span>
-                    </div>
+                    <p className="text-sm text-muted-foreground flex items-center gap-1 mb-1">
+                      <Clock className="w-3.5 h-3.5" />
+                      {workspace.location}
+                    </p>
 
                     {/* Capacity */}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
@@ -157,9 +150,14 @@ const WorkspacePreview = () => {
                       ))}
                     </div>
 
-                    <Button variant={isUnavailable ? "outline" : "default"} size="sm" className="w-full mt-auto transition-all hover:scale-[1.02] active:scale-[0.98]" asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full mt-auto transition-all hover:scale-[1.02] active:scale-[0.98]"
+                      asChild
+                    >
                       <Link href={`/workspaces/${workspace._id || workspace.id}`}>
-                        {isUnavailable ? "View Details" : "Book Now"}
+                        View Details
                       </Link>
                     </Button>
                   </div>

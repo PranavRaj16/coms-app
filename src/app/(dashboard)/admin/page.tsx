@@ -632,7 +632,11 @@ const AdminDashboard = () => {
         password: "",
         mobile: "",
         organization: "",
-        role: "Member" as "Member" | "Admin"
+        role: "Member" as "Member" | "Admin",
+        includeGST: false,
+        includeCarParking: false,
+        carParkingSlots: 0,
+        carParkingPricePerSlot: 0
     });
 
     // Allotment State
@@ -848,7 +852,11 @@ const AdminDashboard = () => {
                 password: "",
                 mobile: "",
                 organization: "",
-                role: "Member"
+                role: "Member",
+                includeGST: false,
+                includeCarParking: false,
+                carParkingSlots: 0,
+                carParkingPricePerSlot: 0
             });
         } catch (error: any) {
             toast.error(error.message || "Failed to create user");
@@ -1682,6 +1690,7 @@ const AdminDashboard = () => {
                                                 </Button>
                                             </DialogTrigger>
                                             <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-border/40 p-0 overflow-hidden glass shadow-2xl">
+                                                <ScrollArea className="max-h-[85vh]">
                                                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-indigo-500 to-violet-600" />
                                                 <form onSubmit={handleCreateUser} noValidate className="p-8 sm:p-10 space-y-8">
                                                     <DialogHeader>                                                         <DialogTitle className="text-3xl font-black italic tracking-tight">Add Member</DialogTitle>
@@ -1804,6 +1813,59 @@ const AdminDashboard = () => {
                                                                 </SelectContent>
                                                             </Select>
                                                         </div>
+
+                                                        {/* Billing Configuration */}
+                                                        <div className="space-y-4 p-5 rounded-2xl bg-muted/30 border border-border/40">
+                                                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Billing Configuration</p>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <div className="space-y-0.5">
+                                                                    <Label className="text-xs font-bold">Include 18% GST</Label>
+                                                                    <p className="text-[10px] text-muted-foreground">Apply GST to monthly invoices</p>
+                                                                </div>
+                                                                <Checkbox
+                                                                    checked={newUserData.includeGST}
+                                                                    onCheckedChange={(checked) => setNewUserData({ ...newUserData, includeGST: !!checked })}
+                                                                    className="w-5 h-5 rounded-md"
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center justify-between gap-3">
+                                                                <div className="space-y-0.5">
+                                                                    <Label className="text-xs font-bold">Car Parking</Label>
+                                                                    <p className="text-[10px] text-muted-foreground">Include parking charges in invoices</p>
+                                                                </div>
+                                                                <Checkbox
+                                                                    checked={newUserData.includeCarParking}
+                                                                    onCheckedChange={(checked) => setNewUserData({ ...newUserData, includeCarParking: !!checked, carParkingSlots: 0, carParkingPricePerSlot: 0 })}
+                                                                    className="w-5 h-5 rounded-md"
+                                                                />
+                                                            </div>
+                                                            {newUserData.includeCarParking && (
+                                                                <div className="grid grid-cols-2 gap-3 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                                    <div className="space-y-1.5">
+                                                                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">No. of Slots</Label>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min={1}
+                                                                            placeholder="e.g. 2"
+                                                                            className="h-10 rounded-xl bg-background border-border/50 font-bold text-sm"
+                                                                            value={newUserData.carParkingSlots ?? 0}
+                                                                            onChange={(e) => setNewUserData({ ...newUserData, carParkingSlots: Number(e.target.value) })}
+                                                                        />
+                                                                    </div>
+                                                                    <div className="space-y-1.5">
+                                                                        <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Price / Slot (₹)</Label>
+                                                                        <Input
+                                                                            type="number"
+                                                                            min={0}
+                                                                            placeholder="e.g. 2000"
+                                                                            className="h-10 rounded-xl bg-background border-border/50 font-bold text-sm"
+                                                                            value={newUserData.carParkingPricePerSlot ?? 0}
+                                                                            onChange={(e) => setNewUserData({ ...newUserData, carParkingPricePerSlot: Number(e.target.value) })}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <DialogFooter className="gap-3">
                                                         <Button type="button" variant="ghost" className="h-12 rounded-xl font-bold" onClick={() => setIsUserDialogOpen(false)} disabled={isLoadingUser}>Cancel</Button>
@@ -1812,6 +1874,7 @@ const AdminDashboard = () => {
                                                         </Button>
                                                     </DialogFooter>
                                                 </form>
+                                                </ScrollArea>
                                             </DialogContent>
                                         </Dialog>
                                     </div>
@@ -1821,7 +1884,13 @@ const AdminDashboard = () => {
                             <UsersTable
                                 users={filteredUsers}
                                 onEdit={(user) => {
-                                    setEditingUser(user);
+                                    setEditingUser({
+                                        ...user,
+                                        includeGST: !!user.includeGST,
+                                        includeCarParking: !!user.includeCarParking,
+                                        carParkingSlots: user.carParkingSlots || 0,
+                                        carParkingPricePerSlot: user.carParkingPricePerSlot || 0
+                                    });
                                     setIsEditUserDialogOpen(true);
                                 }}
                                 onDelete={handleDeleteUser}
@@ -1833,112 +1902,171 @@ const AdminDashboard = () => {
                             {/* Edit User Profile Modal */}
                             <Dialog open={isEditUserDialogOpen} onOpenChange={setIsEditUserDialogOpen}>
                                 <DialogContent className="sm:max-w-[500px] rounded-[2.5rem] border-border/40 p-0 overflow-hidden glass shadow-2xl">
-                                    <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-indigo-500 to-violet-600" />
-                                    <div className="p-8 sm:p-10">
-                                        <form onSubmit={handleUpdateUser} className="space-y-6" noValidate>
-                                            <DialogHeader>
-                                                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-                                                    <UserIcon className="w-6 h-6 text-primary" />
-                                                </div>
-                                                <DialogTitle className="text-3xl font-black italic tracking-tight">Update Member</DialogTitle>
-                                                <DialogDescription className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Edit details for: <span className="text-primary font-black italic">{editingUser?.name}</span></DialogDescription>
-                                            </DialogHeader>
+                                    <ScrollArea className="max-h-[85vh]">
+                                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary via-indigo-500 to-violet-600" />
+                                        <div className="p-8 sm:p-10">
+                                            <form onSubmit={handleUpdateUser} className="space-y-6" noValidate>
+                                                <DialogHeader>
+                                                    <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                                                        <UserIcon className="w-6 h-6 text-primary" />
+                                                    </div>
+                                                    <DialogTitle className="text-3xl font-black italic tracking-tight">Update Member</DialogTitle>
+                                                    <DialogDescription className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Edit details for: <span className="text-primary font-black italic">{editingUser?.name}</span></DialogDescription>
+                                                </DialogHeader>
 
-                                            <div className="grid gap-5 py-2">
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Full Name</Label>
-                                                    <Input
-                                                        className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editUserErrors.name ? "border-destructive ring-destructive/20" : ""}`}
-                                                        value={editingUser?.name || ""}
-                                                        onChange={(e) => {
-                                                            editingUser && setEditingUser({ ...editingUser, name: e.target.value });
-                                                            if (editUserErrors.name) setEditUserErrors({ ...editUserErrors, name: "" });
-                                                        }}
-                                                    />
-                                                    {editUserErrors.name && (
-                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                            <AlertCircle className="w-3 h-3" /> {editUserErrors.name}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Email Address</Label>
-                                                    <Input
-                                                        type="email"
-                                                        className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editUserErrors.email ? "border-destructive ring-destructive/20" : ""}`}
-                                                        value={editingUser?.email || ""}
-                                                        onChange={(e) => {
-                                                            editingUser && setEditingUser({ ...editingUser, email: e.target.value });
-                                                            if (editUserErrors.email) setEditUserErrors({ ...editUserErrors, email: "" });
-                                                        }}
-                                                    />
-                                                    {editUserErrors.email && (
-                                                        <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                                                            <AlertCircle className="w-3 h-3" /> {editUserErrors.email}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Mobile Number</Label>
-                                                    <Input
-                                                        placeholder="+91 98765 43210"
-                                                        className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
-                                                        value={editingUser?.mobile || ""}
-                                                        onChange={(e) => editingUser && setEditingUser({ ...editingUser, mobile: e.target.value })}
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Organization</Label>
-                                                    <Input
-                                                        className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
-                                                        value={editingUser?.organization || ""}
-                                                        onChange={(e) => editingUser && setEditingUser({ ...editingUser, organization: e.target.value })}
-                                                    />
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-4">
+                                                <div className="grid gap-5 py-2">
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">User Role</Label>
-                                                        <div className="mt-1.5">
-                                                            <Select
-                                                                value={editingUser?.role || "Member"}
-                                                                onValueChange={(val: any) => editingUser && setEditingUser({ ...editingUser, role: val })}
-                                                            >
-                                                                <SelectTrigger className="rounded-2xl h-12 bg-background/50 border-border/50 font-bold"><SelectValue /></SelectTrigger>
-                                                                <SelectContent className="rounded-2xl border-border/50 shadow-xl">
-                                                                    <SelectItem value="Member" className="rounded-xl my-1">Member</SelectItem>
-                                                                    <SelectItem value="Admin" className="rounded-xl my-1">Admin</SelectItem>
-                                                                    <SelectItem value="Manager" className="rounded-xl my-1">Manager</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </div>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Full Name</Label>
+                                                        <Input
+                                                            className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editUserErrors.name ? "border-destructive ring-destructive/20" : ""}`}
+                                                            value={editingUser?.name || ""}
+                                                            onChange={(e) => {
+                                                                editingUser && setEditingUser({ ...editingUser, name: e.target.value });
+                                                                if (editUserErrors.name) setEditUserErrors({ ...editUserErrors, name: "" });
+                                                            }}
+                                                        />
+                                                        {editUserErrors.name && (
+                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                <AlertCircle className="w-3 h-3" /> {editUserErrors.name}
+                                                            </p>
+                                                        )}
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Status</Label>
-                                                        <div className="mt-1.5">
-                                                            <Select
-                                                                value={editingUser?.status || "Active"}
-                                                                onValueChange={(val: any) => editingUser && setEditingUser({ ...editingUser, status: val })}
-                                                            >
-                                                                <SelectTrigger className="rounded-2xl h-12 bg-background/50 border-border/50 font-bold"><SelectValue /></SelectTrigger>
-                                                                <SelectContent className="rounded-2xl border-border/50 shadow-xl">
-                                                                    <SelectItem value="Active" className="rounded-xl my-1">Active</SelectItem>
-                                                                    <SelectItem value="Inactive" className="rounded-xl my-1">Inactive</SelectItem>
-                                                                    <SelectItem value="Pending" className="rounded-xl my-1">Pending</SelectItem>
-                                                                </SelectContent>
-                                                            </Select>
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Email Address</Label>
+                                                        <Input
+                                                            type="email"
+                                                            className={`rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold ${editUserErrors.email ? "border-destructive ring-destructive/20" : ""}`}
+                                                            value={editingUser?.email || ""}
+                                                            onChange={(e) => {
+                                                                editingUser && setEditingUser({ ...editingUser, email: e.target.value });
+                                                                if (editUserErrors.email) setEditUserErrors({ ...editUserErrors, email: "" });
+                                                            }}
+                                                        />
+                                                        {editUserErrors.email && (
+                                                            <p className="text-destructive text-[10px] font-bold mt-1 ml-1 flex items-center gap-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                                                                <AlertCircle className="w-3 h-3" /> {editUserErrors.email}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Mobile Number</Label>
+                                                        <Input
+                                                            placeholder="+91 98765 43210"
+                                                            className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
+                                                            value={editingUser?.mobile || ""}
+                                                            onChange={(e) => editingUser && setEditingUser({ ...editingUser, mobile: e.target.value })}
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Organization</Label>
+                                                        <Input
+                                                            className="rounded-2xl h-12 bg-background/50 border-border/50 focus:ring-primary/20 transition-all font-bold"
+                                                            value={editingUser?.organization || ""}
+                                                            onChange={(e) => editingUser && setEditingUser({ ...editingUser, organization: e.target.value })}
+                                                        />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">User Role</Label>
+                                                            <div className="mt-1.5">
+                                                                <Select
+                                                                    value={editingUser?.role || "Member"}
+                                                                    onValueChange={(val: any) => editingUser && setEditingUser({ ...editingUser, role: val })}
+                                                                >
+                                                                    <SelectTrigger className="rounded-2xl h-12 bg-background/50 border-border/50 font-bold"><SelectValue /></SelectTrigger>
+                                                                    <SelectContent className="rounded-2xl border-border/50 shadow-xl">
+                                                                        <SelectItem value="Member" className="rounded-xl my-1">Member</SelectItem>
+                                                                        <SelectItem value="Admin" className="rounded-xl my-1">Admin</SelectItem>
+                                                                        <SelectItem value="Manager" className="rounded-xl my-1">Manager</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Status</Label>
+                                                            <div className="mt-1.5">
+                                                                <Select
+                                                                    value={editingUser?.status || "Active"}
+                                                                    onValueChange={(val: any) => editingUser && setEditingUser({ ...editingUser, status: val })}
+                                                                >
+                                                                    <SelectTrigger className="rounded-2xl h-12 bg-background/50 border-border/50 font-bold"><SelectValue /></SelectTrigger>
+                                                                    <SelectContent className="rounded-2xl border-border/50 shadow-xl">
+                                                                        <SelectItem value="Active" className="rounded-xl my-1">Active</SelectItem>
+                                                                        <SelectItem value="Inactive" className="rounded-xl my-1">Inactive</SelectItem>
+                                                                        <SelectItem value="Pending" className="rounded-xl my-1">Pending</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </div>
 
-                                            <DialogFooter className="pt-4 gap-3">
-                                                <Button type="button" variant="ghost" onClick={() => setIsEditUserDialogOpen(false)} className="rounded-2xl h-12 font-bold px-6" disabled={isLoadingUser}>Discard</Button>
-                                                <Button type="submit" className="rounded-2xl h-12 px-10 font-black shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]" disabled={isLoadingUser}>
-                                                    {isLoadingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
-                                                </Button>
-                                            </DialogFooter>
-                                        </form>
-                                    </div>
+                                                    {/* Billing Configuration - Edit */}
+                                                    <div className="space-y-4 p-5 rounded-2xl bg-muted/30 border border-border/40">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Billing Configuration</p>
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="space-y-0.5">
+                                                                <Label className="text-xs font-bold">Include 18% GST</Label>
+                                                                <p className="text-[10px] text-muted-foreground">Apply GST to monthly invoices</p>
+                                                            </div>
+                                                            <Checkbox
+                                                                checked={!!(editingUser as any)?.includeGST}
+                                                                onCheckedChange={(checked) => editingUser && setEditingUser({ ...editingUser, includeGST: !!checked } as any)}
+                                                                className="w-5 h-5 rounded-md"
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <div className="space-y-0.5">
+                                                                <Label className="text-xs font-bold">Car Parking</Label>
+                                                                <p className="text-[10px] text-muted-foreground">Include parking charges in invoices</p>
+                                                            </div>
+                                                            <Checkbox
+                                                                checked={!!(editingUser as any)?.includeCarParking}
+                                                                onCheckedChange={(checked) => editingUser && setEditingUser({ 
+                                                                    ...editingUser, 
+                                                                    includeCarParking: !!checked, 
+                                                                    ...( !checked ? { carParkingSlots: 0, carParkingPricePerSlot: 0 } : {} ) 
+                                                                } as any)}
+                                                                className="w-5 h-5 rounded-md"
+                                                            />
+                                                        </div>
+                                                        {(editingUser as any)?.includeCarParking && (
+                                                            <div className="grid grid-cols-2 gap-3 pt-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                                <div className="space-y-1.5">
+                                                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">No. of Slots</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={1}
+                                                                        placeholder="e.g. 2"
+                                                                        className="h-10 rounded-xl bg-background border-border/50 font-bold text-sm"
+                                                                        value={(editingUser as any)?.carParkingSlots ?? 0}
+                                                                        onChange={(e) => editingUser && setEditingUser({ ...editingUser, carParkingSlots: Number(e.target.value) } as any)}
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-1.5">
+                                                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Price / Slot (₹)</Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min={0}
+                                                                        placeholder="e.g. 2000"
+                                                                        className="h-10 rounded-xl bg-background border-border/50 font-bold text-sm"
+                                                                        value={(editingUser as any)?.carParkingPricePerSlot ?? 0}
+                                                                        onChange={(e) => editingUser && setEditingUser({ ...editingUser, carParkingPricePerSlot: Number(e.target.value) } as any)}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <DialogFooter className="pt-4 gap-3">
+                                                    <Button type="button" variant="ghost" onClick={() => setIsEditUserDialogOpen(false)} className="rounded-2xl h-12 font-bold px-6" disabled={isLoadingUser}>Discard</Button>
+                                                    <Button type="submit" className="rounded-2xl h-12 px-10 font-black shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]" disabled={isLoadingUser}>
+                                                        {isLoadingUser ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Changes"}
+                                                    </Button>
+                                                </DialogFooter>
+                                            </form>
+                                        </div>
+                                    </ScrollArea>
                                 </DialogContent>
                             </Dialog>
 
@@ -2043,8 +2171,9 @@ const AdminDashboard = () => {
                                                 Add Workspace
                                             </Button>
                                         </DialogTrigger>
-                                        <DialogContent className="sm:max-w-[550px] rounded-2xl max-h-[90vh] overflow-y-auto">
-                                            <form onSubmit={handleCreateWorkspace} noValidate>
+                                        <DialogContent className="sm:max-w-[550px] rounded-2xl p-0 overflow-hidden">
+                                            <ScrollArea className="max-h-[90vh]">
+                                                <form onSubmit={handleCreateWorkspace} noValidate className="p-8">
                                                 <DialogHeader>
                                                     <DialogTitle className="text-2xl">Create New Workspace</DialogTitle>
                                                     <DialogDescription>
@@ -2407,7 +2536,8 @@ const AdminDashboard = () => {
                                                         {isLoadingWorkspace ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Space"}
                                                     </Button>
                                                 </DialogFooter>
-                                            </form>
+                                                </form>
+                                            </ScrollArea>
                                         </DialogContent>
                                     </Dialog>
                                 </div>
@@ -2453,8 +2583,9 @@ const AdminDashboard = () => {
                             />
 
                             <Dialog open={isAllotDialogOpen} onOpenChange={setIsAllotDialogOpen}>
-                                <DialogContent className="sm:max-w-[400px] rounded-2xl max-h-[90vh] overflow-y-auto">
-                                    <form onSubmit={handleAllotWorkspace} noValidate>
+                                <DialogContent className="sm:max-w-[400px] rounded-2xl p-0 overflow-hidden">
+                                    <ScrollArea className="max-h-[90vh]">
+                                        <form onSubmit={handleAllotWorkspace} noValidate className="p-8">
                                         <DialogHeader>
                                             <DialogTitle>Allot Workspace</DialogTitle>
                                             <DialogDescription>
@@ -2524,7 +2655,6 @@ const AdminDashboard = () => {
                                                             }}
                                                             showTime={true}
                                                             className="border-primary/20 focus:ring-primary/10"
-                                                            disabled={(date: Date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
                                                         />
                                                         <p className="text-[10px] text-muted-foreground italic">
                                                             Mention when this booking starts.
@@ -2572,13 +2702,15 @@ const AdminDashboard = () => {
                                             </Button>
                                         </DialogFooter>
                                     </form>
+                                    </ScrollArea>
                                 </DialogContent>
                             </Dialog>
 
                             {/* Edit Workspace Modal */}
                             <Dialog open={isEditWorkspaceDialogOpen} onOpenChange={setIsEditWorkspaceDialogOpen}>
-                                <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 border-none shadow-2xl max-h-[90vh] overflow-y-auto">
-                                    <div className="bg-gradient-to-br from-primary/10 via-background to-background p-8">
+                                <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 border-none shadow-2xl overflow-hidden">
+                                    <ScrollArea className="max-h-[90vh]">
+                                        <div className="bg-gradient-to-br from-primary/10 via-background to-background p-8">
                                         <form onSubmit={handleUpdateWorkspace} className="space-y-6" noValidate>
                                             <DialogHeader>
                                                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
@@ -2940,6 +3072,7 @@ const AdminDashboard = () => {
                                             </DialogFooter>
                                         </form>
                                     </div>
+                                    </ScrollArea>
                                 </DialogContent>
                             </Dialog>
 

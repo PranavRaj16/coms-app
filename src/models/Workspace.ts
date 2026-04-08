@@ -17,6 +17,8 @@ export interface IWorkspace extends Document {
         workstationSeats?: number;
         conferenceHallSeats?: number;
         cabinSeats?: number;
+        numCabins?: number;
+        numConferenceHalls?: number;
     };
     allottedTo?: mongoose.Types.ObjectId | string;
     allotmentStart?: Date;
@@ -85,6 +87,14 @@ const workspaceSchema: Schema = new Schema({
             default: 0,
         },
         cabinSeats: {
+            type: Number,
+            default: 0,
+        },
+        numCabins: {
+            type: Number,
+            default: 0,
+        },
+        numConferenceHalls: {
             type: Number,
             default: 0,
         }

@@ -14,6 +14,10 @@ export interface IUser extends Document {
     resetPasswordToken?: string;
     resetPasswordExpire?: Date;
     viewedNotifications: string[];
+    includeGST: boolean;
+    includeCarParking: boolean;
+    carParkingSlots: number;
+    carParkingPricePerSlot: number;
     matchPassword(password: string): Promise<boolean>;
 }
 
@@ -60,6 +64,22 @@ const userSchema: Schema = new Schema({
     viewedNotifications: {
         type: [String],
         default: []
+    },
+    includeGST: {
+        type: Boolean,
+        default: false,
+    },
+    includeCarParking: {
+        type: Boolean,
+        default: false,
+    },
+    carParkingSlots: {
+        type: Number,
+        default: 0,
+    },
+    carParkingPricePerSlot: {
+        type: Number,
+        default: 0,
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date

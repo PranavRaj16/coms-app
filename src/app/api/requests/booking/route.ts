@@ -72,7 +72,21 @@ export async function POST(req: NextRequest) {
         }
 
         const pricePerUnit = isOpenWorkstation ? workspace.price : workspace.price; // Both use price as base, but logic differs later
-        const totalAmount = Math.ceil((workspace.price * (isOpenWorkstation ? seatCount : 1)) * durationMonths);
+        const subtotal = Math.ceil((workspace.price * (isOpenWorkstation ? seatCount : 1)) * durationMonths);
+        
+        // ── Check GST Preference ────────────────────────────────────────────────
+        let effectiveUser = user;
+        if (!effectiveUser) {
+            effectiveUser = await User.findOne({ email: body.email });
+        }
+        const isGSTIncluded = !!effectiveUser?.includeGST;
+        
+        let totalAmount = subtotal;
+        let bookingGstAmount = 0;
+        if (isGSTIncluded) {
+            bookingGstAmount = Math.round(subtotal * 0.18);
+            totalAmount = subtotal + bookingGstAmount;
+        }
         const invoiceId = `INV-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
 
         // Calculate allotment dates
@@ -145,9 +159,15 @@ export async function POST(req: NextRequest) {
         dueDate.setDate(dueDate.getDate() + 7);
 
         // For Pay Monthly, the initial invoice is only for the first month
-        const invoiceAmount = isMonthly 
-            ? Math.ceil(workspace.price * (isOpenWorkstation ? seatCount : 1))
-            : totalAmount;
+        const baseMonthlySubtotal = Math.ceil(workspace.price * (isOpenWorkstation ? seatCount : 1));
+        const invoiceSubtotal = isMonthly ? baseMonthlySubtotal : subtotal;
+        
+        let invoiceAmount = invoiceSubtotal;
+        let invoiceGstAmount = 0;
+        if (isGSTIncluded) {
+            invoiceGstAmount = Math.round(invoiceSubtotal * 0.18);
+            invoiceAmount = invoiceSubtotal + invoiceGstAmount;
+        }
 
         // For Pay Monthly, tag the initial invoice as 'recurring' with billingMonth
         // so the cron job on the 1st of the month won't create a duplicate for the same month
@@ -163,6 +183,9 @@ export async function POST(req: NextRequest) {
             customerEmail: body.email,
             workspaceName: body.workspaceName,
             amount: invoiceAmount,
+            subtotal: invoiceSubtotal,
+            gstAmount: invoiceGstAmount,
+            isGSTIncluded: isGSTIncluded,
             paymentMethod: body.paymentMethod,
             status: bookingData.paymentStatus,
             type: isMonthly ? 'recurring' : 'booking',

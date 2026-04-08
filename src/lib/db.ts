@@ -55,3 +55,50 @@ async function connectDB() {
 }
 
 export default connectDB;
+
+// --- Background Task Scheduler (for local environments without external crons) ---
+if (typeof window === 'undefined' && !(global as any)._cron_initialized) {
+    (global as any)._cron_initialized = true;
+    
+    // We use dynamic import to avoid circular dependency and only load when needed
+    setTimeout(() => {
+        import('./services/invoiceService').then(({ processMonthlyInvoices }) => {
+            console.log("[BACKGROUND_CRON] Invoice scheduler initialized. Monitoring time...");
+            
+            setInterval(() => {
+                const now = new Date();
+                const istTime = new Intl.DateTimeFormat('en-IN', {
+                    timeZone: 'Asia/Kolkata',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                }).format(now);
+                
+                // Keep the scheduler active with a log periodically
+                if (now.getMinutes() === 0) {
+                    console.log(`[BACKGROUND_CRON] Heartbeat... IST: ${istTime}`);
+                }
+ 
+                // Check for target times (10:00 AM IST on the 1st of every month)
+                const isTargetTime = (istTime === '10:00');
+                const isFirstDay = (now.getDate() === 1);
+                
+                if (isTargetTime && isFirstDay) {
+                     console.log(`[BACKGROUND_CRON] 1ST OF MONTH DETECTED! Triggering official invoice generation at ${istTime} IST...`);
+                     
+                     // Generate for the PREVIOUS month (e.g. if it's June 1, generate for May)
+                     const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+                     
+                     processMonthlyInvoices(previousMonthDate)
+                        .then(res => {
+                            console.log(`[BACKGROUND_CRON] SUCCESS: Invoices generated for ${res.billingMonthLabel}`);
+                            console.log(` - Total Generated: ${res.generated}`);
+                            console.log(` - Already Processed: ${res.alreadyInvoiced}`);
+                        })
+                        .catch(err => console.error(`[BACKGROUND_CRON] FAILED:`, err.message));
+                }
+            }, 60000); // Check every minute
+        }).catch(err => console.error("[BACKGROUND_CRON] Initialization failed:", err.message));
+    }, 5000); // Delay start slightly to let DB stabilize
+}
+

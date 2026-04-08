@@ -102,4 +102,10 @@ export interface Invoice {
     billingMonth?: string;
     type?: string;
     location?: string;
+    subtotal?: number;
+    gstAmount?: number;
+    isGSTIncluded?: boolean;
+    carParkingAmount?: number;
+    carParkingSlots?: number;
+    carParkingPricePerSlot?: number;
 }

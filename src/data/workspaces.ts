@@ -18,6 +18,8 @@ export interface Workspace {
         workstationSeats?: number;
         conferenceHallSeats?: number;
         cabinSeats?: number;
+        numCabins?: number;
+        numConferenceHalls?: number;
     };
     allottedTo?: {
         _id: string;
