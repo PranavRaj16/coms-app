@@ -29,7 +29,7 @@ const CoTrading = () => {
                                 Master the Markets in our <span className="text-primary italic underline decoration-primary/20">Co-Trading Spaces</span>
                             </h2>
                             <p className="text-muted-foreground text-lg md:text-xl leading-relaxed max-w-xl font-medium">
-                                India&apos;s first collaborative trading environment designed for Stock Market and FOREX professionals. Join a dynamic ecosystem where you can learn, strategize, and execute trades in real-time.
+                                A collaborative trading platform built for Stock Market and FOREX professionals. Be part of a dynamic ecosystem to learn, strategize, and execute trades in real time.
                             </p>
                         </div>
 
