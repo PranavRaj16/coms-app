@@ -1237,10 +1237,16 @@ const UserDashboard = () => {
                                                                     <Badge className="bg-amber-500 text-black border-none px-3 py-1 font-black uppercase tracking-widest text-[10px] animate-pulse">
                                                                         ⏳ Pre-Booked
                                                                     </Badge>
-                                                                    <div className="flex items-center gap-2 bg-amber-500/20 backdrop-blur-md px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full border border-amber-500/30">
+                                                                    <div className="flex items-center gap-2 bg-amber-500/20 backdrop-blur-md px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full border border-amber-500/30">
                                                                         <div className="w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full bg-amber-500 animate-pulse" />
                                                                         <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-400">Reserved</span>
                                                                     </div>
+                                                                    {ws.allotmentStart && new Date(ws.allotmentStart) > new Date() && (
+                                                                        <div className="flex items-center gap-2 bg-amber-500/20 backdrop-blur-md px-2.5 sm:px-3 py-1.5 sm:py-1.5 rounded-full border border-amber-500/30">
+                                                                            <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                                                            <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-amber-400">Available Until {new Date(new Date(ws.allotmentStart).getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                                 <h2 className="text-3xl sm:text-4xl font-black lg:text-5xl italic tracking-tight mb-2">{ws.name}</h2>
                                                                 <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-white/90 text-[10px] sm:text-sm font-bold uppercase tracking-widest bg-white/5 backdrop-blur-sm w-fit px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl border border-white/10">
@@ -2199,6 +2205,12 @@ const UserDashboard = () => {
                                                             <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-destructive text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl animate-pulse flex items-center gap-1.5 ring-4 ring-destructive/20">
                                                                 <Clock className="w-3 h-3" />
                                                                 {ws.type === "Open WorkStation" && ws.availableSeats !== undefined && ws.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
+                                                            </div>
+                                                        )}
+                                                        {availableUntil && (
+                                                            <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl flex items-center gap-1.5 ring-4 ring-amber-500/20">
+                                                                <Clock className="w-3 h-3" />
+                                                                Available Until {new Date(availableUntil.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                                                             </div>
                                                         )}
                                                     </div>

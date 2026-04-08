@@ -15,6 +15,9 @@ const CustomizedWorkspace = dynamic(() => import("@/components/landing/Customize
 const VirtualOffice = dynamic(() => import("@/components/landing/VirtualOffice"), {
   loading: () => <div className="h-96 animate-pulse bg-muted" />,
 });
+const CoTrading = dynamic(() => import("@/components/landing/CoTrading"), {
+  loading: () => <div className="h-96 animate-pulse bg-muted" />,
+});
 const CTA = dynamic(() => import("@/components/landing/CTA"), {
   loading: () => <div className="h-64 animate-pulse bg-muted" />,
 });
@@ -25,6 +28,7 @@ export default function Home() {
       <Hero />
       <Features />
       <WorkspacePreview />
+      <CoTrading />
       <VirtualOffice />
       <CustomizedWorkspace />
       <CTA />
