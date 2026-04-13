@@ -38,6 +38,7 @@ export async function PUT(
             dbUser.includeCarParking = body.includeCarParking !== undefined ? body.includeCarParking : dbUser.includeCarParking;
             dbUser.carParkingSlots = body.carParkingSlots !== undefined ? body.carParkingSlots : dbUser.carParkingSlots;
             dbUser.carParkingPricePerSlot = body.carParkingPricePerSlot !== undefined ? body.carParkingPricePerSlot : dbUser.carParkingPricePerSlot;
+            dbUser.memberType = body.memberType !== undefined ? body.memberType : dbUser.memberType;
 
             const updatedUser = await dbUser.save();
             return NextResponse.json({
@@ -53,7 +54,8 @@ export async function PUT(
                 includeGST: updatedUser.includeGST,
                 includeCarParking: updatedUser.includeCarParking,
                 carParkingSlots: updatedUser.carParkingSlots,
-                carParkingPricePerSlot: updatedUser.carParkingPricePerSlot
+                carParkingPricePerSlot: updatedUser.carParkingPricePerSlot,
+                memberType: updatedUser.memberType
             });
         } else {
             return NextResponse.json({ message: 'User not found' }, { status: 404 });

@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 
         // 2. Find all workspaces matching the query
         const workspacesAtLocations = await Workspace.find(query)
-            .populate('allottedTo', 'name email role organization joinedDate lastActive');
+            .populate('allottedTo', 'name email role organization joinedDate lastActive mobile contactNumber skills');
 
         // 3. Extract unique users (excluding current user) and their workspace names
         const uniqueUsersMap = new Map();

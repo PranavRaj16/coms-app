@@ -18,6 +18,7 @@ export interface IUser extends Document {
     includeCarParking: boolean;
     carParkingSlots: number;
     carParkingPricePerSlot: number;
+    memberType: 'Resident' | 'Flexible';
     matchPassword(password: string): Promise<boolean>;
 }
 
@@ -80,6 +81,11 @@ const userSchema: Schema = new Schema({
     carParkingPricePerSlot: {
         type: Number,
         default: 0,
+    },
+    memberType: {
+        type: String,
+        enum: ['Resident', 'Flexible'],
+        default: 'Resident',
     },
     resetPasswordToken: String,
     resetPasswordExpire: Date

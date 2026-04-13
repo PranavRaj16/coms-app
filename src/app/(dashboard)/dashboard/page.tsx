@@ -1556,7 +1556,7 @@ const UserDashboard = () => {
                                                         disabled={isRequestingWorkspace}
                                                     >
                                                         {isRequestingWorkspace ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                                                        Request Booking
+                                                        Book Now
                                                     </Button>
                                                 )}
                                                 <Button
@@ -2017,13 +2017,15 @@ const UserDashboard = () => {
                                                                 </p>
                                                             </div>
 
-                                                            <div className="flex flex-wrap gap-2">
-                                                                {(member.user?.skills?.length ? member.user.skills.slice(0, 3) : ["Strategy", "Scale", "Innovation"]).map((skill: string) => (
-                                                                    <span key={skill} className="px-3 py-1 rounded-lg bg-muted/50 text-[9px] font-black uppercase text-muted-foreground tracking-widest group-hover/member:bg-primary/5 group-hover/member:text-primary transition-colors">
-                                                                        {skill}
-                                                                    </span>
-                                                                ))}
-                                                            </div>
+                                                            {member.user?.skills && member.user.skills.length > 0 && (
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {member.user.skills.slice(0, 3).map((skill: string) => (
+                                                                        <span key={skill} className="px-3 py-1 rounded-lg bg-muted/50 text-[9px] font-black uppercase text-muted-foreground tracking-widest group-hover/member:bg-primary/5 group-hover/member:text-primary transition-colors">
+                                                                            {skill}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
 
                                                             {(member.user?.organization || member.user?.email) && (
                                                                 <div className="flex items-center gap-2 bg-muted/20 px-3 py-2 rounded-xl border border-border/40">
@@ -2049,14 +2051,7 @@ const UserDashboard = () => {
                                                                     setIsContactModalOpen(true);
                                                                 }}
                                                             >
-                                                                Collaborate
-                                                            </Button>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-12 w-12 rounded-2xl bg-muted/50 text-muted-foreground hover:bg-primary/10 hover:text-primary hover:rotate-12 transition-all"
-                                                            >
-                                                                <Activity className="w-5 h-5" />
+                                                                Get in Touch
                                                             </Button>
                                                         </div>
 
@@ -2181,107 +2176,107 @@ const UserDashboard = () => {
                                     ) : (
                                         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
                                             {filteredWorkspaces.map((ws) => {
-                                            const now = new Date();
-                                            const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
-                                            const isUnavailable = ws.type === "Open WorkStation"
-                                                ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
-                                                : !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
-                                            const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
+                                                const now = new Date();
+                                                const allotmentStart = ws.allotmentStart ? new Date(ws.allotmentStart) : null;
+                                                const isUnavailable = ws.type === "Open WorkStation"
+                                                    ? (ws.availableSeats !== undefined ? ws.availableSeats <= 0 : false)
+                                                    : !!ws.allottedTo && (!allotmentStart || now >= allotmentStart);
+                                                const availableUntil = !!ws.allottedTo && allotmentStart && now < allotmentStart ? allotmentStart : null;
 
-                                            return (
-                                                <div key={ws._id || ws.id} className={`card-elevated group overflow-hidden flex flex-col h-full transition-all duration-500 ${isUnavailable ? 'grayscale opacity-80' : ''}`}>
-                                                    <div className="relative h-56 overflow-hidden">
-                                                        <img
-                                                            src={ws.image || DEFAULT_WORKSPACE_IMAGE}
-                                                            alt={ws.name}
-                                                            className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-                                                        />
-                                                        {ws.featured && !isUnavailable && (
-                                                            <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider shadow-lg">
-                                                                Featured
-                                                            </div>
-                                                        )}
-                                                        {isUnavailable && (
-                                                            <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-destructive text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl animate-pulse flex items-center gap-1.5 ring-4 ring-destructive/20">
-                                                                <Clock className="w-3 h-3" />
-                                                                {ws.type === "Open WorkStation" && ws.availableSeats !== undefined && ws.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
-                                                            </div>
-                                                        )}
-                                                        {availableUntil && (
-                                                            <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl flex items-center gap-1.5 ring-4 ring-amber-500/20">
-                                                                <Clock className="w-3 h-3" />
-                                                                Available Until {new Date(availableUntil.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="p-6 flex-1 flex flex-col">
-                                                        <div className="flex justify-between items-start mb-2">
-                                                            <span className="text-xs font-bold text-primary uppercase tracking-widest">{ws.type}</span>
-                                                            <span className="text-sm font-semibold text-foreground">
-                                                                {ws.price && Number(ws.price) > 0
-                                                                    ? `₹${Number(ws.price).toLocaleString('en-IN')} / month`
-                                                                    : "Contact for Pricing"}
-                                                            </span>
-                                                        </div>
-                                                        <h3 className="text-xl font-bold text-foreground mb-3">{ws.name}</h3>
-
-                                                        {isUnavailable && (
-                                                            <div className="mb-4 bg-destructive/10 border border-destructive/20 p-3 rounded-xl flex items-center gap-3">
-                                                                <div className="w-8 h-8 rounded-full bg-destructive/20 flex items-center justify-center text-destructive">
-                                                                    <Clock className="w-4 h-4" />
+                                                return (
+                                                    <div key={ws._id || ws.id} className={`card-elevated group overflow-hidden flex flex-col h-full transition-all duration-500 ${isUnavailable ? 'grayscale opacity-80' : ''}`}>
+                                                        <div className="relative h-56 overflow-hidden">
+                                                            <img
+                                                                src={ws.image || DEFAULT_WORKSPACE_IMAGE}
+                                                                alt={ws.name}
+                                                                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                                                            />
+                                                            {ws.featured && !isUnavailable && (
+                                                                <div className="absolute top-4 left-4 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-bold uppercase tracking-wider shadow-lg">
+                                                                    Featured
                                                                 </div>
-                                                                <div className="flex flex-col">
-                                                                    <span className="text-[10px] uppercase font-black tracking-widest text-destructive">
-                                                                        {ws.type === "Open WorkStation" ? "Booking Status" : "Booked Until"}
-                                                                    </span>
-                                                                    <span className="text-xs font-bold text-destructive">
-                                                                        {ws.type === "Open WorkStation"
-                                                                            ? "Current capacity is full"
-                                                                            : (ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
-                                                                                month: 'short',
-                                                                                day: 'numeric',
-                                                                                year: 'numeric'
-                                                                            }) : "Further Notice")}
-                                                                    </span>
+                                                            )}
+                                                            {isUnavailable && (
+                                                                <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-destructive text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl animate-pulse flex items-center gap-1.5 ring-4 ring-destructive/20">
+                                                                    <Clock className="w-3 h-3" />
+                                                                    {ws.type === "Open WorkStation" && ws.availableSeats !== undefined && ws.availableSeats <= 0 ? "Fully Booked" : "Unavailable"}
                                                                 </div>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="space-y-3 mb-6 font-medium">
-                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                <MapPin className="w-4 h-4 text-primary" />
-                                                                {ws.location}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                                <Users className="w-4 h-4 text-primary" />
-                                                                {ws.type === "Open WorkStation"
-                                                                    ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available`
-                                                                    : ws.capacity}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="mt-auto flex gap-3">
-                                                            <Button
-                                                                variant="outline"
-                                                                className="flex-1 rounded-xl font-bold"
-                                                                onClick={() => changeView("workspace-details", String(ws._id || ws.id))}
-                                                            >
-                                                                View Details
-                                                            </Button>
-                                                            {!isUnavailable && (
-                                                                <Button
-                                                                    disabled={isRequesting}
-                                                                    onClick={() => handleRequestWorkspace(ws)}
-                                                                    className="flex-1 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02]"
-                                                                >
-                                                                    Request Booking
-                                                                </Button>
+                                                            )}
+                                                            {availableUntil && (
+                                                                <div className="absolute top-4 right-4 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-[10px] font-black uppercase tracking-[0.1em] shadow-xl flex items-center gap-1.5 ring-4 ring-amber-500/20">
+                                                                    <Clock className="w-3 h-3" />
+                                                                    Available Until {new Date(availableUntil.getTime() - 86400000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                                                                </div>
                                                             )}
                                                         </div>
+
+                                                        <div className="p-6 flex-1 flex flex-col">
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <span className="text-xs font-bold text-primary uppercase tracking-widest">{ws.type}</span>
+                                                                <span className="text-sm font-semibold text-foreground">
+                                                                    {ws.price && Number(ws.price) > 0
+                                                                        ? `₹${Number(ws.price).toLocaleString('en-IN')} / month`
+                                                                        : "Contact for Pricing"}
+                                                                </span>
+                                                            </div>
+                                                            <h3 className="text-xl font-bold text-foreground mb-3">{ws.name}</h3>
+
+                                                            {isUnavailable && (
+                                                                <div className="mb-4 bg-destructive/10 border border-destructive/20 p-3 rounded-xl flex items-center gap-3">
+                                                                    <div className="w-8 h-8 rounded-full bg-destructive/20 flex items-center justify-center text-destructive">
+                                                                        <Clock className="w-4 h-4" />
+                                                                    </div>
+                                                                    <div className="flex flex-col">
+                                                                        <span className="text-[10px] uppercase font-black tracking-widest text-destructive">
+                                                                            {ws.type === "Open WorkStation" ? "Booking Status" : "Booked Until"}
+                                                                        </span>
+                                                                        <span className="text-xs font-bold text-destructive">
+                                                                            {ws.type === "Open WorkStation"
+                                                                                ? "Current capacity is full"
+                                                                                : (ws.unavailableUntil ? new Date(ws.unavailableUntil).toLocaleString(undefined, {
+                                                                                    month: 'short',
+                                                                                    day: 'numeric',
+                                                                                    year: 'numeric'
+                                                                                }) : "Further Notice")}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            <div className="space-y-3 mb-6 font-medium">
+                                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                    <MapPin className="w-4 h-4 text-primary" />
+                                                                    {ws.location}
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                                                    <Users className="w-4 h-4 text-primary" />
+                                                                    {ws.type === "Open WorkStation"
+                                                                        ? `${ws.availableSeats ?? 0} / ${ws.totalSeats ?? 0} Seats Available`
+                                                                        : ws.capacity}
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="mt-auto flex gap-3">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    className="flex-1 rounded-xl font-bold"
+                                                                    onClick={() => changeView("workspace-details", String(ws._id || ws.id))}
+                                                                >
+                                                                    View Details
+                                                                </Button>
+                                                                {!isUnavailable && (
+                                                                    <Button
+                                                                        disabled={isRequesting}
+                                                                        onClick={() => handleRequestWorkspace(ws)}
+                                                                        className="flex-1 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02]"
+                                                                    >
+                                                                        Book Now
+                                                                    </Button>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            );
+                                                );
                                             })}
                                         </div>
                                     )}
@@ -2370,8 +2365,8 @@ const UserDashboard = () => {
                                                             <tr key={i} className="hover:bg-muted/10 transition-colors">
                                                                 <td className="px-8 py-5">
                                                                     <Badge variant="outline" className={`rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase ${req.type === 'booking' ? 'bg-primary/5 text-primary border-primary/20' :
-                                                                            req.type === 'visit' ? 'bg-amber-500/5 text-amber-600 border-amber-500/20' :
-                                                                                'bg-indigo-500/5 text-indigo-600 border-indigo-500/20'
+                                                                        req.type === 'visit' ? 'bg-amber-500/5 text-amber-600 border-amber-500/20' :
+                                                                            'bg-indigo-500/5 text-indigo-600 border-indigo-500/20'
                                                                         }`}>
                                                                         {req.type}
                                                                     </Badge>
@@ -2508,21 +2503,21 @@ const UserDashboard = () => {
                                                                     </td>
                                                                     <td className="px-8 py-4 text-right">
                                                                         <div className="flex justify-end gap-2 items-center">
-                                                                                <Button 
-                                                                                    variant="ghost" 
-                                                                                    size="icon" 
-                                                                                    className="h-9 w-9 rounded-xl hover:bg-primary/10 text-primary transition-all duration-300 group/preview" 
-                                                                                    onClick={(e) => {
-                                                                                        e.stopPropagation();
-                                                                                        const userInfo = typeof window !== 'undefined' ? localStorage.getItem('userInfo') : null;
-                                                                                        const token = userInfo ? JSON.parse(userInfo).token : '';
-                                                                                        window.open(`/api/requests/invoices/${inv._id}/download?token=${token}&preview=true`, '_blank');
-                                                                                    }}
-                                                                                    title="View & Download Invoice"
-                                                                                >
-                                                                                    <Eye className="w-4 h-4 group-hover/preview:scale-110 transition-transform" />
-                                                                                </Button>
-                                                                            
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                className="h-9 w-9 rounded-xl hover:bg-primary/10 text-primary transition-all duration-300 group/preview"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const userInfo = typeof window !== 'undefined' ? localStorage.getItem('userInfo') : null;
+                                                                                    const token = userInfo ? JSON.parse(userInfo).token : '';
+                                                                                    window.open(`/api/requests/invoices/${inv._id}/download?token=${token}&preview=true`, '_blank');
+                                                                                }}
+                                                                                title="View & Download Invoice"
+                                                                            >
+                                                                                <Eye className="w-4 h-4 group-hover/preview:scale-110 transition-transform" />
+                                                                            </Button>
+
                                                                             {inv.status === 'Pending' ? (
                                                                                 <Button
                                                                                     size="sm"
@@ -3160,168 +3155,144 @@ const UserDashboard = () => {
             <Dialog open={isBookingModalOpen} onOpenChange={setIsBookingModalOpen}>
                 <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden rounded-[2rem] border-none shadow-2xl glass">
                     <ScrollArea className="max-h-[85vh]">
-                    <DialogHeader className="sr-only">
-                        <DialogTitle>Request Space</DialogTitle>
-                        <DialogDescription>Select the start date and duration for your booking.</DialogDescription>
-                    </DialogHeader>
-                    <div className="bg-primary p-8 text-white relative">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <CalendarCheck className="w-32 h-32" />
-                        </div>
-                        <h2 className="text-3xl font-black tracking-tight mb-2">Request Space</h2>
-                        <p className="text-primary-foreground/80 font-medium text-sm">
-                            {selectedWorkspaceToBook?.name} in {selectedWorkspaceToBook?.location}
-                        </p>
-                    </div>
-
-                    <div className="p-8 space-y-6">
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Planning to start from</Label>
-                            <DateTimePicker
-                                date={bookingParams.startDate ? new Date(bookingParams.startDate + 'T00:00:00') : undefined}
-                                setDate={(date) => {
-                                    if (date) {
-                                        const y = date.getFullYear();
-                                        const m = String(date.getMonth() + 1).padStart(2, '0');
-                                        const d = String(date.getDate()).padStart(2, '0');
-                                        setBookingParams({ ...bookingParams, startDate: `${y}-${m}-${d}` });
-                                    } else {
-                                        setBookingParams({ ...bookingParams, startDate: '' });
-                                    }
-                                }}
-                                className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
-                            />
+                        <DialogHeader className="sr-only">
+                            <DialogTitle>Request Space</DialogTitle>
+                            <DialogDescription>Select the start date and duration for your booking.</DialogDescription>
+                        </DialogHeader>
+                        <div className="bg-primary p-8 text-white relative">
+                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                <CalendarCheck className="w-32 h-32" />
+                            </div>
+                            <h2 className="text-3xl font-black tracking-tight mb-2">Request Space</h2>
+                            <p className="text-primary-foreground/80 font-medium text-sm">
+                                {selectedWorkspaceToBook?.name} in {selectedWorkspaceToBook?.location}
+                            </p>
                         </div>
 
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Stay until</Label>
-                            <DateTimePicker
-                                date={bookingParams.endDate ? new Date(bookingParams.endDate + 'T23:59:59') : undefined}
-                                setDate={(date) => {
-                                    if (date) {
-                                        const y = date.getFullYear();
-                                        const m = String(date.getMonth() + 1).padStart(2, '0');
-                                        const d = String(date.getDate()).padStart(2, '0');
-                                        setBookingParams({ ...bookingParams, endDate: `${y}-${m}-${d}` });
-                                    } else {
-                                        setBookingParams({ ...bookingParams, endDate: '' });
-                                    }
-                                }}
-                                className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
-                                disabled={(date: Date) => {
-                                    const start = bookingParams.startDate ? new Date(bookingParams.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
-                                    return date <= start;
-                                }}
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Payment Strategy</Label>
-                            <Select
-                                value={bookingParams.paymentMethod || "Pay Now"}
-                                onValueChange={(val) => setBookingParams({ ...bookingParams, paymentMethod: val })}
-                            >
-                                <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-border/50 font-bold">
-                                    <SelectValue placeholder="Select Payment Method" />
-                                </SelectTrigger>
-                                <SelectContent className="rounded-xl">
-                                    <SelectItem value="Pay Now">
-                                        <div className="flex items-center gap-2 font-bold">
-                                            <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
-                                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                                            </div>
-                                            Pay Now
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem value="Pay Later">
-                                        <div className="flex items-center gap-2 font-bold">
-                                            <div className="w-6 h-6 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                                                <Clock className="w-3.5 h-3.5 text-orange-600" />
-                                            </div>
-                                            Pay Later
-                                        </div>
-                                    </SelectItem>
-                                    <SelectItem
-                                        value="Pay Monthly"
-                                        disabled={(() => {
-                                            const parts = bookingParams.duration.split(" ");
-                                            const num = parseFloat(parts[0]) || 0;
-                                            const unit = parts[1]?.toLowerCase() || '';
-                                            if (unit.startsWith('month')) return num < 1;
-                                            if (unit.startsWith('year')) return num < (1 / 12);
-                                            return true; // Not eligible for days/weeks/hours
-                                        })()}
-                                    >
-                                        <div className="flex items-center gap-2 font-bold">
-                                            <div className="w-6 h-6 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                                                <Layers className="w-3.5 h-3.5 text-blue-600" />
-                                            </div>
-                                            Pay Monthly
-                                        </div>
-                                    </SelectItem>
-
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        {selectedWorkspaceToBook?.type === "Open WorkStation" && (
-                            <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Number of Seats (Available: {selectedWorkspaceToBook.availableSeats ?? (selectedWorkspaceToBook as any).features?.workstationSeats ?? 0})</Label>
-                                <Input
-                                    type="number"
-                                    min={1}
-                                    max={selectedWorkspaceToBook.availableSeats ?? (selectedWorkspaceToBook as any).features?.workstationSeats ?? 20}
-                                    value={bookingParams.seatCount || 1}
-                                    onChange={(e) => setBookingParams({ ...bookingParams, seatCount: parseInt(e.target.value) || 1 })}
-                                    className="h-12 border-border/50 bg-muted/30 font-bold focus:ring-primary/20"
+                        <div className="p-8 space-y-6">
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Planning to start from</Label>
+                                <DateTimePicker
+                                    date={bookingParams.startDate ? new Date(bookingParams.startDate + 'T00:00:00') : undefined}
+                                    setDate={(date) => {
+                                        if (date) {
+                                            const y = date.getFullYear();
+                                            const m = String(date.getMonth() + 1).padStart(2, '0');
+                                            const d = String(date.getDate()).padStart(2, '0');
+                                            setBookingParams({ ...bookingParams, startDate: `${y}-${m}-${d}` });
+                                        } else {
+                                            setBookingParams({ ...bookingParams, startDate: '' });
+                                        }
+                                    }}
+                                    className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
                                 />
                             </div>
-                        )}
 
-                        <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
-                            <div className="space-y-0.5">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">
-                                    {bookingParams.paymentMethod === "Pay Monthly" ? "Monthly Commitment" : "Estimated Total"}
-                                </p>
-                                <p className="text-sm font-medium text-muted-foreground leading-none">
-                                    {bookingParams.paymentMethod === "Pay Monthly"
-                                        ? "Billed every month start"
-                                        : `Pro-rated for ${bookingParams.duration}`}
-                                </p>
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Stay until</Label>
+                                <DateTimePicker
+                                    date={bookingParams.endDate ? new Date(bookingParams.endDate + 'T23:59:59') : undefined}
+                                    setDate={(date) => {
+                                        if (date) {
+                                            const y = date.getFullYear();
+                                            const m = String(date.getMonth() + 1).padStart(2, '0');
+                                            const d = String(date.getDate()).padStart(2, '0');
+                                            setBookingParams({ ...bookingParams, endDate: `${y}-${m}-${d}` });
+                                        } else {
+                                            setBookingParams({ ...bookingParams, endDate: '' });
+                                        }
+                                    }}
+                                    className="h-12 border-border/50 bg-muted/30 font-bold transition-colors focus:ring-primary/20"
+                                    disabled={(date: Date) => {
+                                        const start = bookingParams.startDate ? new Date(bookingParams.startDate + 'T00:00:00') : new Date(new Date().setHours(0, 0, 0, 0));
+                                        return date <= start;
+                                    }}
+                                />
                             </div>
-                            <div className="text-right">
-                                <p className="text-2xl font-black text-primary italic">
-                                    ₹{bookingParams.paymentMethod === "Pay Monthly"
-                                        ? (Number(selectedWorkspaceToBook?.price || 0) * (selectedWorkspaceToBook?.type === "Open WorkStation" ? bookingParams.seatCount : 1)).toLocaleString()
-                                        : estimatedTotal.toLocaleString()}
-                                </p>
-                            </div>
-                        </div>
 
-                        <div className="pt-4 flex gap-3">
-                            <Button
-                                variant="ghost"
-                                className="flex-1 h-12 rounded-xl font-bold"
-                                onClick={() => setIsBookingModalOpen(false)}
-                            >
-                                Cancel
-                            </Button>
-                            <Button
-                                className="flex-1 h-12 rounded-xl font-bold shadow-lg shadow-primary/20"
-                                onClick={handleConfirmedBooking}
-                                disabled={isRequesting}
-                            >
-                                {isRequesting ? (
-                                    <div className="flex items-center gap-2">
-                                        <Loader2 className="w-5 h-5 animate-spin" />
-                                        <span>Processing...</span>
-                                    </div>
-                                ) : (
-                                    bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" :
-                                        bookingParams.paymentMethod === "Pay Monthly" ? "Confirm Monthly Plan" : "Confirm Request"
+                            <div className="space-y-2">
+                                <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Payment Strategy</Label>
+                                <Select
+                                    value={bookingParams.paymentMethod || "Pay Now"}
+                                    onValueChange={(val) => setBookingParams({ ...bookingParams, paymentMethod: val })}
+                                >
+                                    <SelectTrigger className="h-12 rounded-xl bg-muted/30 border-border/50 font-bold">
+                                        <SelectValue placeholder="Select Payment Method" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl">
+                                        <SelectItem value="Pay Now">
+                                            <div className="flex items-center gap-2 font-bold">
+                                                <div className="w-6 h-6 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                                </div>
+                                                Pay Now
+                                            </div>
+                                        </SelectItem>
+                                        {userInfo?.memberType !== 'Flexible' && (
+                                            <SelectItem value="Pay Later">
+                                                <div className="flex items-center gap-2 font-bold">
+                                                    <div className="w-6 h-6 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                                                        <Clock className="w-3.5 h-3.5 text-orange-600" />
+                                                    </div>
+                                                    Pay Later
+                                                </div>
+                                            </SelectItem>
+                                        )}
+                                    </SelectContent>
+                                </Select>
+                                {userInfo?.memberType === 'Flexible' && (
+                                    <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1.5 ml-1">
+                                    </p>
                                 )}
-                            </Button>
+                            </div>
+                            {selectedWorkspaceToBook?.type === "Open WorkStation" && (
+                                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Number of Seats (Available: {selectedWorkspaceToBook.availableSeats ?? (selectedWorkspaceToBook as any).features?.workstationSeats ?? 0})</Label>
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        max={selectedWorkspaceToBook.availableSeats ?? (selectedWorkspaceToBook as any).features?.workstationSeats ?? 20}
+                                        value={bookingParams.seatCount || 1}
+                                        onChange={(e) => setBookingParams({ ...bookingParams, seatCount: parseInt(e.target.value) || 1 })}
+                                        className="h-12 border-border/50 bg-muted/30 font-bold focus:ring-primary/20"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="p-5 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-between">
+                                <div className="space-y-0.5">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/60">Estimated Total</p>
+                                    <p className="text-sm font-medium text-muted-foreground leading-none">Pro-rated for {bookingParams.duration}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-2xl font-black text-primary italic">₹{estimatedTotal.toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-3">
+                                <Button
+                                    variant="ghost"
+                                    className="flex-1 h-12 rounded-xl font-bold"
+                                    onClick={() => setIsBookingModalOpen(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    className="flex-1 h-12 rounded-xl font-bold shadow-lg shadow-primary/20"
+                                    onClick={handleConfirmedBooking}
+                                    disabled={isRequesting}
+                                >
+                                    {isRequesting ? (
+                                        <div className="flex items-center gap-2">
+                                            <Loader2 className="w-5 h-5 animate-spin" />
+                                            <span>Processing...</span>
+                                        </div>
+                                    ) : (
+                                        bookingParams.paymentMethod === "Pay Now" ? "Pay Now & Book" : "Confirm Request"
+                                    )}
+                                </Button>
+                            </div>
                         </div>
-                    </div>
                     </ScrollArea>
                 </DialogContent>
             </Dialog>
@@ -3364,7 +3335,7 @@ const UserDashboard = () => {
                                 </div>
                                 <div className="text-left font-sans">
                                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider leading-none mb-1">Mobile Number</p>
-                                    <p className="text-sm font-bold">{selectedMember?.mobile || selectedMember?.contactNumber || "Contact not provided"}</p>
+                                    <p className="text-sm font-bold">{selectedMember?.mobile || selectedMember?.contactNumber || selectedMember?.contact || selectedMember?.phone || "Contact not provided"}</p>
                                 </div>
                             </div>
                         </div>
