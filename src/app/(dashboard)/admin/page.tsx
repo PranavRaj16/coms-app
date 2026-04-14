@@ -2891,9 +2891,20 @@ const AdminDashboard = () => {
                                                                         className="absolute top-1 right-1 bg-destructive text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                                                                         onClick={() => {
                                                                             if (!editingWorkspace) return;
+                                                                            const removedImageUrl = editingWorkspace.images?.[index];
                                                                             const newImages = [...(editingWorkspace.images || [])];
                                                                             newImages.splice(index, 1);
-                                                                            setEditingWorkspace({ ...editingWorkspace, images: newImages });
+                                                                            
+                                                                            let updatedWorkspace = { ...editingWorkspace, images: newImages };
+                                                                            
+                                                                            // If the deleted image was the main one, pick a new one or use default
+                                                                            if (editingWorkspace.image === removedImageUrl) {
+                                                                                updatedWorkspace.image = newImages.length > 0 
+                                                                                    ? newImages[0] 
+                                                                                    : DEFAULT_WORKSPACE_IMAGE;
+                                                                            }
+                                                                            
+                                                                            setEditingWorkspace(updatedWorkspace);
                                                                         }}
                                                                     >
                                                                         <X className="w-3 h-3" />

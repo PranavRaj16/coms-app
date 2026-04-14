@@ -99,10 +99,10 @@ export const resetPassword = (token: string, data: any) =>
 
 // Workspace APIs
 export const fetchWorkspaces = () =>
-    fetch(`${API_BASE_URL}/workspaces`).then(handleResponse);
+    fetch(`${API_BASE_URL}/workspaces`, { cache: 'no-store' }).then(handleResponse);
 
 export const fetchWorkspaceById = (id: string) =>
-    fetch(`${API_BASE_URL}/workspaces/${id}`).then(handleResponse);
+    fetch(`${API_BASE_URL}/workspaces/${id}`, { cache: 'no-store' }).then(handleResponse);
 
 export const createWorkspace = (data: any) =>
     fetch(`${API_BASE_URL}/workspaces`, {
